@@ -313,6 +313,21 @@ struct mdss_mdp_pp_tear_check {
 	u32 refx100;
 };
 
+struct htc_backlight1_table {
+	int size;
+	u16 *brt_data;
+	u16 *bl_data;
+};
+
+struct htc_backlight2_table {
+	int size;
+	int scale;
+	int max_nits;
+	u16 *data;
+};
+
+struct mdss_livedisplay_ctx;
+
 struct mdss_panel_info {
 	u32 xres;
 	u32 yres;
@@ -386,6 +401,29 @@ struct mdss_panel_info {
 	struct edp_panel_info edp;
 	
 	struct mdss_panel_debugfs_info *debugfs_info;
+
+	struct mdss_livedisplay_ctx *livedisplay;
+};
+
+struct mdss_panel_timing {
+	struct list_head list;
+	const char *name;
+
+	u32 xres;
+	u32 yres;
+
+	u32 h_back_porch;
+	u32 h_front_porch;
+	u32 h_pulse_width;
+	u32 hsync_skew;
+	u32 v_back_porch;
+	u32 v_front_porch;
+	u32 v_pulse_width;
+
+	u32 border_top;
+	u32 border_bottom;
+	u32 border_left;
+	u32 border_right;
 
 	int first_power_on;
 	int panel_id;

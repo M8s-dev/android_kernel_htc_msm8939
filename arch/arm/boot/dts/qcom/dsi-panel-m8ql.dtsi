@@ -91,6 +91,6 @@
 		qcom,mdss-dsi-lp11-init;
 		htc,mdss-camera-blk = <189>;
 		htc,panel-id=<1>;
-		qcom,dlnx_fifo_overflow;
+		qcom,mdss-dsi-force-clk-lane-hs;
 	};
 };

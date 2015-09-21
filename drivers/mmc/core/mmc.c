@@ -66,7 +66,6 @@ static const struct mmc_fixup mmc_fixups[] = {
 	MMC_FIXUP_EXT_CSD_REV("MMC16G", CID_MANFID_KINGSTON, CID_OEMID_ANY,
 			add_quirk, MMC_QUIRK_BROKEN_HPI, 5),
 
-#if 0
 	MMC_FIXUP("H8G2d", CID_MANFID_HYNIX, CID_OEMID_ANY, add_quirk_mmc,
 		  MMC_QUIRK_CACHE_DISABLE),
       
@@ -81,23 +80,6 @@ static const struct mmc_fixup mmc_fixups[] = {
 
 	MMC_FIXUP(CID_NAME_ANY, CID_MANFID_NUMONYX_MICRON, CID_OEMID_ANY,
 		add_quirk_mmc, MMC_QUIRK_CACHE_DISABLE),
-#endif
-	MMC_FIXUP("MAG2GC", CID_MANFID_SAMSUNG, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("AWPD3R", CID_MANFID_SAMSUNG, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("BWBC3R", CID_MANFID_SAMSUNG, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("SEM16G", CID_MANFID_SANDISK, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("SEM32G", CID_MANFID_SANDISK, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("HAG4d", CID_MANFID_HYNIX, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("HBG4e", CID_MANFID_HYNIX, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
-	MMC_FIXUP("HAG2e", CID_MANFID_HYNIX, CID_OEMID_ANY, remove_quirk_mmc,
-		  MMC_QUIRK_CACHE_DISABLE),
 
 	END_FIXUP
 };
@@ -327,9 +309,6 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		err = -EINVAL;
 		goto out;
 	}
-
-	if (mmc_card_mmc(card))
-		card->quirks |= MMC_QUIRK_CACHE_DISABLE;
 
 	
 	mmc_fixup_device(card, mmc_fixups);

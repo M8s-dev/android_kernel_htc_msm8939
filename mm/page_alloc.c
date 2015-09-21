@@ -851,16 +851,12 @@ static void change_pageblock_range(struct page *pageblock_page,
 }
 
 static inline struct page *
-__rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
+__rmqueue_fallback_order(struct zone *zone, int order, int start_migratetype, int current_order)
 {
 	struct free_area * area;
-	int current_order;
 	struct page *page;
 	int migratetype, i;
 
-	
-	for (current_order = MAX_ORDER-1; current_order >= order;
-						--current_order) {
 		for (i = 0;; i++) {
 			migratetype = fallbacks[start_migratetype][i];
 
@@ -912,6 +908,28 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 
 			return page;
 		}
+
+	return NULL;
+}
+
+static inline struct page *
+__rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
+{
+	int current_order;
+	struct page *page;
+
+	
+	for (current_order = MAX_ORDER-1; current_order >= max(PAGE_ALLOC_COSTLY_ORDER+1, order); --current_order) {
+		page = __rmqueue_fallback_order(zone, order, start_migratetype, current_order);
+		if (page)
+			return page;
+	}
+
+	
+	for (current_order = order; current_order <= PAGE_ALLOC_COSTLY_ORDER; ++current_order) {
+		page = __rmqueue_fallback_order(zone, order, start_migratetype, current_order);
+		if (page)
+			return page;
 	}
 
 	return NULL;

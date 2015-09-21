@@ -40,3 +40,9 @@ config AUD_MICB_INT_RBIAS_DISABLE
        bool "HTC audio not pull up on  MICB1 RBIAS setting"
        default n
        help
+
+config LMK_ZYGOTE_PROTECT
+       bool "LMK zygote protect"
+       default n
+       help
+

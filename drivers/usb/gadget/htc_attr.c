@@ -1206,9 +1206,9 @@ static void setup_vendor_info(struct android_dev *dev) {
 		vendor_id = 0x0bb4;
 		product_id = 0x0ff3;
 		goto bind;
-	/* } else if (board_mfg_mode() == 2) {
-		ANDROID_USB_ENABLE_FUNC(dev, conf, "mass_storage");
-	} */ else {
+	// } else if (board_mfg_mode() == 2) {
+	//	ANDROID_USB_ENABLE_FUNC(dev, conf, "mass_storage");
+	} else {
 		ANDROID_USB_ENABLE_FUNC(dev, conf, "mtp");
 		ANDROID_USB_ENABLE_FUNC(dev, conf, "mass_storage");
 	}

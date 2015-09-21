@@ -1251,7 +1251,7 @@ generic_make_request_checks(struct bio *bio)
 #ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
 #ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION_BOGUS
 	sprintf(wp_ptn, "mmcblk0p%d", get_partition_num_by_name("xxxxxx"));
-# else
+#else
 	sprintf(wp_ptn, "mmcblk0p%d", get_partition_num_by_name("system"));
 #endif
 	if (!strcmp(bdevname(bio->bi_bdev, b), wp_ptn) && !board_mfg_mode() &&

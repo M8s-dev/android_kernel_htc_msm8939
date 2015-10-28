@@ -34,6 +34,16 @@ config MMC_MUST_PREVENT_WP_VIOLATION
        help
          This is an option to enable workaround for eMMC WP violation error.
 
+config MMC_MUST_PREVENT_WP_VIOLATION_BOGUS
+       bool "Redirect eMMC WP violation workaround to bogus partition"
+       depends on MMC != n
+       depends on MMC_MUST_PREVENT_WP_VIOLATION
+       default n
+       help
+         Disables write protection while keeping the workaround from
+         MMC_MUST_PREVENT_WP_VIOLATION, by redirecting the target partition
+         from 'system' to a bogus partition named 'xxxxxx'.
+
 if MMC
 
 source "drivers/mmc/core/Kconfig"

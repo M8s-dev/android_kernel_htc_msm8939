@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,6 +32,7 @@
 			qcom,pon-dbc-delay = <15625>;
 			qcom,system-reset;
 			qcom,clear-warm-reset;
+			qcom,store-hard-reset-reason;
 
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
@@ -115,7 +116,7 @@
                         compatible = "qcom,qpnp-rtc";
                         #address-cells = <1>;
                         #size-cells = <1>;
-                        qcom,qpnp-rtc-write = <0>;
+                        qcom,qpnp-rtc-write = <1>;
                         qcom,qpnp-rtc-alarm-pwrup = <0>;
 
                         qcom,pm8916_rtc_rw@6000 {
@@ -221,7 +222,7 @@
 
 			qcom,vddmax-mv = <4200>;
 			qcom,vddsafe-mv = <4200>;
-			qcom,vinmin-mv = <4308>;
+			qcom,vinmin-mv = <4497>;
 			qcom,ibatsafe-ma = <1440>;
 			qcom,thermal-mitigation = <1440 720 630 0>;
 			qcom,cool-bat-decidegc = <100>;
@@ -233,7 +234,6 @@
 			qcom,batt-hot-percentage = <25>;
 			qcom,batt-cold-percentage = <80>;
 			qcom,tchg-mins = <232>;
-			qcom,resume-soc = <99>;
 			qcom,chg-vadc = <&pm8916_vadc>;
 			qcom,chg-adc_tm = <&pm8916_adc_tm>;
 
@@ -283,7 +283,7 @@
 
 			qcom,v-cutoff-uv = <3400000>;
 			qcom,max-voltage-uv = <4200000>;
-			qcom,r-conn-mohm = <0>;
+			qcom,r-conn-mohm = <20>;
 			qcom,shutdown-soc-valid-limit = <100>;
 			qcom,low-soc-calculate-soc-threshold = <15>;
 			qcom,low-voltage-calculate-soc-ms = <1000>;
@@ -301,6 +301,7 @@
 			qcom,force-s3-on-suspend;
 			qcom,force-s2-in-charging;
 			qcom,report-charger-eoc;
+			qcom,resume-soc = <99>;
 
 			qcom,batt-pres-status@1208 {
 				reg = <0x1208 0x1>;

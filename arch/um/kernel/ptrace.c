@@ -32,9 +32,6 @@ void user_disable_single_step(struct task_struct *child)
 #endif
 }
 
-/*
- * Called by kernel/ptrace.c when detaching..
- */
 void ptrace_disable(struct task_struct *child)
 {
 	user_disable_single_step(child);
@@ -51,12 +48,12 @@ long arch_ptrace(struct task_struct *child, long request,
 	void __user *vp = p;
 
 	switch (request) {
-	/* read the word at location addr in the USER area. */
+	
 	case PTRACE_PEEKUSR:
 		ret = peek_user(child, addr, data);
 		break;
 
-	/* write the word at location addr in the USER area */
+	
 	case PTRACE_POKEUSR:
 		ret = poke_user(child, addr, data);
 		break;
@@ -67,7 +64,7 @@ long arch_ptrace(struct task_struct *child, long request,
 		break;
 
 #ifdef PTRACE_GETREGS
-	case PTRACE_GETREGS: { /* Get all gp regs from the child. */
+	case PTRACE_GETREGS: { 
 		if (!access_ok(VERIFY_WRITE, p, MAX_REG_OFFSET)) {
 			ret = -EIO;
 			break;
@@ -81,7 +78,7 @@ long arch_ptrace(struct task_struct *child, long request,
 	}
 #endif
 #ifdef PTRACE_SETREGS
-	case PTRACE_SETREGS: { /* Set all gp regs in the child. */
+	case PTRACE_SETREGS: { 
 		unsigned long tmp = 0;
 		if (!access_ok(VERIFY_READ, p, MAX_REG_OFFSET)) {
 			ret = -EIO;
@@ -105,11 +102,6 @@ long arch_ptrace(struct task_struct *child, long request,
 		break;
 
 	case PTRACE_FAULTINFO: {
-		/*
-		 * Take the info from thread->arch->faultinfo,
-		 * but transfer max. sizeof(struct ptrace_faultinfo).
-		 * On i386, ptrace_faultinfo is smaller!
-		 */
 		ret = copy_to_user(p, &child->thread.arch.faultinfo,
 				   sizeof(struct ptrace_faultinfo)) ?
 			-EIO : 0;
@@ -125,10 +117,6 @@ long arch_ptrace(struct task_struct *child, long request,
 			break;
 		}
 
-		/*
-		 * This one is confusing, so just punt and return -EIO for
-		 * now
-		 */
 		ret = -EIO;
 		break;
 	}
@@ -152,18 +140,14 @@ static void send_sigtrap(struct task_struct *tsk, struct uml_pt_regs *regs,
 	info.si_signo = SIGTRAP;
 	info.si_code = TRAP_BRKPT;
 
-	/* User-mode eip? */
+	
 	info.si_addr = UPT_IS_USER(regs) ? (void __user *) UPT_IP(regs) : NULL;
 
-	/* Send us the fake SIGTRAP */
+	
 	force_sig_info(SIGTRAP, &info, tsk);
 }
 
-/*
- * XXX Check PT_DTRACE vs TIF_SINGLESTEP for singlestepping check and
- * PT_PTRACED vs TIF_SYSCALL_TRACE for syscall tracing check
- */
-void syscall_trace_enter(struct pt_regs *regs)
+int syscall_trace_enter(struct pt_regs *regs)
 {
 	audit_syscall_entry(HOST_AUDIT_ARCH,
 			    UPT_SYSCALL_NR(&regs->regs),
@@ -173,9 +157,9 @@ void syscall_trace_enter(struct pt_regs *regs)
 			    UPT_SYSCALL_ARG4(&regs->regs));
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
-		return;
+		return 0;
 
-	tracehook_report_syscall_entry(regs);
+	return tracehook_report_syscall_entry(regs);
 }
 
 void syscall_trace_leave(struct pt_regs *regs)
@@ -184,7 +168,7 @@ void syscall_trace_leave(struct pt_regs *regs)
 
 	audit_syscall_exit(regs);
 
-	/* Fake a debug trap */
+	
 	if (ptraced & PT_DTRACE)
 		send_sigtrap(current, &regs->regs, 0);
 
@@ -192,7 +176,7 @@ void syscall_trace_leave(struct pt_regs *regs)
 		return;
 
 	tracehook_report_syscall_exit(regs, 0);
-	/* force do_signal() --> is_syscall() */
+	
 	if (ptraced & PT_PTRACED)
 		set_thread_flag(TIF_SIGPENDING);
 }

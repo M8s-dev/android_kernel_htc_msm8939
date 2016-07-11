@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,6 +24,9 @@
 #define EFAILED (MAX_ERRNO - 1)
 #define ENOTREADY (MAX_ERRNO - 2)
 
+#define MAX_SUPPORTED_CLKFREQ 8
+#define CPE_SVC_INIT_PARAM_V1 1
+
 enum cpe_svc_result {
 	CPE_SVC_SUCCESS			= 0,
 	CPE_SVC_FAILED			= -EFAILED,
@@ -40,6 +43,7 @@ enum cpe_svc_event {
 	CPE_SVC_BOOT_FAILED		= 0x08,
 	CPE_SVC_READ_COMPLETE		= 0x10,
 	CPE_SVC_READ_ERROR		= 0x20,
+	CPE_SVC_BOOT			= 0x40,
 	CPE_SVC_CMI_CLIENTS_DEREG	= 0x100,
 	CPE_SVC_EVENT_ANCHOR		= 0x7FFF
 };
@@ -58,11 +62,14 @@ enum cpe_svc_route_dest {
 enum cpe_svc_mem_type {
 	CPE_SVC_DATA_MEM		= 1,
 	CPE_SVC_INSTRUCTION_MEM		= 2,
+	CPE_SVC_IPC_MEM			= 3,
 	CPE_SVC_MEM_TYPE_ANCHOR		= 0x7F
 };
 
 enum cpe_svc_codec_id {
-	CPE_SVC_CODEC_TOMTOM		= 1,
+	CPE_SVC_CODEC_TOMTOM		= 5,
+	CPE_SVC_CODEC_WCD9335		= 7,
+	CPE_SVC_CODEC_WCD9326		= 8,
 	CPE_SVC_CODEC_ID_ANCHOR		= 0x7ffffff
 };
 
@@ -72,11 +79,11 @@ enum cpe_svc_codec_version {
 };
 
 struct cpe_svc_codec_info_v1 {
-	u16			major_version;/*must be 1*/
-	u16			minor_version;/*must be 0*/
+	u16			major_version;
+	u16			minor_version;
 	u32			id;
 	u32			version;
-	/*Add 1.1 version fields after this line*/
+	
 };
 
 struct cpe_svc_notification {
@@ -95,6 +102,12 @@ struct cpe_svc_read_complete {
 	size_t   size;
 };
 
+struct cpe_svc_boot_event {
+	u32 debug_address;
+	size_t debug_buffer_size;
+	u32 status;
+};
+
 struct cpe_svc_mem_segment {
 	enum cpe_svc_mem_type type;
 	u32 cpe_addr;
@@ -110,6 +123,22 @@ struct cpe_svc_hw_cfg {
 	u8 inbox_size;
 	u8 outbox_size;
 };
+
+struct cpe_svc_cfg_clk_plan {
+	u32 current_clk_feq;
+	u32 num_clk_freqs;
+	u32 clk_freqs[MAX_SUPPORTED_CLKFREQ];
+};
+
+struct cpe_svc_init_param {
+	void *context;
+	u32 version;
+	void (*query_freq_plans_cb)(void *cdc_priv,
+			struct cpe_svc_cfg_clk_plan *clk_freq);
+	void (*change_freq_plan_cb)(void *cdc_priv,
+			u32 clk_freq);
+};
+
 
 void *cpe_svc_initialize(
 		void irq_control_callback(u32 enable),
@@ -145,4 +174,4 @@ enum cpe_svc_result cpe_svc_set_debug_mode(void *cpe_handle, u32 mode);
 
 const struct cpe_svc_hw_cfg *cpe_svc_get_hw_cfg(void *cpe_handle);
 enum cpe_svc_result cpe_svc_toggle_lab(void *cpe_handle, bool enable);
-#endif /*__CPE_SERVICES__*/
+#endif 

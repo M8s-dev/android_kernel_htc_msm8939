@@ -646,13 +646,14 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct usb_composite_dev *cdev = c->cdev;
 	struct f_acm		*acm = func_to_acm(f);
-	struct usb_string	*us;
+	static struct usb_string	*us; 
 	int			status;
 	struct usb_ep		*ep;
 
 
 	
-	us = usb_gstrings_attach(cdev, acm_strings,
+	if (!us) 
+		us = usb_gstrings_attach(cdev, acm_strings,
 			ARRAY_SIZE(acm_string_defs));
 	if (IS_ERR(us))
 		return PTR_ERR(us);

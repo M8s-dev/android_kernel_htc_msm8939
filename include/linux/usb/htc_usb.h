@@ -28,11 +28,18 @@ void msm_hsusb_8x50_phy_reset(void);
 #define HTC_COMPANY_STRING "HTC"
 
 struct android_usb_product {
+  /* Vendor ID for this set of functions.
+   * Default vendor_id in platform data will be used if this is zero.
+   */
   __u16 vendor_id;
 
-  
+  /* Default product ID. */
   __u16 product_id;
 
+  /* List of function names associated with this product.
+   * This is used to compute the USB product ID dynamically
+   * based on which functions are enabled.
+   */
   int num_functions;
   char **functions;
 };
@@ -1137,16 +1144,17 @@ static __maybe_unused char *usb_functions_all[] = {
 
 static struct android_usb_product usb_products[] = {
 	{
-		.product_id = 0x0f90, 
+		.product_id = 0x0f90, /* vary by board */
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_adb),
 		.functions	= usb_functions_mtp_ums_adb,
 	},
 	{
-		.product_id = 0x0c02, 
+		.product_id = 0x0c02, /* vary by board */
 		.num_functions	= ARRAY_SIZE(usb_functions_adb),
 		.functions	= usb_functions_adb,
 	},
 	{
+//		.product_id	= 0x0f91,
 		.product_id	= 0x0f25,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums),
 		.functions	= usb_functions_mtp_ums,
@@ -1511,13 +1519,13 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
 		.functions	= usb_functions_rndis,
 	},
-	
+	/* rndis, modem */
 	{
 		.product_id	= 0x0f80,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_modem),
 		.functions	= usb_functions_rndis_modem,
 	},
-	
+	/* rndis, mtp, adb */
 	{
 		.product_id = 0x0f21,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb),
@@ -1528,7 +1536,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
 		.functions	= usb_functions_rndis_adb,
 	},
-	
+	/* rndis, adb, modem */
 	{
 		.product_id	= 0x0f81,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_modem),
@@ -1539,7 +1547,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb),
 		.functions	= usb_functions_rndis_mtp_ums_adb,
 	},
-	
+	/* rndis, mtp, ums, adb, modem */
 	{
 		.product_id	= 0x0f7b,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_modem),
@@ -1550,134 +1558,134 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums),
 		.functions	= usb_functions_rndis_mtp_ums,
 	},
-	
+	/* rndis, mtp, adb, acm */
 	{
 		.product_id = 0x0f23,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_acm),
 		.functions	= usb_functions_rndis_mtp_adb_acm,
 	},
 
-	
+	/* rndis, mtp, adb, ums, acm */
 	{
 		.product_id	= 0x0f5f,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_acm),
 		.functions	= usb_functions_rndis_mtp_adb_ums_acm,
 	},
-	
+	/* rndis, mtp, ums, acm */
 	{
 		.product_id	= 0x0f60,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_acm),
 		.functions	= usb_functions_rndis_mtp_ums_acm,
 	},
-	
+	/* rndis, adb, ums, acm */
 	{
 		.product_id	= 0x0f61,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_acm),
 		.functions	= usb_functions_rndis_adb_ums_acm,
 	},
-	
+	/* rndis, ums, acm */
 	{
 		.product_id	= 0x0f62,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_acm),
 		.functions	= usb_functions_rndis_ums_acm,
 	},
-	
+	/* mtp, adb, ums, acm */
 	{
 		.product_id	= 0x0f63,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_acm),
 		.functions	= usb_functions_mtp_adb_ums_acm,
 	},
-	
+	/* mtp, ums, acm */
 	{
 		.product_id	= 0x0f64,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_acm),
 		.functions	= usb_functions_mtp_ums_acm,
 	},
-	
+	/* ums, acm */
 	{
 		.product_id	= 0x0f65,
 		.num_functions	= ARRAY_SIZE(usb_functions_ums_acm),
 		.functions	= usb_functions_ums_acm,
 	},
-	
+	/* rndis, mtp, adb, ums, modem, acm */
 	{
 		.product_id	= 0x0f39,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_modem_acm),
 		.functions	= usb_functions_rndis_mtp_adb_ums_modem_acm,
 	},
-	
+	/* rndis, mtp, ums, modem, acm */
 	{
 		.product_id	= 0x0f3e,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_modem_acm),
 		.functions	= usb_functions_rndis_mtp_ums_modem_acm,
 	},
-	
+	/* mtp, adb, ums, modem, acm */
 	{
 		.product_id	= 0x0f43,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_modem_acm),
 		.functions	= usb_functions_mtp_adb_ums_modem_acm,
 	},
-	
+	/* mtp, ums, modem, acm */
 	{
 		.product_id	= 0x0f48,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_modem_acm),
 		.functions	= usb_functions_mtp_ums_modem_acm,
 	},
-	
+	/* rndis, adb, ums, modem, acm */
 	{
 		.product_id	= 0x0f4d,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_modem_acm),
 		.functions	= usb_functions_rndis_adb_ums_modem_acm,
 	},
-	
+	/* rndis, ums, modem, acm */
 	{
 		.product_id	= 0x0f52,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_modem_acm),
 		.functions	= usb_functions_rndis_ums_modem_acm,
 	},
-	
+	/* adb, ums, modem, acm */
 	{
 		.product_id	= 0x0f57,
 		.num_functions	= ARRAY_SIZE(usb_functions_adb_ums_modem_acm),
 		.functions	= usb_functions_adb_ums_modem_acm,
 	},
-	
+	/* ums, modem, acm */
 	{
 		.product_id	= 0x0f5c,
 		.num_functions	= ARRAY_SIZE(usb_functions_ums_modem_acm),
 		.functions	= usb_functions_ums_modem_acm,
 	},
-	
+	/* mtp, adb, ums, modem, serial, acm */
 	{
 		.product_id	= 0x0f2f,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_modem_serial_acm),
 		.functions	= usb_functions_mtp_adb_ums_modem_serial_acm,
 	},
-	
+	/* mtp, ums, modem, serial, acm */
 	{
 		.product_id	= 0x0f34,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_modem_serial_acm),
 		.functions	= usb_functions_mtp_ums_modem_serial_acm,
 	},
-	
+	/* mtp, ums, projector, acm */
 	{
 		.product_id	= 0x0f2c,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_projector_acm),
 		.functions	= usb_functions_mtp_ums_projector_acm,
 	},
-	
+	/* mtp, ums, adb, projector, acm */
 	{
 		.product_id	= 0x0f2b,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_adb_projector_acm),
 		.functions	= usb_functions_mtp_ums_adb_projector_acm,
 	},
-	
+	/* mtp, ums, adb, acm, rmnet  */
 	{
 		.product_id	= 0x0f29,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_adb_acm_rmnet),
 		.functions	= usb_functions_mtp_ums_adb_acm_rmnet,
 	},
-	
+	/* mtp, ums, acm, rmnet  */
 	{
 		.product_id	= 0x0f2a,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_acm_rmnet),
@@ -1887,31 +1895,31 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_mtp_ums_diag_modem_serial_acm,
 	},
 #endif
-	
+	/* ptp */
 	{
 		.product_id	= 0x0f66,
 		.num_functions	= ARRAY_SIZE(usb_functions_ptp),
 		.functions	= usb_functions_ptp,
 	},
-	
+	/* ptp, adb */
 	{
 		.product_id	= 0x0f67,
 		.num_functions	= ARRAY_SIZE(usb_functions_ptp_adb),
 		.functions	= usb_functions_ptp_adb,
 	},
-	
+	/* mtp, modem */
 	{
 		.product_id	= 0x0f74,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_modem),
 		.functions	= usb_functions_mtp_modem,
 	},
-	
+	/* mtp, adb, modem */
 	{
 		.product_id	= 0x0f75,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_modem),
 		.functions	= usb_functions_mtp_adb_modem,
 	},
-	
+	/* rndis, mtp, ums, modem */
 	{
 		.product_id	= 0x0f7a,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_modem),
@@ -1923,7 +1931,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag),
 		.functions	= usb_functions_rndis_adb_diag,
 	},
-	
+	/* rndis, adb, diag, modem, diag_mdm */
 	{
 		.product_id	= 0x0f85,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag_modem),
@@ -1934,7 +1942,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag),
 		.functions	= usb_functions_rndis_diag,
 	},
-	
+	/* rndis, diag, modem, diag_mdm */
 	{
 		.product_id	= 0x0f84,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag_modem),
@@ -1945,7 +1953,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag),
 		.functions	= usb_functions_rndis_mtp_ums_adb_diag,
 	},
-	
+	/* rndis, mtp, adb, ums, diag, modem, diag_mdm */
 	{
 		.product_id	= 0x0f7d,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag_modem),
@@ -1956,19 +1964,19 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag),
 		.functions	= usb_functions_rndis_mtp_ums_diag,
 	},
-	
+	/* rndis, mtp, ums, diag, modem, diag_mdm */
 	{
 		.product_id	= 0x0f7c,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_modem),
 		.functions	= usb_functions_rndis_mtp_ums_diag_modem,
 	},
-	
+	/* mtp, diag, modem, diag_mdm */
 	{
 		.product_id	= 0x0f78,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_diag_modem),
 		.functions	= usb_functions_mtp_diag_modem,
 	},
-	
+	/* mtp, adb, diag, modem, diag_mdm */
 	{
 		.product_id	= 0x0f79,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_diag_modem),
@@ -1980,7 +1988,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag),
 		.functions	= usb_functions_rndis_mtp_ums_diag,
 	},
-	
+	/* rndis, mtp, ums, diag, modem */
 	{
 		.product_id	= 0x0f7e,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_modem),
@@ -1991,7 +1999,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag),
 		.functions	= usb_functions_rndis_mtp_ums_adb_diag,
 	},
-	
+	/* rndis, mtp, adb, ums, diag, modem */
 	{
 		.product_id	= 0x0f7f,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag_modem),
@@ -2002,7 +2010,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag),
 		.functions	= usb_functions_rndis_adb_diag,
 	},
-	
+	/* rndis, adb, diag, modem */
 	{
 		.product_id	= 0x0f83,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag_modem),
@@ -2013,19 +2021,19 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag),
 		.functions	= usb_functions_rndis_diag,
 	},
-	
+	/* rndis, diag, modem */
 	{
 		.product_id	= 0x0f82,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag_modem),
 		.functions	= usb_functions_rndis_diag_modem,
 	},
-	
+	/* mtp, diag, modem */
 	{
 		.product_id	= 0x0f76,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_diag_modem),
 		.functions	= usb_functions_mtp_diag_modem,
 	},
-	
+	/* mtp, adb, diag, modem */
 	{
 		.product_id	= 0x0f77,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_diag_modem),
@@ -2044,25 +2052,25 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_accessory_adb),
 		.functions	= usb_functions_accessory_adb,
 	},
-	{ 
+	{ /* audio_source */
 		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
 		.product_id	= USB_AUDIO_PRODUCT_ID,
 		.num_functions	= ARRAY_SIZE(usb_functions_audio),
 		.functions	= usb_functions_audio,
 	},
-	{
+	{/* audio_source,adb*/
 		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
 		.product_id	= USB_AUDIO_ADB_PRODUCT_ID,
 		.num_functions	= ARRAY_SIZE(usb_functions_audio_adb),
 		.functions	= usb_functions_audio_adb,
 	},
-	{
+	{/* accessory, audio_source */
 		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
 		.product_id	= USB_ACCESSORY_AUDIO_PRODUCT_ID,
 		.num_functions	= ARRAY_SIZE(usb_functions_accessory_audio),
 		.functions	= usb_functions_accessory_audio,
 	},
-	{
+	{/* accessory, audio_source, adb*/
 		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
 		.product_id	= USB_ACCESSORY_AUDIO_ADB_PRODUCT_ID,
 		.num_functions	= ARRAY_SIZE(usb_functions_accessory_audio_adb),
@@ -2245,18 +2253,18 @@ static struct android_usb_product usb_products[] = {
 };
 
 static __maybe_unused int qsc_modem_product_id_match_array[] = {
-	0x0fad, 0x0f68, 
-	0x0fb6, 0x0f69, 
-	0x0f7d, 0x0f6a, 
-	0x0f7c, 0x0f6b, 
-	0x0fab, 0x0f6c, 
-	0x0fac, 0x0f6d, 
-	0x0faf, 0x0f6e, 
-	0x0fae, 0x0f6f, 
-	0x0fbd, 0x0f70, 
-	0x0fbe, 0x0f71, 
-	0x0f8e, 0x0f72, 
-	0x0f8f, 0x0f73, 
+	0x0fad, 0x0f68, /* mtp + adb + ums + diag + modem + diag_mdm */
+	0x0fb6, 0x0f69, /* mtp + ums + diag + modem + diag_mdm */
+	0x0f7d, 0x0f6a, /* rndis + mtp + adb + ums + diag + diag_mdm + modem*/
+	0x0f7c, 0x0f6b, /* rndis + mtp + ums + diag + diag_mem + modem */
+	0x0fab, 0x0f6c, /* mtp + adb + ums +  diag + diag_mdm */
+	0x0fac, 0x0f6d, /* mtp + ums + diag + diag_mdm */
+	0x0faf, 0x0f6e, /* mtp + adb + ums + diag + serial + diag_mdm */
+	0x0fae, 0x0f6f, /* mtp + ums + diag + serial + diag_mdm */
+	0x0fbd, 0x0f70, /* mtp + adb + ums + diag + modem + diag_mdm + rmnet */
+	0x0fbe, 0x0f71, /* mtp + ums + diag + modem + diag_mdm + rmnet */
+	0x0f8e, 0x0f72, /* rndis + mtp + adb + ums + diag + diag_mdm */
+	0x0f8f, 0x0f73, /* rndis + mtp + ums + diag + diag_mdm */
 	-1,
 };
 
@@ -2276,103 +2284,111 @@ static __maybe_unused int qsc_modem_usb_id_match(int product_id, int intrsharing
 }
 
 #ifdef CONFIG_USB_GADGET_VERIZON_PRODUCT_ID
+/*
+ * Verizon: 0x0e05 ~ 0x0e72
+ *	Internet sharing(0)  and Internet pass through(1) both use rndis
+ */
 #ifdef CONFIG_MACH_VIGOR
 static int vigor_usb_product_id_match_array[] = {
-	0x0c93, 0x0e05, 
-	0x0ca8, 0x0e06, 
-	0x0fda, 0x0e07, 
-	0x0fdb, 0x0e08, 
-	0x0c07, 0x0e0b, 
-	0x0c08, 0x0e0c, 
-	0x0ff8, 0x0e0d, 
-	0x0fd5, 0x0e0e, 
-	0x0fd4, 0x0e0f, 
-	0x0ff9, 0x0e73, 
-	0x0fa4, 0x0e8f, 
-	0x0fa5, 0x0e90, 
-	0x0f99, 0x0e91, 
-	0x0f9a, 0x0e92, 
-	0x0fc0, 0x0e93, 
-	0x0fbf, 0x0e94, 
+	0x0c93, 0x0e05, /* mtp */
+	0x0ca8, 0x0e06, /* mtp + adb */
+	0x0fda, 0x0e07, /* ums + adb + 9k rmnet */
+	0x0fdb, 0x0e08, /* ums + 9k rmnet */
+	0x0c07, 0x0e0b, /* ums + adb + diag */
+	0x0c08, 0x0e0c, /* ums + diag */
+	0x0ff8, 0x0e0d, /* CDC-ECM */
+	0x0fd5, 0x0e0e, /* ums + diag + 9k diag + rmnet */
+	0x0fd4, 0x0e0f, /* ums + adb + diag + 9k diag + rmnet */
+	0x0ff9, 0x0e73, /* ums */
+	0x0fa4, 0x0e8f, /* mtp + adb + 9k rmnet */
+	0x0fa5, 0x0e90, /* mtp + 9k rmnet */
+	0x0f99, 0x0e91, /* mtp + adb + diag */
+	0x0f9a, 0x0e92, /* mtp + diag */
+	0x0fc0, 0x0e93, /* mtp + diag + 9k diag + rmnet */
+	0x0fbf, 0x0e94, /* mtp + adb + diag + 9k diag + rmnet */
 	-1,
 };
 
 static int vigor_usb_product_id_rndis[] = {
 	0x0e09, 0x0e0a,
 };
-#endif 
+#endif /* CONFIG_MACH_VIGOR */
 
 #ifdef CONFIG_MACH_VIVOW
 static int vivow_usb_product_id_match_array[] = {
-	0x0c93, 0x0e10, 
-	0x0ca8, 0x0e11, 
-	0x0fda, 0x0e12, 
-	0x0fdb, 0x0e13, 
-	0x0c07, 0x0e16, 
-	0x0c08, 0x0e17, 
-	0x0ff8, 0x0e18, 
-	0x0ff9, 0x0e74, 
-	0x0fa4, 0x0e87, 
-	0x0fa5, 0x0e88, 
-	0x0f99, 0x0e89, 
-	0x0f9a, 0x0e8a, 
+	0x0c93, 0x0e10, /* mtp */
+	0x0ca8, 0x0e11, /* mtp + adb */
+	0x0fda, 0x0e12, /* ums + adb + 9k rmnet */
+	0x0fdb, 0x0e13, /* ums + 9k rmnet */
+	0x0c07, 0x0e16, /* ums + adb + diag */
+	0x0c08, 0x0e17, /* ums + diag */
+	0x0ff8, 0x0e18, /* CDC-ECM */
+//0e19 is recycle	0x0fd5, 0x0e19, /* ums + diag + 9k diag + rmnet */
+//0e1a is recycle	0x0fd4, 0x0e1a, /* ums + adb + diag + 9k diag + rmnet */
+	0x0ff9, 0x0e74, /* ums */
+	0x0fa4, 0x0e87, /* mtp + adb + 9k rmnet */
+	0x0fa5, 0x0e88, /* mtp + 9k rmnet */
+	0x0f99, 0x0e89, /* mtp + adb + diag */
+	0x0f9a, 0x0e8a, /* mtp + diag */
 	-1,
 };
 
 static int vivow_usb_product_id_rndis[] = {
 	0x0e14, 0x0e15,
 };
-#endif 
+#endif /* CONFIG_MACH_VIVOW */
 
 #ifdef CONFIG_MACH_MECHA
 static int mecha_usb_product_id_match_array[] = {
-	0x0c93, 0x0e1b, 
-	0x0ca8, 0x0e1c, 
-	0x0fda, 0x0e1d, 
-	0x0fdb, 0x0e1e, 
-	0x0c07, 0x0e21, 
-	0x0c08, 0x0e22, 
-	0x0ff8, 0x0e23, 
-	0x0fd5, 0x0e24, 
-	0x0fd4, 0x0e25, 
-	0x0ff9, 0x0e75, 
-	0x0fa4, 0x0e95, 
-	0x0fa5, 0x0e96, 
-	0x0f99, 0x0e97, 
-	0x0f9a, 0x0e98, 
-	0x0fc0, 0x0e99, 
-	0x0fbf, 0x0e9a, 
+	0x0c93, 0x0e1b, /* mtp */
+	0x0ca8, 0x0e1c, /* mtp + adb */
+	0x0fda, 0x0e1d, /* ums + adb + 9k rmnet */
+	0x0fdb, 0x0e1e, /* ums + 9k rmnet */
+	0x0c07, 0x0e21, /* ums + adb + diag */
+	0x0c08, 0x0e22, /* ums + diag */
+	0x0ff8, 0x0e23, /* CDC-ECM */
+	0x0fd5, 0x0e24, /* ums + diag + 9k diag + rmnet */
+	0x0fd4, 0x0e25, /* ums + adb + diag + 9k diag + rmnet */
+	0x0ff9, 0x0e75, /* ums */
+	0x0fa4, 0x0e95, /* mtp + adb + 9k rmnet */
+	0x0fa5, 0x0e96, /* mtp + 9k rmnet */
+	0x0f99, 0x0e97, /* mtp + adb + diag */
+	0x0f9a, 0x0e98, /* mtp + diag */
+	0x0fc0, 0x0e99, /* mtp + diag + 9k diag + rmnet */
+	0x0fbf, 0x0e9a, /* mtp + adb + diag + 9k diag + rmnet */
 	-1,
 };
 
 static int mecha_usb_product_id_rndis[] = {
 	0x0e1f, 0x0e20,
 };
-#endif 
+#endif /* CONFIG_MACH_MECHA */
 
 #ifdef CONFIG_MACH_BLISSC
 static int blissc_usb_product_id_match_array[] = {
-	0x0c93, 0x0e26, 
-	0x0ca8, 0x0e27, 
-	0x0fda, 0x0e28, 
-	0x0fdb, 0x0e29, 
-	0x0c07, 0x0e2c, 
-	0x0c08, 0x0e2d, 
-	0x0ff8, 0x0e2e, 
-	0x0ff9, 0x0ccb, 
-	0x0ffc, 0x0e7d, 
-	0x0fa4, 0x0e9b, 
-	0x0fa5, 0x0e9c, 
-	0x0f99, 0x0e9d, 
-	0x0f9a, 0x0e9e, 
+	0x0c93, 0x0e26, /* mtp */
+	0x0ca8, 0x0e27, /* mtp + adb */
+	0x0fda, 0x0e28, /* ums + adb + 9k rmnet */
+	0x0fdb, 0x0e29, /* ums + 9k rmnet */
+	0x0c07, 0x0e2c, /* ums + adb + diag */
+	0x0c08, 0x0e2d, /* ums + diag */
+	0x0ff8, 0x0e2e, /* CDC-ECM */
+//0e2f is recycle	0x0fd5, 0x0e2f, /* ums + diag + 9k diag + rmnet */
+//0e30 is recycle	0x0fd4, 0x0e30, /* ums + adb + diag + 9k diag + rmnet */
+	0x0ff9, 0x0ccb, /* ums */
+	0x0ffc, 0x0e7d, /* adb + rndis, tethering with USB debugging */
+	0x0fa4, 0x0e9b, /* mtp + adb + 9k rmnet */
+	0x0fa5, 0x0e9c, /* mtp + 9k rmnet */
+	0x0f99, 0x0e9d, /* mtp + adb + diag */
+	0x0f9a, 0x0e9e, /* mtp + diag */
 	-1,
 };
 
 static int blissc_usb_product_id_rndis[] = {
 	0x0e2a, 0x0e2b,
 };
-#endif 
-#endif 
+#endif /* CONFIG_MACH_BLISSC */
+#endif /* CONFIG_USB_GADGET_VERIZON_PRODUCT_ID */
 
 
 static char *usb_inf_order_functions_diag_modem_rment[] = {
@@ -2385,7 +2401,9 @@ static char *usb_inf_order_functions_diag_modem_rment_adb[] = {
 	"diag",
 	"modem",
 	"rmnet",
+/*++ 2014/04/15, USB Team,  PCN00001_FIX_KP_BY_CHECK_SPECIAL_ORDER_COMBINATION++*/
 	"ffs",
+/*-- 2014/04/15, USB Team,  PCN00001_FIX_KP_BY_CHECK_SPECIAL_ORDER_COMBINATION--*/
 };
 
 static struct android_usb_product speical_usb_products_list[] = {

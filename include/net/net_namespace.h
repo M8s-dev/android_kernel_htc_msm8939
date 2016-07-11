@@ -1,6 +1,3 @@
-/*
- * Operations on the network namespace
- */
 #ifndef __NET_NET_NAMESPACE_H
 #define __NET_NET_NAMESPACE_H
 
@@ -9,6 +6,7 @@
 #include <linux/list.h>
 #include <linux/sysctl.h>
 
+#include <net/flow.h>
 #include <net/netns/core.h>
 #include <net/netns/mib.h>
 #include <net/netns/unix.h>
@@ -38,24 +36,18 @@ struct netns_ipvs;
 #define NETDEV_HASHENTRIES (1 << NETDEV_HASHBITS)
 
 struct net {
-	atomic_t		passive;	/* To decided when the network
-						 * namespace should be freed.
-						 */
-	atomic_t		count;		/* To decided when the network
-						 *  namespace should be shut down.
-						 */
+	atomic_t		passive;	
+	atomic_t		count;		
 #ifdef NETNS_REFCNT_DEBUG
-	atomic_t		use_count;	/* To track references we
-						 * destroy on demand
-						 */
+	atomic_t		use_count;	
 #endif
 	spinlock_t		rules_mod_lock;
 
-	struct list_head	list;		/* list of network namespaces */
-	struct list_head	cleanup_list;	/* namespaces on death row */
-	struct list_head	exit_list;	/* Use only net_mutex */
+	struct list_head	list;		
+	struct list_head	cleanup_list;	
+	struct list_head	exit_list;	
 
-	struct user_namespace   *user_ns;	/* Owning user namespace */
+	struct user_namespace   *user_ns;	
 
 	unsigned int		proc_inum;
 
@@ -66,20 +58,20 @@ struct net {
 	struct ctl_table_set	sysctls;
 #endif
 
-	struct sock 		*rtnl;			/* rtnetlink socket */
+	struct sock 		*rtnl;			
 	struct sock		*genl_sock;
 
 	struct list_head 	dev_base_head;
 	struct hlist_head 	*dev_name_head;
 	struct hlist_head	*dev_index_head;
-	unsigned int		dev_base_seq;	/* protected by rtnl_mutex */
+	unsigned int		dev_base_seq;	
 	int			ifindex;
 
-	/* core fib_rules */
+	
 	struct list_head	rules_ops;
 
 
-	struct net_device       *loopback_dev;          /* The loopback */
+	struct net_device       *loopback_dev;          
 	struct netns_core	core;
 	struct netns_mib	mib;
 	struct netns_packet	packet;
@@ -111,7 +103,7 @@ struct net {
 #endif
 	struct net_generic __rcu	*gen;
 
-	/* Note : following structs are cache line aligned */
+	
 #ifdef CONFIG_XFRM
 	struct netns_xfrm	xfrm;
 #endif
@@ -120,24 +112,15 @@ struct net {
 	atomic_t		rt_genid;
 };
 
-/*
- * ifindex generation is per-net namespace, and loopback is
- * always the 1st device in ns (see net_dev_init), thus any
- * loopback device should get ifindex 1
- */
-
-#define LOOPBACK_IFINDEX	1
-
 #include <linux/seq_file_net.h>
 
-/* Init's network namespace */
 extern struct net init_net;
 
 #ifdef CONFIG_NET_NS
 extern struct net *copy_net_ns(unsigned long flags,
 	struct user_namespace *user_ns, struct net *old_net);
 
-#else /* CONFIG_NET_NS */
+#else 
 #include <linux/sched.h>
 #include <linux/nsproxy.h>
 static inline struct net *copy_net_ns(unsigned long flags,
@@ -147,7 +130,7 @@ static inline struct net *copy_net_ns(unsigned long flags,
 		return ERR_PTR(-EINVAL);
 	return old_net;
 }
-#endif /* CONFIG_NET_NS */
+#endif 
 
 
 extern struct list_head net_namespace_list;
@@ -166,11 +149,6 @@ static inline struct net *get_net(struct net *net)
 
 static inline struct net *maybe_get_net(struct net *net)
 {
-	/* Used when we know struct net exists but we
-	 * aren't guaranteed a previous reference count
-	 * exists.  If the reference count is zero this
-	 * function fails and returns NULL.
-	 */
 	if (!atomic_inc_not_zero(&net->count))
 		net = NULL;
 	return net;
@@ -286,25 +264,6 @@ struct pernet_operations {
 	size_t size;
 };
 
-/*
- * Use these carefully.  If you implement a network device and it
- * needs per network namespace operations use device pernet operations,
- * otherwise use pernet subsys operations.
- *
- * Network interfaces need to be removed from a dying netns _before_
- * subsys notifiers can be called, as most of the network code cleanup
- * (which is done from subsys notifiers) runs with the assumption that
- * dev_remove_pack has been called so no new packets will arrive during
- * and after the cleanup functions have been called.  dev_remove_pack
- * is not per namespace so instead the guarantee of no more packets
- * arriving in a network namespace is provided by ensuring that all
- * network devices and all sockets have left the network namespace
- * before the cleanup methods are called.
- *
- * For the longest time the ipv4 icmp code was registered as a pernet
- * device which caused kernel oops, and panics during network
- * namespace cleanup.   So please don't get this wrong.
- */
 extern int register_pernet_subsys(struct pernet_operations *);
 extern void unregister_pernet_subsys(struct pernet_operations *);
 extern int register_pernet_device(struct pernet_operations *);
@@ -340,4 +299,4 @@ static inline void rt_genid_bump(struct net *net)
 	atomic_inc(&net->rt_genid);
 }
 
-#endif /* __NET_NET_NAMESPACE_H */
+#endif 

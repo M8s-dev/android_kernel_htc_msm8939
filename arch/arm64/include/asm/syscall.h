@@ -16,6 +16,8 @@
 #ifndef __ASM_SYSCALL_H
 #define __ASM_SYSCALL_H
 
+#include <uapi/linux/audit.h>
+#include <linux/compat.h>
 #include <linux/err.h>
 
 extern const void *sys_call_table[];
@@ -105,4 +107,12 @@ static inline void syscall_set_arguments(struct task_struct *task,
 	memcpy(&regs->regs[i], args, n * sizeof(args[0]));
 }
 
-#endif	/* __ASM_SYSCALL_H */
+static inline int syscall_get_arch(void)
+{
+	if (is_compat_task())
+		return AUDIT_ARCH_ARM;
+
+	return AUDIT_ARCH_AARCH64;
+}
+
+#endif	

@@ -1,0 +1,24 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+/dts-v1/;
+
+#include "msm8916-a32ul_emea_XA.dtsi"
+#include "msm8916-memory.dtsi"
+
+/ {
+	model = "A32 UL EMEA";
+	compatible = "htc,msm8916", "htc,a32ul_emea", "qcom,msm8916-cdp", "qcom,msm8916", "qcom,cdp";
+    htc,project-id = <381 0x10000>;   /* htc,project-id = <PID soc_vision> */
+    htc,hw-id = <0 0>,<1 0>,<2 0>;   /* htc,hw-id = <PCBID (Reserved)> */
+	qcom,board-id = <11 0> , <11 4>;
+};

@@ -56,13 +56,7 @@ void pn544_htc_parse_dt(struct device *dev) {
 
 void pn544_htc_off_mode_charging (void) {
 #if NFC_OFF_MODE_CHARGING_LOAD_SWITCH
-	int ret;
 	I("%s: Turn off NFC_PVDD \n", __func__);
-	ret = gpio_request(pvdd_gpio, "nfc_pvdd");
-	if (ret) {
-		E("%s : request pvdd gpio%d fail\n", __func__, pvdd_gpio);
-	} else {
-		gpio_set_value(pvdd_gpio, 0);
-	}
+	gpio_set_value(pvdd_gpio, 0);
 #endif
 }

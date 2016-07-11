@@ -120,15 +120,9 @@ static enum power_supply_property htc_battery_properties[] = {
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_CAPACITY,
-#if 0 
-	POWER_SUPPLY_PROP_OVERLOAD,
-#endif
 	POWER_SUPPLY_PROP_INPUT_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN,
 	POWER_SUPPLY_PROP_INPUT_VOLTAGE_REGULATION,
-#if 0 
-	POWER_SUPPLY_PROP_USB_OVERHEAT,
-#endif
 };
 
 static enum power_supply_property htc_power_properties[] = {
@@ -615,6 +609,7 @@ static struct device_attribute htc_battery_attrs[] = {
 	HTC_BATTERY_ATTR(batt_cable_in),
 	HTC_BATTERY_ATTR(usb_temp),
 	HTC_BATTERY_ATTR(usb_overheat),
+	HTC_BATTERY_ATTR(overload),
 
 	__ATTR(batt_attr_text, S_IRUGO, htc_battery_show_batt_attr, NULL),
 	__ATTR(batt_power_meter, S_IRUGO, htc_battery_show_cc_attr, NULL),
@@ -656,6 +651,9 @@ static struct device_attribute htc_battery_rt_attrs[] = {
 	__ATTR(voltage_now, S_IRUGO, htc_battery_rt_attr_show, NULL),
 #if defined(CONFIG_MACH_B2_WLJ)
 	__ATTR(usb_temp_now, S_IRUGO, htc_battery_rt_attr_show, NULL),
+#endif
+#ifdef CONFIG_QPNP_VM_BMS
+	__ATTR(mfg_charge_state_now, S_IRUGO, htc_battery_rt_attr_show, NULL),
 #endif
 };
 
@@ -759,11 +757,6 @@ static int htc_battery_get_property(struct power_supply *psy,
 		val->intval = battery_core_info.rep.level;
 		mutex_unlock(&battery_core_info.info_lock);
 		break;
-#if 0 
-	case POWER_SUPPLY_PROP_OVERLOAD:
-		val->intval = battery_core_info.rep.overload;
-		break;
-#endif
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_MAX:
 	case POWER_SUPPLY_PROP_VOLTAGE_MIN:
@@ -781,11 +774,6 @@ static int htc_battery_get_property(struct power_supply *psy,
 			return -EINVAL;
 		}
 		break;
-#if 0 
-	case POWER_SUPPLY_PROP_USB_OVERHEAT:
-		val->intval = battery_core_info.rep.usb_overheat;
-		break;
-#endif
 	default:
 		pr_info("%s: invalid type, psp=%d\n", __func__, psp);
 		return -EINVAL;
@@ -970,6 +958,10 @@ static ssize_t htc_battery_show_property(struct device *dev,
 	case USB_OVERHEAT:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				battery_core_info.rep.usb_overheat);
+		break;
+	case OVERLOAD:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				battery_core_info.rep.overload);
 		break;
 	default:
 		i = -EINVAL;

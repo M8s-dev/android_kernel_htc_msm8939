@@ -18,6 +18,6 @@
 	model = "Qualcomm Technologies, Inc. MSM 8939 CDP";
 	compatible =  "htc,msm8939", "htc,a51dtul", "qcom,msm8939-cdp", "qcom,msm8939", "qcom,cdp";
 	htc,project-id = <383 0x10000>;   /* htc,project-id = <PID soc_vision> */
-	htc,hw-id = <0 0>,<1 0>,<2 0>,<128 0>;   /* htc,hw-id = <PCBID (Reserved)> */
+	htc,hw-id = <0 0>;   /* htc,hw-id = <PCBID (Reserved)> */
 	qcom,board-id = <1 0>;
 };

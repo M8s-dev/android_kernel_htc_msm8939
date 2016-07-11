@@ -25,6 +25,8 @@
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
+extern char *board_mid(void);
+extern char *board_cid(void);
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -303,12 +305,6 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	}
 
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 7) {
-		pr_err("%s: unrecognised EXT_CSD revision %d\n",
-			mmc_hostname(card->host), card->ext_csd.rev);
-		err = -EINVAL;
-		goto out;
-	}
 
 	
 	mmc_fixup_device(card, mmc_fixups);
@@ -323,6 +319,17 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
+
+		if (board_mid() && !strncmp(board_mid(), "0PHC10000", 9) &&
+		    (card->ext_csd.sectors > 33554432)) {
+			if (board_cid() &&
+			    (!strncmp(board_cid(), "HTC__J15", 8) ||
+			    !strncmp(board_cid(), "HTC__001", 8) ||
+			    !strncmp(board_cid(), "HTC__044", 8) ||
+			    !strncmp(board_cid(), "HTC__038", 8) ||
+			    !strncmp(board_cid(), "HTC__059", 8)))
+				card->ext_csd.sectors = 30785535;
+		}
 
 		
 		if (card->ext_csd.sectors > (2u * 1024 * 1024 * 1024) / 512)
@@ -573,6 +580,8 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			else if (card->ext_csd.rev > 6)
 				card->cid.fwrev =
 				ext_csd[EXT_CSD_VENDOR_SPECIFIC_FIELDS_258] - 0x30 ;
+		} else if (card->cid.manfid == CID_MANFID_MICRON) {
+			card->cid.fwrev = ext_csd[EXT_CSD_VENDOR_SPECIFIC_FIELDS_258];
 		}
 
 		if ((card->cid.manfid == CID_MANFID_HYNIX) && !strncmp(card->cid.prod_name, "HAG2e", 5)
@@ -1760,12 +1769,23 @@ static int mmc_awake(struct mmc_host *host)
 
 	if (card && card->ext_csd.rev >= 3) {
 		err = mmc_card_sleepawake(host, 0);
-		if (err < 0)
+		if (err < 0) {
 			pr_debug("%s: Error %d while awaking sleeping card",
 				 mmc_hostname(host), err);
-	}
+			goto out;
+		}
+	} else
+                goto out;
 
-	return err;
+        
+        if (!mmc_select_hs(card, (u8 *)&card->ext_csd))
+                goto out;
+
+        mmc_set_clock(card->host, card->csd.max_dtr);
+        err = mmc_select_bus_width(card, 0, (u8 *)&card->ext_csd);
+
+out:
+        return err;
 }
 
 static const struct mmc_bus_ops mmc_ops = {
@@ -1803,6 +1823,14 @@ static void mmc_attach_bus_ops(struct mmc_host *host)
 		bus_ops = &mmc_ops;
 	mmc_attach_bus(host, bus_ops);
 }
+
+int mmc_reset_bus_speed(struct mmc_host *host)
+{
+       struct mmc_card *card = host->card;
+
+       return mmc_select_bus_speed(card, (u8 *)&card->ext_csd);
+}
+
 
 int mmc_attach_mmc(struct mmc_host *host)
 {
@@ -1853,6 +1881,8 @@ int mmc_attach_mmc(struct mmc_host *host)
 	mmc_claim_host(host);
 	if (err)
 		goto remove_card;
+
+	mmc_init_clk_delay(host);
 
 	mmc_init_clk_scaling(host);
 

@@ -22,7 +22,7 @@ enum {
 
 int msm_show_resume_irq_mask = MSM_SHOW_IRQ_DEBUG_RESUME;
 #else
-int msm_show_resume_irq_mask = 1; 
+int msm_show_resume_irq_mask = 1; // Show wakeup reason by default, including msm-gpio and irq.
 #endif
 
 module_param_named(

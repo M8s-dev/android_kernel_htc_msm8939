@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -65,6 +65,7 @@ static int bam_dmux_htc_debug_enable = 1;
 static int bam_dmux_htc_debug_dump = 1;
 static int bam_dmux_htc_debug_dump_lines = DBG_MAX_MSG;
 static int bam_dmux_htc_debug_print = 0;
+static int bam_dmux_init_done = 0;
 module_param_named(bam_dmux_htc_debug_enable, bam_dmux_htc_debug_enable,
 		   int, S_IRUGO | S_IWUSR | S_IWGRP);
 module_param_named(bam_dmux_htc_debug_dump, bam_dmux_htc_debug_dump,
@@ -72,6 +73,8 @@ module_param_named(bam_dmux_htc_debug_dump, bam_dmux_htc_debug_dump,
 module_param_named(bam_dmux_htc_debug_dump_lines, bam_dmux_htc_debug_dump_lines,
 		   int, S_IRUGO | S_IWUSR | S_IWGRP);
 module_param_named(bam_dmux_htc_debug_print, bam_dmux_htc_debug_print,
+		   int, S_IRUGO | S_IWUSR | S_IWGRP);
+module_param_named(bam_dmux_init_done, bam_dmux_init_done,
 		   int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 static struct {
@@ -279,6 +282,8 @@ static struct workqueue_struct *bam_mux_tx_workqueue;
 static struct srcu_struct bam_dmux_srcu;
 
 #define UL_TIMEOUT_DELAY 1000	
+#define UL_FAST_TIMEOUT_DELAY 100 
+
 #define SHUTDOWN_TIMEOUT_MS	1000
 #define UL_WAKEUP_TIMEOUT_MS	3000
 
@@ -286,6 +291,8 @@ static struct srcu_struct bam_dmux_srcu;
 #define SHUTDOWN_HIGH_TEMPERATURE_TIMEOUT_MS	6000
 static bool bBam_init_state = false;
 #endif
+
+static uint32_t ul_timeout_delay = UL_TIMEOUT_DELAY;
 
 static void toggle_apps_ack(void);
 static void reconnect_to_bam(void);
@@ -688,6 +695,8 @@ static void bam_mux_process_data(struct sk_buff *rx_skb)
 	struct bam_mux_hdr *rx_hdr;
 	unsigned long event_data;
 	uint8_t ch_id;
+	void (*notify)(void *, int, unsigned long);
+	void *priv;
 
 	rx_hdr = (struct bam_mux_hdr *)rx_skb->data;
 	ch_id = rx_hdr->ch_id;
@@ -700,15 +709,19 @@ static void bam_mux_process_data(struct sk_buff *rx_skb)
 	rx_skb->truesize = rx_hdr->pkt_len + sizeof(struct sk_buff);
 
 	event_data = (unsigned long)(rx_skb);
+	notify = NULL;
+	priv = NULL;
 
 	spin_lock_irqsave(&bam_ch[ch_id].lock, flags);
-	if (bam_ch[ch_id].notify)
-		bam_ch[ch_id].notify(
-			bam_ch[ch_id].priv, BAM_DMUX_RECEIVE,
-							event_data);
+	if (bam_ch[ch_id].notify) {
+		notify = bam_ch[ch_id].notify;
+		priv = bam_ch[ch_id].priv;
+	}
+	spin_unlock_irqrestore(&bam_ch[ch_id].lock, flags);
+	if (notify)
+		notify(priv, BAM_DMUX_RECEIVE, event_data);
 	else
 		dev_kfree_skb_any(rx_skb);
-	spin_unlock_irqrestore(&bam_ch[ch_id].lock, flags);
 
 	queue_rx();
 }
@@ -1564,6 +1577,14 @@ static void rx_timer_work_func(struct work_struct *work)
 
 		if (inactive_cycles >= POLLING_INACTIVITY) {
 			BAM_DMUX_LOG("%s: polling exit, no data\n", __func__);
+#ifdef CONFIG_HTC_DEBUG_RIL_PCN0006_HTC_DUMP_BAM_DMUX_LOG
+			
+			
+			if (bam_dmux_init_done != 1) {
+				BAM_DMUX_LOG("%s: bam_dmux_init_done\n", __func__);
+				bam_dmux_init_done = 1;
+			}
+#endif
 			rx_switch_to_interrupt_mode();
 			break;
 		}
@@ -1944,7 +1965,7 @@ static void ul_timeout(struct work_struct *work)
 	ret = write_trylock_irqsave(&ul_wakeup_lock, flags);
 	if (!ret) { 
 		schedule_delayed_work(&ul_timeout_work,
-				msecs_to_jiffies(UL_TIMEOUT_DELAY));
+				msecs_to_jiffies(ul_timeout_delay));
 		return;
 	}
 	if (bam_is_connected) {
@@ -1968,7 +1989,7 @@ static void ul_timeout(struct work_struct *work)
 				__func__, ul_packet_written);
 			ul_packet_written = 0;
 			schedule_delayed_work(&ul_timeout_work,
-					msecs_to_jiffies(UL_TIMEOUT_DELAY));
+					msecs_to_jiffies(ul_timeout_delay));
 		} else {
 			ul_powerdown();
 		}
@@ -2068,7 +2089,7 @@ static void ul_wakeup(void)
 		if (likely(do_vote_dfab))
 			vote_dfab();
 		schedule_delayed_work(&ul_timeout_work,
-				msecs_to_jiffies(UL_TIMEOUT_DELAY));
+				msecs_to_jiffies(ul_timeout_delay));
 		bam_is_connected = 1;
 		mutex_unlock(&wakeup_lock);
 		return;
@@ -2126,7 +2147,7 @@ static void ul_wakeup(void)
 	bam_is_connected = 1;
 	BAM_DMUX_LOG("%s complete\n", __func__);
 	schedule_delayed_work(&ul_timeout_work,
-				msecs_to_jiffies(UL_TIMEOUT_DELAY));
+				msecs_to_jiffies(ul_timeout_delay));
 	mutex_unlock(&wakeup_lock);
 }
 
@@ -2535,7 +2556,7 @@ static int bam_init(void)
 	a2_props.virt_addr = a2_virt_addr;
 	a2_props.virt_size = a2_phys_size;
 	a2_props.irq = a2_bam_irq;
-	a2_props.options = SPS_BAM_OPT_IRQ_WAKEUP;
+	a2_props.options = SPS_BAM_OPT_IRQ_WAKEUP | SPS_BAM_HOLD_MEM;
 	a2_props.num_pipes = A2_NUM_PIPES;
 	a2_props.summing_threshold = A2_SUMMING_THRESHOLD;
 	a2_props.constrained_logging = true;
@@ -2725,7 +2746,8 @@ static void bam_dmux_smsm_cb(void *priv, uint32_t old_state, uint32_t new_state)
 	if (bam_mux_initialized && new_state & SMSM_A2_POWER_CONTROL) {
 		BAM_DMUX_LOG("%s: reconnect\n", __func__);
 #ifdef CONFIG_HTC_FEATURES_RIL_PCN0009_HTC_EXTEND_SHOUTDOWN_TIMEOUT
-		bBam_init_state = true;
+		if (bBam_init_state != true)
+			bBam_init_state = true;
 #endif
 		grab_wakelock();
 		reconnect_to_bam();
@@ -2876,8 +2898,15 @@ static int bam_dmux_probe(struct platform_device *pdev)
 
 		no_cpu_affinity = of_property_read_bool(pdev->dev.of_node,
 						"qcom,no-cpu-affinity");
+
+		rc = of_property_read_bool(pdev->dev.of_node,
+						"qcom,fast-shutdown");
+		if (rc) {
+			ul_timeout_delay = UL_FAST_TIMEOUT_DELAY;
+		}
+
 		BAM_DMUX_LOG(
-			"%s: base:%p size:%x irq:%d satellite:%d num_buffs:%d dl_mtu:%x cpu-affinity:%d\n",
+			"%s: base:%p size:%x irq:%d satellite:%d num_buffs:%d dl_mtu:%x cpu-affinity:%d ul_timeout_delay:%d\n",
 						__func__,
 						(void *)(uintptr_t)a2_phys_base,
 						a2_phys_size,
@@ -2885,7 +2914,8 @@ static int bam_dmux_probe(struct platform_device *pdev)
 						satellite_mode,
 						num_buffers,
 						dl_mtu,
-						no_cpu_affinity);
+						no_cpu_affinity,
+						ul_timeout_delay);
 	} else { 
 		a2_phys_base = A2_PHYS_BASE;
 		a2_phys_size = A2_PHYS_SIZE;
@@ -3000,6 +3030,21 @@ static int bam_dmux_probe(struct platform_device *pdev)
 
 	return 0;
 }
+
+void bam_wifihotspot_speedmode(int mode)
+{
+    if (mode == 1) {
+        bam_adaptive_timer_enabled = 0;
+        POLLING_MIN_SLEEP = 950;
+        POLLING_MAX_SLEEP = 1050;
+    } else {
+        bam_adaptive_timer_enabled = 1;
+        POLLING_MIN_SLEEP = 2950;
+        POLLING_MAX_SLEEP = 3050;
+    }
+    printk("\nWifihotspot speed mode=%d\n", mode);
+}
+EXPORT_SYMBOL(bam_wifihotspot_speedmode);
 
 static struct of_device_id msm_match_table[] = {
 	{.compatible = "qcom,bam_dmux"},

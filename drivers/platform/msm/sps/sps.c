@@ -10,20 +10,19 @@
  * GNU General Public License for more details.
  */
 
-/* Smart-Peripheral-Switch (SPS) Module. */
 
-#include <linux/types.h>	/* u32 */
-#include <linux/kernel.h>	/* pr_info() */
-#include <linux/module.h>	/* module_init() */
-#include <linux/slab.h>		/* kzalloc() */
-#include <linux/mutex.h>	/* mutex */
-#include <linux/device.h>	/* device */
-#include <linux/fs.h>		/* alloc_chrdev_region() */
-#include <linux/list.h>		/* list_head */
-#include <linux/memory.h>	/* memset */
-#include <linux/io.h>		/* ioremap() */
-#include <linux/clk.h>		/* clk_enable() */
-#include <linux/platform_device.h>	/* platform_get_resource_byname() */
+#include <linux/types.h>	
+#include <linux/kernel.h>	
+#include <linux/module.h>	
+#include <linux/slab.h>		
+#include <linux/mutex.h>	
+#include <linux/device.h>	
+#include <linux/fs.h>		
+#include <linux/list.h>		
+#include <linux/memory.h>	
+#include <linux/io.h>		
+#include <linux/clk.h>		
+#include <linux/platform_device.h>	
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/of.h>
@@ -33,11 +32,8 @@
 #include "spsi.h"
 #include "sps_core.h"
 
-#define SPS_DRV_NAME "msm_sps"	/* must match the platform_device name */
+#define SPS_DRV_NAME "msm_sps"	
 
-/**
- *  SPS Driver state struct
- */
 struct sps_drv {
 	struct class *dev_class;
 	dev_t dev_num;
@@ -48,7 +44,7 @@ struct sps_drv {
 
 	int is_ready;
 
-	/* Platform data */
+	
 	phys_addr_t pipemem_phys_base;
 	u32 pipemem_size;
 	phys_addr_t bamdma_bam_phys_base;
@@ -58,25 +54,22 @@ struct sps_drv {
 	u32 bamdma_irq;
 	u32 bamdma_restricted_pipes;
 
-	/* Driver options bitflags (see SPS_OPT_*) */
+	
 	u32 options;
 
-	/* Mutex to protect BAM and connection queues */
+	
 	struct mutex lock;
 
-	/* BAM devices */
+	
 	struct list_head bams_q;
 
 	char *hal_bam_version;
 
-	/* Connection control state */
+	
 	struct sps_rm connection_ctrl;
 };
 
 
-/**
- *  SPS driver state
- */
 static struct sps_drv *sps;
 
 u32 d_type;
@@ -115,7 +108,6 @@ struct dentry *dfile_bam_addr;
 
 static struct sps_bam *phy2bam(phys_addr_t phys_addr);
 
-/* record debug info for debugfs */
 void sps_debugfs_record(const char *msg)
 {
 	if (debugfs_record_enabled) {
@@ -133,7 +125,6 @@ void sps_debugfs_record(const char *msg)
 	}
 }
 
-/* read the recorded debug info to userspace */
 static ssize_t sps_read_info(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -153,9 +144,6 @@ static ssize_t sps_read_info(struct file *file, char __user *ubuf,
 	return ret;
 }
 
-/*
- * set the buffer size (in KB) for debug info
- */
 static ssize_t sps_set_info(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 {
@@ -195,12 +183,12 @@ static ssize_t sps_set_info(struct file *file, const char __user *buf,
 
 	if (debugfs_record_enabled) {
 		if (debugfs_buf_size == new_buf_size) {
-			/* need do nothing */
+			
 			pr_info("sps:debugfs: input buffer size "
 				"is the same as before.\n");
 			return count;
 		} else {
-			/* release the current buffer */
+			
 			debugfs_record_enabled = false;
 			debugfs_buf_used = 0;
 			wraparound = false;
@@ -209,7 +197,7 @@ static ssize_t sps_set_info(struct file *file, const char __user *buf,
 		}
 	}
 
-	/* allocate new buffer */
+	
 	debugfs_buf_size = new_buf_size;
 
 	debugfs_buf = kzalloc(sizeof(char) * debugfs_buf_size,
@@ -232,7 +220,6 @@ const struct file_operations sps_info_ops = {
 	.write = sps_set_info,
 };
 
-/* return the current logging option to userspace */
 static ssize_t sps_read_logging_option(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -244,9 +231,6 @@ static ssize_t sps_read_logging_option(struct file *file, char __user *ubuf,
 	return simple_read_from_buffer(ubuf, count, ppos, value, nbytes);
 }
 
-/*
- * set the logging option
- */
 static ssize_t sps_set_logging_option(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 {
@@ -290,9 +274,6 @@ const struct file_operations sps_logging_option_ops = {
 	.write = sps_set_logging_option,
 };
 
-/*
- * input the bam physical address
- */
 static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 {
@@ -325,63 +306,63 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 	}
 
 	switch (reg_dump_option) {
-	case 1: /* output all registers of this BAM */
+	case 1: 
 		print_bam_reg(vir_addr);
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_reg(vir_addr, i);
 		break;
-	case 2: /* output BAM-level registers */
+	case 2: 
 		print_bam_reg(vir_addr);
 		break;
-	case 3: /* output selected BAM-level registers */
+	case 3: 
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		break;
-	case 4: /* output selected registers of all pipes */
+	case 4: 
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 5: /* output selected registers of selected pipes */
+	case 5: 
 		for (i = 0; i < num_pipes; i++)
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 6: /* output selected registers of typical pipes */
+	case 6: 
 		print_bam_pipe_selected_reg(vir_addr, 4);
 		print_bam_pipe_selected_reg(vir_addr, 5);
 		break;
-	case 7: /* output desc FIFO of all pipes */
+	case 7: 
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		break;
-	case 8: /* output desc FIFO of selected pipes */
+	case 8: 
 		for (i = 0; i < num_pipes; i++)
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		break;
-	case 9: /* output desc FIFO of typical pipes */
+	case 9: 
 		print_bam_pipe_desc_fifo(vir_addr, 4, 0);
 		print_bam_pipe_desc_fifo(vir_addr, 5, 0);
 		break;
-	case 10: /* output selected registers and desc FIFO of all pipes */
+	case 10: 
 		for (i = 0; i < num_pipes; i++) {
 			print_bam_pipe_selected_reg(vir_addr, i);
 			print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		}
 		break;
-	case 11: /* output selected registers and desc FIFO of selected pipes */
+	case 11: 
 		for (i = 0; i < num_pipes; i++)
 			if (bam_pipe_sel & (1UL << i)) {
 				print_bam_pipe_selected_reg(vir_addr, i);
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 			}
 		break;
-	case 12: /* output selected registers and desc FIFO of typical pipes */
+	case 12: 
 		print_bam_pipe_selected_reg(vir_addr, 4);
 		print_bam_pipe_desc_fifo(vir_addr, 4, 0);
 		print_bam_pipe_selected_reg(vir_addr, 5);
 		print_bam_pipe_desc_fifo(vir_addr, 5, 0);
 		break;
-	case 13: /* output BAM_TEST_BUS_REG */
+	case 13: 
 		if (testbus_sel)
 			print_bam_test_bus_reg(vir_addr, testbus_sel);
 		else {
@@ -389,7 +370,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 			print_bam_test_bus_reg(vir_addr, testbus_sel);
 		}
 		break;
-	case 14: /* output partial desc FIFO of selected pipes */
+	case 14: 
 		if (desc_option == 0)
 			desc_option = 1;
 		for (i = 0; i < num_pipes; i++)
@@ -397,33 +378,30 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 				print_bam_pipe_desc_fifo(vir_addr, i,
 							desc_option);
 		break;
-	case 15: /* output partial data blocks of descriptors */
+	case 15: 
 		for (i = 0; i < num_pipes; i++)
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 100);
 		break;
-	case 16: /* output all registers of selected pipes */
+	case 16: 
 		for (i = 0; i < num_pipes; i++)
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_reg(vir_addr, i);
 		break;
-	case 91: /* output testbus register, BAM global regisers
-			and registers of all pipes */
+	case 91: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 92: /* output testbus register, BAM global regisers
-			and registers of selected pipes */
+	case 92: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 93: /* output registers and partial desc FIFOs
-			of selected pipes: format 1 */
+	case 93: 
 		if (desc_option == 0)
 			desc_option = 1;
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
@@ -436,8 +414,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 				print_bam_pipe_desc_fifo(vir_addr, i,
 							desc_option);
 		break;
-	case 94: /* output registers and partial desc FIFOs
-			of selected pipes: format 2 */
+	case 94: 
 		if (desc_option == 0)
 			desc_option = 1;
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
@@ -449,8 +426,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 							desc_option);
 			}
 		break;
-	case 95: /* output registers and desc FIFOs
-			of selected pipes: format 1 */
+	case 95: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -460,8 +436,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		break;
-	case 96: /* output registers and desc FIFOs
-			of selected pipes: format 2 */
+	case 96: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -470,8 +445,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 			}
 		break;
-	case 97: /* output registers, desc FIFOs and partial data blocks
-			of selected pipes: format 1 */
+	case 97: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -484,8 +458,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 			if (bam_pipe_sel & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 100);
 		break;
-	case 98: /* output registers, desc FIFOs and partial data blocks
-			of selected pipes: format 2 */
+	case 98: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -495,7 +468,7 @@ static ssize_t sps_set_bam_addr(struct file *file, const char __user *buf,
 				print_bam_pipe_desc_fifo(vir_addr, i, 100);
 			}
 		break;
-	case 99: /* output all registers, desc FIFOs and partial data blocks */
+	case 99: 
 		print_bam_test_bus_reg(vir_addr, testbus_sel);
 		print_bam_reg(vir_addr);
 		for (i = 0; i < num_pipes; i++)
@@ -656,7 +629,6 @@ static void sps_debugfs_exit(void)
 }
 #endif
 
-/* Get the debug info of BAM registers and descriptor FIFOs */
 int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 		u32 tb_sel, u32 desc_sel)
 {
@@ -677,7 +649,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 	}
 
 	mutex_lock(&sps->lock);
-	/* Search for the target BAM device */
+	
 	bam = sps_h2bam(dev);
 	if (bam == NULL) {
 		pr_err("sps:Can't find any BAM with handle 0x%lx.", dev);
@@ -692,69 +664,69 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 	SPS_INFO("sps:<bam-addr> dump BAM:%pa.\n", &bam->props.phys_addr);
 
 	switch (option) {
-	case 1: /* output all registers of this BAM */
+	case 1: 
 		print_bam_reg(vir_addr);
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_reg(vir_addr, i);
 		break;
-	case 2: /* output BAM-level registers */
+	case 2: 
 		print_bam_reg(vir_addr);
 		break;
-	case 3: /* output selected BAM-level registers */
+	case 3: 
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		break;
-	case 4: /* output selected registers of all pipes */
+	case 4: 
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 5: /* output selected registers of selected pipes */
+	case 5: 
 		for (i = 0; i < num_pipes; i++)
 			if (para & (1UL << i))
 				print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 6: /* output selected registers of typical pipes */
+	case 6: 
 		print_bam_pipe_selected_reg(vir_addr, 4);
 		print_bam_pipe_selected_reg(vir_addr, 5);
 		break;
-	case 7: /* output desc FIFO of all pipes */
+	case 7: 
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		break;
-	case 8: /* output desc FIFO of selected pipes */
+	case 8: 
 		for (i = 0; i < num_pipes; i++)
 			if (para & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		break;
-	case 9: /* output desc FIFO of typical pipes */
+	case 9: 
 		print_bam_pipe_desc_fifo(vir_addr, 4, 0);
 		print_bam_pipe_desc_fifo(vir_addr, 5, 0);
 		break;
-	case 10: /* output selected registers and desc FIFO of all pipes */
+	case 10: 
 		for (i = 0; i < num_pipes; i++) {
 			print_bam_pipe_selected_reg(vir_addr, i);
 			print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		}
 		break;
-	case 11: /* output selected registers and desc FIFO of selected pipes */
+	case 11: 
 		for (i = 0; i < num_pipes; i++)
 			if (para & (1UL << i)) {
 				print_bam_pipe_selected_reg(vir_addr, i);
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 			}
 		break;
-	case 12: /* output selected registers and desc FIFO of typical pipes */
+	case 12: 
 		print_bam_pipe_selected_reg(vir_addr, 4);
 		print_bam_pipe_desc_fifo(vir_addr, 4, 0);
 		print_bam_pipe_selected_reg(vir_addr, 5);
 		print_bam_pipe_desc_fifo(vir_addr, 5, 0);
 		break;
-	case 13: /* output BAM_TEST_BUS_REG */
+	case 13: 
 		if (tb_sel)
 			print_bam_test_bus_reg(vir_addr, tb_sel);
 		else
 			pr_info("sps:TEST_BUS_SEL should NOT be zero.");
 		break;
-	case 14: /* output partial desc FIFO of selected pipes */
+	case 14: 
 		if (desc_sel == 0)
 			desc_sel = 1;
 		for (i = 0; i < num_pipes; i++)
@@ -762,33 +734,30 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 				print_bam_pipe_desc_fifo(vir_addr, i,
 							desc_sel);
 		break;
-	case 15: /* output partial data blocks of descriptors */
+	case 15: 
 		for (i = 0; i < num_pipes; i++)
 			if (para & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 100);
 		break;
-	case 16: /* output all registers of selected pipes */
+	case 16: 
 		for (i = 0; i < num_pipes; i++)
 			if (para & (1UL << i))
 				print_bam_pipe_reg(vir_addr, i);
 		break;
-	case 91: /* output testbus register, BAM global regisers
-			and registers of all pipes */
+	case 91: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
 			print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 92: /* output testbus register, BAM global regisers
-			and registers of selected pipes */
+	case 92: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
 			if (para & (1UL << i))
 				print_bam_pipe_selected_reg(vir_addr, i);
 		break;
-	case 93: /* output registers and partial desc FIFOs
-			of selected pipes: format 1 */
+	case 93: 
 		if (desc_sel == 0)
 			desc_sel = 1;
 		print_bam_test_bus_reg(vir_addr, tb_sel);
@@ -801,8 +770,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 				print_bam_pipe_desc_fifo(vir_addr, i,
 							desc_sel);
 		break;
-	case 94: /* output registers and partial desc FIFOs
-			of selected pipes: format 2 */
+	case 94: 
 		if (desc_sel == 0)
 			desc_sel = 1;
 		print_bam_test_bus_reg(vir_addr, tb_sel);
@@ -814,8 +782,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 							desc_sel);
 			}
 		break;
-	case 95: /* output registers and desc FIFOs
-			of selected pipes: format 1 */
+	case 95: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -825,8 +792,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 			if (para & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 		break;
-	case 96: /* output registers and desc FIFOs
-			of selected pipes: format 2 */
+	case 96: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -835,8 +801,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 				print_bam_pipe_desc_fifo(vir_addr, i, 0);
 			}
 		break;
-	case 97: /* output registers, desc FIFOs and partial data blocks
-			of selected pipes: format 1 */
+	case 97: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -849,8 +814,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 			if (para & (1UL << i))
 				print_bam_pipe_desc_fifo(vir_addr, i, 100);
 		break;
-	case 98: /* output registers, desc FIFOs and partial data blocks
-			of selected pipes: format 2 */
+	case 98: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_selected_reg(vir_addr, bam->props.ee);
 		for (i = 0; i < num_pipes; i++)
@@ -860,7 +824,7 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 				print_bam_pipe_desc_fifo(vir_addr, i, 100);
 			}
 		break;
-	case 99: /* output all registers, desc FIFOs and partial data blocks */
+	case 99: 
 		print_bam_test_bus_reg(vir_addr, tb_sel);
 		print_bam_reg(vir_addr);
 		for (i = 0; i < num_pipes; i++)
@@ -881,14 +845,6 @@ int sps_get_bam_debug_info(unsigned long dev, u32 option, u32 para,
 }
 EXPORT_SYMBOL(sps_get_bam_debug_info);
 
-/**
- * Initialize SPS device
- *
- * This function initializes the SPS device.
- *
- * @return 0 on success, negative value on error
- *
- */
 static int sps_device_init(void)
 {
 	int result;
@@ -921,7 +877,7 @@ static int sps_device_init(void)
 		goto exit_err;
 	}
 
-	/* Initialize the BAM DMA device */
+	
 #ifdef CONFIG_SPS_SUPPORT_BAMDMA
 	bamdma_props.phys_addr = sps->bamdma_bam_phys_base;
 	bamdma_props.virt_addr = ioremap(sps->bamdma_bam_phys_base,
@@ -952,8 +908,8 @@ static int sps_device_init(void)
 
 	bamdma_props.irq = sps->bamdma_irq;
 
-	bamdma_props.event_threshold = 0x10;	/* Pipe event threshold */
-	bamdma_props.summing_threshold = 0x10;	/* BAM event threshold */
+	bamdma_props.event_threshold = 0x10;	
+	bamdma_props.summing_threshold = 0x10;	
 
 	bamdma_props.options = SPS_BAM_OPT_BAMDMA;
 	bamdma_props.restricted_pipes =	sps->bamdma_restricted_pipes;
@@ -963,7 +919,7 @@ static int sps_device_init(void)
 		SPS_ERR("sps:SPS BAM DMA driver init failed");
 		goto exit_err;
 	}
-#endif /* CONFIG_SPS_SUPPORT_BAMDMA */
+#endif 
 
 	result = sps_map_init(NULL, sps->options);
 	if (result) {
@@ -983,14 +939,6 @@ exit_err:
 	return 0;
 }
 
-/**
- * De-initialize SPS device
- *
- * This function de-initializes the SPS device.
- *
- * @return 0 on success, negative value on error
- *
- */
 static void sps_device_de_init(void)
 {
 	SPS_DBG2("sps:%s.", __func__);
@@ -999,7 +947,7 @@ static void sps_device_de_init(void)
 #ifdef CONFIG_SPS_SUPPORT_BAMDMA
 		sps_dma_de_init();
 #endif
-		/* Are there any remaining BAM registrations? */
+		
 		if (!list_empty(&sps->bams_q))
 			SPS_ERR("sps:SPS de-init: BAMs are still registered");
 
@@ -1011,16 +959,6 @@ static void sps_device_de_init(void)
 	sps_mem_de_init();
 }
 
-/**
- * Initialize client state context
- *
- * This function initializes a client state context struct.
- *
- * @client - Pointer to client state context
- *
- * @return 0 on success, negative value on error
- *
- */
 static int sps_client_init(struct sps_pipe *client)
 {
 	SPS_DBG("sps:%s.", __func__);
@@ -1028,10 +966,6 @@ static int sps_client_init(struct sps_pipe *client)
 	if (client == NULL)
 		return -EINVAL;
 
-	/*
-	 * NOTE: Cannot store any state within the SPS driver because
-	 * the driver init function may not have been called yet.
-	 */
 	memset(client, 0, sizeof(*client));
 	sps_rm_config_init(&client->connect);
 
@@ -1041,16 +975,6 @@ static int sps_client_init(struct sps_pipe *client)
 	return 0;
 }
 
-/**
- * De-initialize client state context
- *
- * This function de-initializes a client state context struct.
- *
- * @client - Pointer to client state context
- *
- * @return 0 on success, negative value on error
- *
- */
 static int sps_client_de_init(struct sps_pipe *client)
 {
 	SPS_DBG("sps:%s.", __func__);
@@ -1068,17 +992,6 @@ static int sps_client_de_init(struct sps_pipe *client)
 	return 0;
 }
 
-/**
- * Find the BAM device from the physical address
- *
- * This function finds a BAM device in the BAM registration list that
- * matches the specified physical address.
- *
- * @phys_addr - physical address of the BAM
- *
- * @return - pointer to the BAM device struct, or NULL on error
- *
- */
 static struct sps_bam *phy2bam(phys_addr_t phys_addr)
 {
 	struct sps_bam *bam;
@@ -1093,19 +1006,6 @@ static struct sps_bam *phy2bam(phys_addr_t phys_addr)
 	return NULL;
 }
 
-/**
- * Find the handle of a BAM device based on the physical address
- *
- * This function finds a BAM device in the BAM registration list that
- * matches the specified physical address, and returns its handle.
- *
- * @phys_addr - physical address of the BAM
- *
- * @h - device handle of the BAM
- *
- * @return 0 on success, negative value on error
- *
- */
 int sps_phy2h(phys_addr_t phys_addr, unsigned long *handle)
 {
 	struct sps_bam *bam;
@@ -1135,20 +1035,6 @@ int sps_phy2h(phys_addr_t phys_addr, unsigned long *handle)
 }
 EXPORT_SYMBOL(sps_phy2h);
 
-/**
- * Setup desc/data FIFO for bam-to-bam connection
- *
- * @mem_buffer - Pointer to struct for allocated memory properties.
- *
- * @addr - address of FIFO
- *
- * @size - FIFO size
- *
- * @use_offset - use address offset instead of absolute address
- *
- * @return 0 on success, negative value on error
- *
- */
 int sps_setup_bam2bam_fifo(struct sps_mem_buffer *mem_buffer,
 		  u32 addr, u32 size, int use_offset)
 {
@@ -1193,17 +1079,6 @@ int sps_setup_bam2bam_fifo(struct sps_mem_buffer *mem_buffer,
 }
 EXPORT_SYMBOL(sps_setup_bam2bam_fifo);
 
-/**
- * Find the BAM device from the handle
- *
- * This function finds a BAM device in the BAM registration list that
- * matches the specified device handle.
- *
- * @h - device handle of the BAM
- *
- * @return - pointer to the BAM device struct, or NULL on error
- *
- */
 struct sps_bam *sps_h2bam(unsigned long h)
 {
 	struct sps_bam *bam;
@@ -1223,16 +1098,6 @@ struct sps_bam *sps_h2bam(unsigned long h)
 	return NULL;
 }
 
-/**
- * Lock BAM device
- *
- * This function obtains the BAM spinlock on the client's connection.
- *
- * @pipe - pointer to client pipe state
- *
- * @return pointer to BAM device struct, or NULL on error
- *
- */
 static struct sps_bam *sps_bam_lock(struct sps_pipe *pipe)
 {
 	struct sps_bam *bam;
@@ -1246,7 +1111,7 @@ static struct sps_bam *sps_bam_lock(struct sps_pipe *pipe)
 
 	spin_lock_irqsave(&bam->connection_lock, bam->irqsave_flags);
 
-	/* Verify client owns this pipe */
+	
 	pipe_index = pipe->pipe_index;
 	if (pipe_index >= bam->props.num_pipes ||
 	    pipe != bam->pipes[pipe_index]) {
@@ -1261,23 +1126,11 @@ static struct sps_bam *sps_bam_lock(struct sps_pipe *pipe)
 	return bam;
 }
 
-/**
- * Unlock BAM device
- *
- * This function releases the BAM spinlock on the client's connection.
- *
- * @bam - pointer to BAM device struct
- *
- */
 static inline void sps_bam_unlock(struct sps_bam *bam)
 {
 	spin_unlock_irqrestore(&bam->connection_lock, bam->irqsave_flags);
 }
 
-/**
- * Connect an SPS connection end point
- *
- */
 int sps_connect(struct sps_pipe *h, struct sps_connect *connect)
 {
 	struct sps_pipe *pipe = h;
@@ -1310,10 +1163,6 @@ int sps_connect(struct sps_pipe *h, struct sps_connect *connect)
 	}
 
 	mutex_lock(&sps->lock);
-	/*
-	 * Must lock the BAM device at the top level function, so must
-	 * determine which BAM is the target for the connection
-	 */
 	if (connect->mode == SPS_MODE_SRC)
 		dev = connect->source;
 	else
@@ -1332,7 +1181,7 @@ int sps_connect(struct sps_pipe *h, struct sps_connect *connect)
 			connect->destination,
 			connect->mode == SPS_MODE_SRC ? "SRC" : "DEST");
 
-	/* Allocate resources for the specified connection */
+	
 	pipe->connect = *connect;
 	mutex_lock(&bam->lock);
 	result = sps_rm_state_change(pipe, SPS_STATE_ALLOCATE);
@@ -1340,7 +1189,7 @@ int sps_connect(struct sps_pipe *h, struct sps_connect *connect)
 	if (result)
 		goto exit_err;
 
-	/* Configure the connection */
+	
 	mutex_lock(&bam->lock);
 	result = sps_rm_state_change(pipe, SPS_STATE_CONNECT);
 	mutex_unlock(&bam->lock);
@@ -1356,24 +1205,6 @@ exit_err:
 }
 EXPORT_SYMBOL(sps_connect);
 
-/**
- * Disconnect an SPS connection end point
- *
- * This function disconnects an SPS connection end point.
- * The SPS hardware associated with that end point will be disabled.
- * For a connection involving system memory (SPS_DEV_HANDLE_MEM), all
- * connection resources are deallocated.  For a peripheral-to-peripheral
- * connection, the resources associated with the connection will not be
- * deallocated until both end points are closed.
- *
- * The client must call sps_connect() for the handle before calling
- * this function.
- *
- * @h - client context for SPS connection end point
- *
- * @return 0 on success, negative value on error
- *
- */
 int sps_disconnect(struct sps_pipe *h)
 {
 	struct sps_pipe *pipe = h;
@@ -1401,7 +1232,7 @@ int sps_disconnect(struct sps_pipe *h)
 			pipe->connect.mode == SPS_MODE_SRC ? "SRC" : "DEST");
 
 	result = SPS_ERROR;
-	/* Cross-check client with map table */
+	
 	if (pipe->connect.mode == SPS_MODE_SRC)
 		check = pipe->map->client_src;
 	else
@@ -1412,7 +1243,7 @@ int sps_disconnect(struct sps_pipe *h)
 		goto exit_err;
 	}
 
-	/* Disconnect the BAM pipe */
+	
 	mutex_lock(&bam->lock);
 	result = sps_rm_state_change(pipe, SPS_STATE_DISCONNECT);
 	mutex_unlock(&bam->lock);
@@ -1428,10 +1259,6 @@ exit_err:
 }
 EXPORT_SYMBOL(sps_disconnect);
 
-/**
- * Register an event object for an SPS connection end point
- *
- */
 int sps_register_event(struct sps_pipe *h, struct sps_register_event *reg)
 {
 	struct sps_pipe *pipe = h;
@@ -1470,10 +1297,6 @@ int sps_register_event(struct sps_pipe *h, struct sps_register_event *reg)
 }
 EXPORT_SYMBOL(sps_register_event);
 
-/**
- * Enable an SPS connection end point
- *
- */
 int sps_flow_on(struct sps_pipe *h)
 {
 	struct sps_pipe *pipe = h;
@@ -1499,10 +1322,6 @@ int sps_flow_on(struct sps_pipe *h)
 }
 EXPORT_SYMBOL(sps_flow_on);
 
-/**
- * Disable an SPS connection end point
- *
- */
 int sps_flow_off(struct sps_pipe *h, enum sps_flow_off mode)
 {
 	struct sps_pipe *pipe = h;
@@ -1528,14 +1347,6 @@ int sps_flow_off(struct sps_pipe *h, enum sps_flow_off mode)
 }
 EXPORT_SYMBOL(sps_flow_off);
 
-/**
- * Check if the flags on a descriptor/iovec are valid
- *
- * @flags - flags on a descriptor/iovec
- *
- * @return 0 on success, negative value on error
- *
- */
 static int sps_check_iovec_flags(u32 flags)
 {
 	if ((flags & SPS_IOVEC_FLAG_NWD) &&
@@ -1571,10 +1382,6 @@ static int sps_check_iovec_flags(u32 flags)
 	return 0;
 }
 
-/**
- * Perform a DMA transfer on an SPS connection end point
- *
- */
 int sps_transfer(struct sps_pipe *h, struct sps_transfer *transfer)
 {
 	struct sps_pipe *pipe = h;
@@ -1602,7 +1409,7 @@ int sps_transfer(struct sps_pipe *h, struct sps_transfer *transfer)
 		return SPS_ERROR;
 	}
 
-	/* Verify content of IOVECs */
+	
 	iovec = transfer->iovec;
 	for (i = 0; i < transfer->iovec_count; i++) {
 		u32 flags = iovec->flags;
@@ -1630,10 +1437,6 @@ int sps_transfer(struct sps_pipe *h, struct sps_transfer *transfer)
 }
 EXPORT_SYMBOL(sps_transfer);
 
-/**
- * Perform a single DMA transfer on an SPS connection end point
- *
- */
 int sps_transfer_one(struct sps_pipe *h, phys_addr_t addr, u32 size,
 		     void *user, u32 flags)
 {
@@ -1665,10 +1468,6 @@ int sps_transfer_one(struct sps_pipe *h, phys_addr_t addr, u32 size,
 }
 EXPORT_SYMBOL(sps_transfer_one);
 
-/**
- * Read event queue for an SPS connection end point
- *
- */
 int sps_get_event(struct sps_pipe *h, struct sps_event_notify *notify)
 {
 	struct sps_pipe *pipe = h;
@@ -1696,10 +1495,6 @@ int sps_get_event(struct sps_pipe *h, struct sps_event_notify *notify)
 }
 EXPORT_SYMBOL(sps_get_event);
 
-/**
- * Determine whether an SPS connection end point FIFO is empty
- *
- */
 int sps_is_pipe_empty(struct sps_pipe *h, u32 *empty)
 {
 	struct sps_pipe *pipe = h;
@@ -1727,10 +1522,6 @@ int sps_is_pipe_empty(struct sps_pipe *h, u32 *empty)
 }
 EXPORT_SYMBOL(sps_is_pipe_empty);
 
-/**
- * Get number of free transfer entries for an SPS connection end point
- *
- */
 int sps_get_free_count(struct sps_pipe *h, u32 *count)
 {
 	struct sps_pipe *pipe = h;
@@ -1758,10 +1549,6 @@ int sps_get_free_count(struct sps_pipe *h, u32 *count)
 }
 EXPORT_SYMBOL(sps_get_free_count);
 
-/**
- * Reset an SPS BAM device
- *
- */
 int sps_device_reset(unsigned long dev)
 {
 	struct sps_bam *bam;
@@ -1780,7 +1567,7 @@ int sps_device_reset(unsigned long dev)
 	}
 
 	mutex_lock(&sps->lock);
-	/* Search for the target BAM device */
+	
 	bam = sps_h2bam(dev);
 	if (bam == NULL) {
 		SPS_ERR("sps:Invalid BAM device handle: 0x%lx", dev);
@@ -1803,10 +1590,6 @@ exit_err:
 }
 EXPORT_SYMBOL(sps_device_reset);
 
-/**
- * Get the configuration parameters for an SPS connection end point
- *
- */
 int sps_get_config(struct sps_pipe *h, struct sps_connect *config)
 {
 	struct sps_pipe *pipe = h;
@@ -1821,17 +1604,13 @@ int sps_get_config(struct sps_pipe *h, struct sps_connect *config)
 		return SPS_ERROR;
 	}
 
-	/* Copy current client connection state */
+	
 	*config = pipe->connect;
 
 	return 0;
 }
 EXPORT_SYMBOL(sps_get_config);
 
-/**
- * Set the configuration parameters for an SPS connection end point
- *
- */
 int sps_set_config(struct sps_pipe *h, struct sps_connect *config)
 {
 	struct sps_pipe *pipe = h;
@@ -1862,10 +1641,6 @@ int sps_set_config(struct sps_pipe *h, struct sps_connect *config)
 }
 EXPORT_SYMBOL(sps_set_config);
 
-/**
- * Set ownership of an SPS connection end point
- *
- */
 int sps_set_owner(struct sps_pipe *h, enum sps_owner owner,
 		  struct sps_satellite *connect)
 {
@@ -1896,7 +1671,7 @@ int sps_set_owner(struct sps_pipe *h, enum sps_owner owner,
 	if (result)
 		goto exit_err;
 
-	/* Return satellite connect info */
+	
 	if (connect == NULL)
 		goto exit_err;
 
@@ -1917,10 +1692,6 @@ exit_err:
 }
 EXPORT_SYMBOL(sps_set_owner);
 
-/**
- * Allocate memory from the SPS Pipe-Memory.
- *
- */
 int sps_alloc_mem(struct sps_pipe *h, enum sps_mem mem,
 		  struct sps_mem_buffer *mem_buffer)
 {
@@ -1956,10 +1727,6 @@ int sps_alloc_mem(struct sps_pipe *h, enum sps_mem mem,
 }
 EXPORT_SYMBOL(sps_alloc_mem);
 
-/**
- * Free memory from the SPS Pipe-Memory.
- *
- */
 int sps_free_mem(struct sps_pipe *h, struct sps_mem_buffer *mem_buffer)
 {
 	SPS_DBG("sps:%s.", __func__);
@@ -1980,11 +1747,6 @@ int sps_free_mem(struct sps_pipe *h, struct sps_mem_buffer *mem_buffer)
 }
 EXPORT_SYMBOL(sps_free_mem);
 
-/**
- * Get the number of unused descriptors in the descriptor FIFO
- * of a pipe
- *
- */
 int sps_get_unused_desc_num(struct sps_pipe *h, u32 *desc_num)
 {
 	struct sps_pipe *pipe = h;
@@ -2014,10 +1776,6 @@ int sps_get_unused_desc_num(struct sps_pipe *h, u32 *desc_num)
 }
 EXPORT_SYMBOL(sps_get_unused_desc_num);
 
-/**
- * Vote for or relinquish BAM DMA clock
- *
- */
 int sps_ctrl_bam_dma_clk(bool clk_on)
 {
 	int ret;
@@ -2045,10 +1803,6 @@ int sps_ctrl_bam_dma_clk(bool clk_on)
 }
 EXPORT_SYMBOL(sps_ctrl_bam_dma_clk);
 
-/**
- * Register a BAM device
- *
- */
 int sps_register_bam_device(const struct sps_bam_props *bam_props,
 				unsigned long *dev_handle)
 {
@@ -2073,13 +1827,13 @@ int sps_register_bam_device(const struct sps_bam_props *bam_props,
 		return -EPROBE_DEFER;
 	}
 
-	/* BAM-DMA is registered internally during power-up */
+	
 	if ((!sps->is_ready) && !(bam_props->options & SPS_BAM_OPT_BAMDMA)) {
 		SPS_ERR("sps:sps_register_bam_device:sps driver not ready.\n");
 		return -EAGAIN;
 	}
 
-	/* Check BAM parameters */
+	
 	manage = bam_props->manage & SPS_BAM_MGR_ACCESS_MASK;
 	if (manage != SPS_BAM_MGR_NONE) {
 		if (bam_props->virt_addr == NULL && bam_props->virt_size == 0) {
@@ -2089,7 +1843,7 @@ int sps_register_bam_device(const struct sps_bam_props *bam_props,
 		}
 	}
 	if ((bam_props->manage & SPS_BAM_MGR_DEVICE_REMOTE) == 0) {
-		/* BAM global is configured by local processor */
+		
 		if (bam_props->summing_threshold == 0) {
 			SPS_ERR(
 				"sps:Invalid device ctrl properties for "
@@ -2100,26 +1854,26 @@ int sps_register_bam_device(const struct sps_bam_props *bam_props,
 	manage = bam_props->manage &
 		  (SPS_BAM_MGR_PIPE_NO_CONFIG | SPS_BAM_MGR_PIPE_NO_CTRL);
 
-	/* In case of error */
+	
 	*dev_handle = SPS_DEV_HANDLE_INVALID;
 	result = SPS_ERROR;
 
 	mutex_lock(&sps->lock);
-	/* Is this BAM already registered? */
+	
 	bam = phy2bam(bam_props->phys_addr);
 	if (bam != NULL) {
 		mutex_unlock(&sps->lock);
 		SPS_ERR("sps:BAM is already registered: %pa",
 				&bam->props.phys_addr);
 		result = -EEXIST;
-		bam = NULL;   /* Avoid error clean-up kfree(bam) */
+		bam = NULL;   
 		goto exit_err;
 	}
 
-	/* Perform virtual mapping if required */
+	
 	if ((bam_props->manage & SPS_BAM_MGR_ACCESS_MASK) !=
 	    SPS_BAM_MGR_NONE && bam_props->virt_addr == NULL) {
-		/* Map the memory region */
+		
 		virt_addr = ioremap(bam_props->phys_addr, bam_props->virt_size);
 		if (virt_addr == NULL) {
 			SPS_ERR("sps:Unable to map BAM IO mem:%pa size:0x%x",
@@ -2139,7 +1893,7 @@ int sps_register_bam_device(const struct sps_bam_props *bam_props,
 	mutex_init(&bam->lock);
 	mutex_lock(&bam->lock);
 
-	/* Copy configuration to BAM device descriptor */
+	
 	bam->props = *bam_props;
 	if (virt_addr != NULL)
 		bam->props.virt_addr = virt_addr;
@@ -2152,7 +1906,7 @@ int sps_register_bam_device(const struct sps_bam_props *bam_props,
 		goto exit_err;
 	}
 
-	/* Add BAM to the list */
+	
 	list_add_tail(&bam->list, &sps->bams_q);
 	*dev_handle = (uintptr_t) bam;
 
@@ -2170,7 +1924,7 @@ exit_err:
 		return result;
 	}
 
-	/* If this BAM is attached to a BAM-DMA, init the BAM-DMA device */
+	
 #ifdef CONFIG_SPS_SUPPORT_BAMDMA
 	if ((bam->props.options & SPS_BAM_OPT_BAMDMA)) {
 		if (sps_dma_device_init((uintptr_t) bam)) {
@@ -2181,7 +1935,7 @@ exit_err:
 			return SPS_ERROR;
 		}
 	}
-#endif /* CONFIG_SPS_SUPPORT_BAMDMA */
+#endif 
 
 	SPS_INFO("sps:BAM %pa is registered.", &bam->props.phys_addr);
 
@@ -2189,13 +1943,10 @@ exit_err:
 }
 EXPORT_SYMBOL(sps_register_bam_device);
 
-/**
- * Deregister a BAM device
- *
- */
 int sps_deregister_bam_device(unsigned long dev_handle)
 {
 	struct sps_bam *bam;
+	int n;
 
 	SPS_DBG2("sps:%s.", __func__);
 
@@ -2212,7 +1963,13 @@ int sps_deregister_bam_device(unsigned long dev_handle)
 
 	SPS_DBG2("sps:SPS deregister BAM: phys %pa.", &bam->props.phys_addr);
 
-	/* If this BAM is attached to a BAM-DMA, init the BAM-DMA device */
+	if (bam->props.options & SPS_BAM_HOLD_MEM) {
+		for (n = 0; n < BAM_MAX_PIPES; n++)
+			if (bam->desc_cache_pointers[n] != NULL)
+				kfree(bam->desc_cache_pointers[n]);
+	}
+
+	
 #ifdef CONFIG_SPS_SUPPORT_BAMDMA
 	if ((bam->props.options & SPS_BAM_OPT_BAMDMA)) {
 		mutex_lock(&bam->lock);
@@ -2222,12 +1979,12 @@ int sps_deregister_bam_device(unsigned long dev_handle)
 	}
 #endif
 
-	/* Remove the BAM from the registration list */
+	
 	mutex_lock(&sps->lock);
 	list_del(&bam->list);
 	mutex_unlock(&sps->lock);
 
-	/* De-init the BAM and free resources */
+	
 	mutex_lock(&bam->lock);
 	sps_bam_device_de_init(bam);
 	mutex_unlock(&bam->lock);
@@ -2240,10 +1997,6 @@ int sps_deregister_bam_device(unsigned long dev_handle)
 }
 EXPORT_SYMBOL(sps_deregister_bam_device);
 
-/**
- * Get processed I/O vector (completed transfers)
- *
- */
 int sps_get_iovec(struct sps_pipe *h, struct sps_iovec *iovec)
 {
 	struct sps_pipe *pipe = h;
@@ -2264,7 +2017,7 @@ int sps_get_iovec(struct sps_pipe *h, struct sps_iovec *iovec)
 	if (bam == NULL)
 		return SPS_ERROR;
 
-	/* Get an iovec from the BAM pipe descriptor FIFO */
+	
 	result = sps_bam_pipe_get_iovec(bam, pipe->pipe_index, iovec);
 	sps_bam_unlock(bam);
 
@@ -2272,10 +2025,6 @@ int sps_get_iovec(struct sps_pipe *h, struct sps_iovec *iovec)
 }
 EXPORT_SYMBOL(sps_get_iovec);
 
-/**
- * Perform timer control
- *
- */
 int sps_timer_ctrl(struct sps_pipe *h,
 			struct sps_timer_ctrl *timer_ctrl,
 			struct sps_timer_result *timer_result)
@@ -2300,7 +2049,7 @@ int sps_timer_ctrl(struct sps_pipe *h,
 	if (bam == NULL)
 		return SPS_ERROR;
 
-	/* Perform the BAM pipe timer control operation */
+	
 	result = sps_bam_pipe_timer_ctrl(bam, pipe->pipe_index, timer_ctrl,
 					 timer_result);
 	sps_bam_unlock(bam);
@@ -2309,9 +2058,6 @@ int sps_timer_ctrl(struct sps_pipe *h,
 }
 EXPORT_SYMBOL(sps_timer_ctrl);
 
-/*
- * Reset a BAM pipe
- */
 int sps_pipe_reset(unsigned long dev, u32 pipe)
 {
 	struct sps_bam *bam;
@@ -2340,9 +2086,6 @@ int sps_pipe_reset(unsigned long dev, u32 pipe)
 }
 EXPORT_SYMBOL(sps_pipe_reset);
 
-/*
- * Process any pending IRQ of a BAM
- */
 int sps_bam_process_irq(unsigned long dev)
 {
 	struct sps_bam *bam;
@@ -2366,10 +2109,6 @@ int sps_bam_process_irq(unsigned long dev)
 }
 EXPORT_SYMBOL(sps_bam_process_irq);
 
-/**
- * Allocate client state context
- *
- */
 struct sps_pipe *sps_alloc_endpoint(void)
 {
 	struct sps_pipe *ctx = NULL;
@@ -2388,10 +2127,6 @@ struct sps_pipe *sps_alloc_endpoint(void)
 }
 EXPORT_SYMBOL(sps_alloc_endpoint);
 
-/**
- * Free client state context
- *
- */
 int sps_free_endpoint(struct sps_pipe *ctx)
 {
 	int res;
@@ -2412,9 +2147,6 @@ int sps_free_endpoint(struct sps_pipe *ctx)
 }
 EXPORT_SYMBOL(sps_free_endpoint);
 
-/**
- * Platform Driver.
- */
 static int get_platform_data(struct platform_device *pdev)
 {
 	struct resource *resource;
@@ -2476,9 +2208,6 @@ static int get_platform_data(struct platform_device *pdev)
 	return 0;
 }
 
-/**
- * Read data from device tree
- */
 static int get_device_tree_data(struct platform_device *pdev)
 {
 #ifdef CONFIG_SPS_SUPPORT_BAMDMA
@@ -2600,7 +2329,7 @@ static int msm_sps_probe(struct platform_device *pdev)
 		bam_type = SPS_BAM_LEGACY;
 	}
 
-	/* Create Device */
+	
 	sps->dev_class = class_create(THIS_MODULE, SPS_DRV_NAME);
 
 	ret = alloc_chrdev_region(&sps->dev_num, 0, 1, SPS_DRV_NAME);
@@ -2744,9 +2473,6 @@ static struct platform_driver msm_sps_driver = {
 	.remove		= msm_sps_remove,
 };
 
-/**
- * Module Init.
- */
 static int __init sps_init(void)
 {
 	int ret;
@@ -2757,7 +2483,7 @@ static int __init sps_init(void)
 
 	SPS_DBG("sps:%s.", __func__);
 
-	/* Allocate the SPS driver state struct */
+	
 	sps = kzalloc(sizeof(*sps), GFP_KERNEL);
 	if (sps == NULL) {
 		SPS_ERR("sps:Unable to allocate driver state context.");
@@ -2769,9 +2495,6 @@ static int __init sps_init(void)
 	return ret;
 }
 
-/**
- * Module Exit.
- */
 static void __exit sps_exit(void)
 {
 	SPS_DBG("sps:%s.", __func__);

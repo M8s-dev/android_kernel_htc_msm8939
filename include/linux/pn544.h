@@ -16,5 +16,7 @@ struct pn544_i2c_platform_data {
 	uint32_t ven_gpio_flags;
 	unsigned int firm_gpio;
 	uint32_t firm_gpio_flags;
+	unsigned int pwr_en;
+	uint32_t pwr_en_flags;
 	unsigned int ven_isinvert;
 };

@@ -23,15 +23,30 @@
 
 #define MMC_QUEUE_BOUNCESZ	65536
 
+/*
+ * Based on benchmark tests the default num of requests to trigger the write
+ * packing was determined, to keep the read latency as low as possible and
+ * manage to keep the high write throughput.
+ */
 #define DEFAULT_NUM_REQS_TO_START_PACK 17
 
+/*
+  * This global sg point is for keep memory for SD card.
+  * To avoid out of memory problem.
+  */
 struct scatterlist	*cur_sg = NULL;
 struct scatterlist	*prev_sg = NULL;
 
+/*
+ * Prepare a MMC request. This just filters out odd stuff.
+ */
 static int mmc_prep_request(struct request_queue *q, struct request *req)
 {
 	struct mmc_queue *mq = q->queuedata;
 
+	/*
+	 * We only like normal block requests and discards.
+	 */
 	if (req->cmd_type != REQ_TYPE_FS && !(req->cmd_flags & REQ_DISCARD)) {
 		blk_dump_rq_flags(req, "MMC bad request");
 		return BLKPREP_KILL;
@@ -71,15 +86,25 @@ static int sd_queue_thread(void *d)
 			cmd_flags = req ? req->cmd_flags : 0;
 			mq->issue_fn(mq, req);
 			if (test_bit(MMC_QUEUE_NEW_REQUEST, &mq->flags)) {
-				continue; 
+				continue; /* fetch again */
 			} else if (test_bit(MMC_QUEUE_URGENT_REQUEST,
 					&mq->flags) && (mq->mqrq_cur->req &&
 					!(mq->mqrq_cur->req->cmd_flags &
 						MMC_REQ_NOREINSERT_MASK))) {
+				/*
+				 * clean current request when urgent request
+				 * processing in progress and current request is
+				 * not urgent (all existing requests completed
+				 * or reinserted to the block layer
+				 */
 				mq->mqrq_cur->brq.mrq.data = NULL;
 				mq->mqrq_cur->req = NULL;
 			}
 
+			/*
+			 * Current request becomes previous request
+			 * and vice versa.
+			 */
 			mq->mqrq_prev->brq.mrq.data = NULL;
 			mq->mqrq_prev->req = NULL;
 			tmp = mq->mqrq_prev;
@@ -128,15 +153,25 @@ static int mmc_queue_thread(void *d)
 			cmd_flags = req ? req->cmd_flags : 0;
 			mq->issue_fn(mq, req);
 			if (test_bit(MMC_QUEUE_NEW_REQUEST, &mq->flags)) {
-				continue; 
+				continue; /* fetch again */
 			} else if (test_bit(MMC_QUEUE_URGENT_REQUEST,
 					&mq->flags) && (mq->mqrq_cur->req &&
 					!(mq->mqrq_cur->req->cmd_flags &
 						MMC_REQ_NOREINSERT_MASK))) {
+				/*
+				 * clean current request when urgent request
+				 * processing in progress and current request is
+				 * not urgent (all existing requests completed
+				 * or reinserted to the block layer
+				 */
 				mq->mqrq_cur->brq.mrq.data = NULL;
 				mq->mqrq_cur->req = NULL;
 			}
 
+			/*
+			 * Current request becomes previous request
+			 * and vice versa.
+			 */
 			mq->mqrq_prev->brq.mrq.data = NULL;
 			mq->mqrq_prev->req = NULL;
 			tmp = mq->mqrq_prev;
@@ -159,6 +194,12 @@ static int mmc_queue_thread(void *d)
 	return 0;
 }
 
+/*
+ * Generic MMC request handler.  This is called for any queue on a
+ * particular host.  When the host is not busy, we look for a request
+ * on any queue on this host, and attempt to issue it.  This may
+ * not be the queue we were asked to process.
+ */
 static void mmc_request_fn(struct request_queue *q)
 {
 	struct mmc_queue *mq = q->queuedata;
@@ -176,6 +217,11 @@ static void mmc_request_fn(struct request_queue *q)
 
 	cntx = &mq->card->host->context_info;
 	if (!mq->mqrq_cur->req && mq->mqrq_prev->req) {
+		/*
+		 * New MMC request arrived when MMC thread may be
+		 * blocked on the previous request to be complete
+		 * with no current request fetched
+		 */
 		spin_lock_irqsave(&cntx->lock, flags);
 		if (cntx->is_waiting_last_req) {
 			cntx->is_new_req = true;
@@ -186,6 +232,16 @@ static void mmc_request_fn(struct request_queue *q)
 		wake_up_process(mq->thread);
 }
 
+/*
+ * mmc_urgent_request() - Urgent MMC request handler.
+ * @q: request queue.
+ *
+ * This is called when block layer has urgent request for delivery.  When mmc
+ * context is waiting for the current request to complete, it will be awaken,
+ * current request may be interrupted and re-inserted back to block device
+ * request queue.  The next fetched request should be urgent request, this
+ * will be ensured by block i/o scheduler.
+ */
 static void mmc_urgent_request(struct request_queue *q)
 {
 	unsigned long flags;
@@ -198,11 +254,15 @@ static void mmc_urgent_request(struct request_queue *q)
 	}
 	cntx = &mq->card->host->context_info;
 
-	
+	/* critical section with mmc_wait_data_done() */
 	spin_lock_irqsave(&cntx->lock, flags);
 
-	
+	/* do stop flow only when mmc thread is waiting for done */
 	if (mq->mqrq_cur->req || mq->mqrq_prev->req) {
+		/*
+		 * Urgent request must be executed alone
+		 * so disable the write packing
+		 */
 		mmc_blk_disable_wr_packing(mq);
 		cntx->is_urgent = true;
 		spin_unlock_irqrestore(&cntx->lock, flags);
@@ -243,13 +303,22 @@ static void mmc_queue_setup_discard(struct request_queue *q,
 	if (card->erased_byte == 0 && !mmc_can_discard(card))
 		q->limits.discard_zeroes_data = 1;
 	q->limits.discard_granularity = card->pref_erase << 9;
-	
+	/* granularity must not be greater than max. discard */
 	if (card->pref_erase > max_discard)
 		q->limits.discard_granularity = 0;
 	if (mmc_can_secure_erase_trim(card))
 		queue_flag_set_unlocked(QUEUE_FLAG_SECDISCARD, q);
 }
 
+/**
+ * mmc_init_queue - initialise a queue structure.
+ * @mq: mmc queue
+ * @card: mmc card to attach this queue
+ * @lock: queue lock
+ * @subname: partition subname
+ *
+ * Initialise a MMC card request queue.
+ */
 int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 		   spinlock_t *lock, const char *subname)
 {
@@ -451,13 +520,13 @@ void mmc_cleanup_queue(struct mmc_queue *mq)
 	struct mmc_queue_req *mqrq_cur = mq->mqrq_cur;
 	struct mmc_queue_req *mqrq_prev = mq->mqrq_prev;
 
-	
+	/* Make sure the queue isn't suspended, as that will deadlock */
 	mmc_queue_resume(mq);
 
-	
+	/* Then terminate our worker thread */
 	kthread_stop(mq->thread);
 
-	
+	/* Empty the queue */
 	spin_lock_irqsave(q->queue_lock, flags);
 	q->queuedata = NULL;
 	blk_start_queue(q);
@@ -529,6 +598,15 @@ void mmc_packed_clean(struct mmc_queue *mq)
 	mqrq_prev->packed = NULL;
 }
 
+/**
+ * mmc_queue_suspend - suspend a MMC request queue
+ * @mq: MMC queue to suspend
+ * @wait: Wait till MMC request queue is empty
+ *
+ * Stop the block request queue, and wait for our thread to
+ * complete any outstanding requests.  This ensures that we
+ * won't suspend while a request is being processed.
+ */
 int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 {
 	struct request_queue *q = mq->queue;
@@ -542,6 +620,10 @@ int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 
 		rc = down_trylock(&mq->thread_sem);
 		if (rc && !wait) {
+			/*
+			 * Failed to take the lock so better to abort the
+			 * suspend because mmcqd thread is processing requests.
+			 */
 			clear_bit(MMC_QUEUE_SUSPENDED, &mq->flags);
 			spin_lock_irqsave(q->queue_lock, flags);
 			blk_start_queue(q);
@@ -555,6 +637,10 @@ int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 	return rc;
 }
 
+/**
+ * mmc_queue_resume - resume a previously suspended MMC request queue
+ * @mq: MMC queue to resume
+ */
 void mmc_queue_resume(struct mmc_queue *mq)
 {
 	struct request_queue *q = mq->queue;
@@ -605,6 +691,9 @@ static unsigned int mmc_queue_packed_map_sg(struct mmc_queue *mq,
 	return sg_len;
 }
 
+/*
+ * Prepare the sg list(s) to be handed of to the host driver
+ */
 unsigned int mmc_queue_map_sg(struct mmc_queue *mq, struct mmc_queue_req *mqrq)
 {
 	unsigned int sg_len;
@@ -642,6 +731,10 @@ unsigned int mmc_queue_map_sg(struct mmc_queue *mq, struct mmc_queue_req *mqrq)
 	return 1;
 }
 
+/*
+ * If writing, bounce the data to the buffer before the request
+ * is sent to the host driver
+ */
 void mmc_queue_bounce_pre(struct mmc_queue_req *mqrq)
 {
 	if (!mqrq->bounce_buf)
@@ -654,6 +747,10 @@ void mmc_queue_bounce_pre(struct mmc_queue_req *mqrq)
 		mqrq->bounce_buf, mqrq->sg[0].length);
 }
 
+/*
+ * If reading, bounce the data from the buffer after the request
+ * has been handled by the host driver
+ */
 void mmc_queue_bounce_post(struct mmc_queue_req *mqrq)
 {
 	if (!mqrq->bounce_buf)

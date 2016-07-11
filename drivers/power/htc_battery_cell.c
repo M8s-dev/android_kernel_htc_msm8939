@@ -22,11 +22,21 @@
 #include <htc/devices_cmdline.h>
 #include <htc/devices_dtb.h>
 
-static struct htc_battery_cell *cells;	
-static int cell_num;					
-static struct htc_battery_cell *cur_cell; 
+#ifdef pr_debug
+#undef pr_debug
+#endif
+#define pr_debug(fmt, args...) do { \
+		if (flag_enable_bms_charger_log) \
+			printk(KERN_WARNING pr_fmt(fmt), ## args); \
+	} while (0)
+
+static struct htc_battery_cell *cells;	/* ptr to an array */
+static int cell_num;					/* cells array size */
+static struct htc_battery_cell *cur_cell; /* cell current using */
+static bool flag_enable_bms_charger_log;
 
 static unsigned int hv_authenticated;
+/* Skip unreasonable irq when use power monitor */
 static int test_power_monitor;
 
 static struct htc_battery_cell default_cell = {
@@ -50,7 +60,7 @@ int htc_battery_cell_init(struct htc_battery_cell *ary, int ary_size)
 		pr_warn("[BATT] %s: default cell initiated\n", __func__);
 		cells = &default_cell;
 		cell_num = 1;
-		cur_cell = &default_cell; 
+		cur_cell = &default_cell; // temp for smb1360 bring up
 		return 1;
 	}
 
@@ -110,6 +120,8 @@ inline struct htc_battery_cell *htc_battery_cell_find(int id_raw)
 	int i = 0;
 	struct htc_battery_cell *pcell = NULL;
 
+	/* In CEI/MFG test, it connects power supply to measure charging behavior.
+		alway report id1 to let battery behavior works normally. */
 	if(test_power_monitor || board_ftm_mode()
 			|| (board_mfg_mode() == MFG_MODE_POWER_TEST)) {
 		pcell = &cells[0];
@@ -127,7 +139,7 @@ inline struct htc_battery_cell *htc_battery_cell_find(int id_raw)
 	}
 	pr_err("[BATT] %s: cell id can not be identified (id_raw=%d)\n",
 			__func__, id_raw);
-	
+	/* BUG_ON(!pcell); */
 
 	return pcell;
 }
@@ -143,19 +155,22 @@ inline int htc_battery_cell_find_and_set_id_auto(int id_raw)
 		pr_err("[BATT] cell pointer is NULL so unknown ID is return.\n");
 		return HTC_BATTERY_CELL_ID_UNKNOWN;
 	}
-	
+	/* CASE 1: cell(id) doesn't change */
 	if (cur_cell == pcell)
 		return pcell->id;
-	
+	/* CASE 2: cell(id) changes */
 	if (cur_cell) {
+		/* id change policy: cur_cell may switch to UNKNOWN(255)
+		 * only if we got unknown id successively UNKNOWN_COUNT times
+		 */
 		if (pcell->id == HTC_BATTERY_CELL_ID_UNKNOWN) {
 			unknown_count++;
 			if (unknown_count < HTC_BATTERY_CELL_CHECK_UNKNOWN_COUNT)
-				return cur_cell->id; 
+				return cur_cell->id; /* id remains no changing */
 		} else
 			unknown_count = 0;
 	} else {
-		
+		/* cur_cell hasn't been set yet */
 		pr_warn("[BATT]warn: cur_cell is initiated by %s", __func__);
 		cur_cell = pcell;
 		return pcell->id;
@@ -180,7 +195,7 @@ static int __init check_dq_setup(char *str)
 		hv_authenticated = 0;
 		pr_info("[BATT] HV authentication failed.\n");
 	}
-	return 0; 
+	return 0; /* return 0 to let someone else can parse the same str.*/
 }
 __setup("androidboot.dq=", check_dq_setup);
 
@@ -306,9 +321,10 @@ static int htc_batt_cell_probe(struct platform_device *pdev)
 
 no_batterydata_in_dt:
 	pr_warn("some batterydata missing in device tree\n");
-	kfree(batt_cells);
 	batt_cell_nums = 0;
 	htc_battery_cell_init(batt_cells, batt_cell_nums);
+	/*kfree needs to be placed before batt_cell_nums = 0 ,but now be place here for fixed Klocwork issue */
+	kfree(batt_cells);
 	return rc;
 }
 
@@ -329,6 +345,8 @@ static int __init htc_batt_cell_init(void)
 {
 	platform_device_register(&htc_battery_cell_pdev);
 	platform_driver_register(&htc_batt_cell_driver);
+	flag_enable_bms_charger_log =
+		(get_kernel_flag() & KERNEL_FLAG_ENABLE_BMS_CHARGER_LOG) ? 1 : 0;
 	test_power_monitor =
 		(get_kernel_flag() & KERNEL_FLAG_TEST_PWR_SUPPLY) ? 1 : 0;
 

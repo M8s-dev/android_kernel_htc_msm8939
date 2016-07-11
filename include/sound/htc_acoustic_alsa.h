@@ -22,7 +22,7 @@
 #ifndef _ARCH_ARM_MACH_MSM_HTC_ACOUSTIC_QCT_ALSA_H_
 #define _ARCH_ARM_MACH_MSM_HTC_ACOUSTIC_QCT_ALSA_H_
 
-#define AUD_HW_NUM			8
+#define AUD_HW_NUM			9
 #define HTC_AUDIO_TPA2051	0x01
 #define HTC_AUDIO_TPA2026	0x02
 #define HTC_AUDIO_TPA2028	0x04
@@ -31,6 +31,7 @@
 #define HTC_AUDIO_RT5501 	0x20
 #define HTC_AUDIO_TFA9887 	0x40
 #define HTC_AUDIO_TFA9887L 	0x80
+#define HTC_AUDIO_TPA6130	0x100
 
 #define AUD_AMP_SLAVE_ALL	0xffff
 
@@ -100,6 +101,24 @@ struct avcs_crash_params {
     struct apr_hdr  hdr;
     uint32_t crash_type;
 };
+
+typedef struct avcs_htc_adsp_oem_payload avcs_htc_adsp_oem_payload_t;
+
+struct avcs_htc_adsp_oem_payload
+{
+    uint32_t                  version;
+    uint32_t                  oem_cmd;
+    uint32_t                  param1;
+    uint32_t                  param2;
+    uint32_t                  param3;
+    uint32_t                  param4;
+};
+
+struct avcs_htc_adsp_oem_packet {
+    struct apr_hdr  hdr;
+    avcs_htc_adsp_oem_payload_t payload;
+};
+
 
 void htc_acoustic_register_ops(struct acoustic_ops *ops);
 void htc_acoustic_register_hs_amp(int (*aud_hs_amp_f)(int, int), struct file_operations* ops);

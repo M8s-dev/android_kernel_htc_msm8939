@@ -30,25 +30,43 @@ int smb1360_get_batt_voltage(int *result);
 int smb1360_get_batt_current(int *result);
 int smb1360_get_batt_soc(int *result);
 int smb1360_get_batt_cc(int *result);
+//int smb1360_get_batt_present(void);
+//int smb1360_get_batt_status(void);
+//int smb1360_vm_bms_report_eoc(void);
 int smb1360_is_batt_temp_fault_disable_chg(int *result);
 int smb1360_is_batt_temperature_fault(int *result);
 int smb1360_set_pwrsrc_and_charger_enable(enum htc_power_source_type src,
 			bool chg_enable, bool pwrsrc_enable);
 int smb1360_charger_enable(bool enable);
+//int smb1360_pwrsrc_enable(bool enable);
+//int smb1360_get_battery_status(void);
+//int smb1360_get_charging_source(int *result);
+//int smb1360_get_charging_enabled(int *result);
 int smb1360_get_charge_type(void);
 int smb1360_get_chg_usb_iusbmax(void);
 int smb1360_get_chg_vinmin(void);
 int smb1360_get_input_voltage_regulation(void);
+//int smb1360_set_chg_vin_min(int val);
+//int smb1360_set_chg_iusbmax(int val);
 int smb1360_is_charger_ovp(int* result);
+//int smb1360_set_hsml_target_ma(int target_ma);
 int smb1360_dump_all(void);
 int smb1360_is_batt_full(int *result);
 int smb1360_is_batt_full_eoc_stop(int *result);
 int smb1360_limit_input_current(bool enable, int reason);
+int smb1360_is_bad_cable_used(int *result);
+//int smb1360_charger_get_attr_text(char *buf, int size);
+//int smb1360_gauge_get_attr_text(char *buf, int size);
+//int smb1360_fake_chg_gone_irq_handler(void);
+//int smb1360_fake_usbin_valid_irq_handler(void);
+//int smb1360_fake_coarse_det_usb_irq_handler(void);
+//int smb1360_get_usb_temperature(int *result);
 int smb1360_limit_charge_enable(bool enable);
 int smb1360_is_chg_safety_timer_timeout(int *result);
 int smb1360_get_batt_id(int *result);
-#endif
-#else 
+int smb1360_charger_get_attr_text(char *buf, int size);
+#endif/* CONFIG_HTC_BATT_8960 */
+#else /* CONFIG_SMB1360_CHARGER_FG */
 #ifdef CONFIG_HTC_BATT_8960
 static inline int smb1360_is_pwr_src_plugged_in(void)
 {
@@ -191,11 +209,19 @@ static inline int smb1360_get_batt_id(int *result)
 {
 	return -ENXIO;
 }
-static inline int smb1360_limit_input_current(bool enable, int reason);
+static inline int smb1360_limit_input_current(bool enable, int reason)
 {
 	return -ENXIO;
 }
-#endif 
-#endif 
-#endif 
+static inline int smb1360_is_bad_cable_used(int *result)
+{
+	return -ENXIO;
+}
+static inline int pmi8994_charger_get_attr_text(char *buf, int size)
+{
+	return -ENXIO;
+}
+#endif /* CONFIG_HTC_BATT_8960 */
+#endif /* CONFIG_SMB1360_CHARGER_FG */
+#endif /* __SMB1360_CHARGER_FG_H */
 

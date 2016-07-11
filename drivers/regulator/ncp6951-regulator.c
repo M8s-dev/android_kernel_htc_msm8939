@@ -23,6 +23,7 @@
 #include <linux/regulator/of_regulator.h>
 #include <linux/i2c.h>
 #include <linux/regulator/ncp6951-regulator.h>
+#include <linux/delay.h>
 
 enum {
 	VREG_TYPE_DCDC,
@@ -58,6 +59,7 @@ struct ncp6951_regulator {
 	struct device *dev;
 	struct ncp6951_vreg *ncp6951_vregs;
 	int en_gpio;
+	int pwr_gpio;
 	int total_vregs;
 	bool is_enable;
 	struct mutex i2clock;
@@ -77,23 +79,63 @@ static int ldo45_bit_start[] = {0x5, 0x13, 0x1a};
 #define DCDC_UV_STEP            50000
 #define DCDC_BIT_START          0x00001
 
+extern int ncp6951_flt_reg_init(void);
+
 static int use_ioexpander = 0;
+
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+extern int ncp6951_flt_reg_init(void);
+#endif
+
+static int ncp6951_init(struct ncp6951_regulator *reg);
+static int ncp6951_i2c_read(struct device *dev, u8 reg_addr, u8 *data);
+static int ncp6951_force_clock_enable(void);
+static int ncp6951_force_clock_disable(void);
+
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+static int ncp6951_enable_power(struct ncp6951_regulator *reg, bool enable)
+{
+	int ret = 0;
+	if (!reg) {
+		pr_err("%s: invalid regulator\n", __func__);
+		return -1;
+	}
+
+	if (reg->pwr_gpio >= 0) {
+                if (enable) {
+                        gpio_set_value(reg->pwr_gpio, 1);
+                        pr_info("[NCP6951] %s: power on\n", __func__);
+                } else {
+			u8 data = 0;
+			
+			ncp6951_i2c_read(reg->dev, reg->ncp6951_vregs[0].enable_addr, &data);
+			if (data & 0x7F) {
+				pr_err("%s: NCP6951 in use, cancel power reset\n", __func__);
+				return -1;
+			}
+                        gpio_set_value(reg->pwr_gpio, 0);
+                        pr_info("[NCP6951] %s: power off\n", __func__);
+                }
+        }
+	return ret;
+}
+#endif
 
 static int ncp6951_enable(struct ncp6951_regulator *reg, bool enable)
 {
-	int ret = 0;
+        int ret = 0;
+
 	if(use_ioexpander == 0){
-		gpio_direction_output(reg->en_gpio, 1);
-		if (enable) {
-			gpio_set_value(reg->en_gpio, 1);
-			reg->is_enable = true;
-			pr_debug("[NCP6951] %s: gpio: 1\n", __func__);
-		} else {
-			gpio_set_value(reg->en_gpio, 0);
-			reg->is_enable = false;
-			pr_debug("[NCP6951] %s: gpio: 0\n", __func__);
-		}
-	}
+                if (enable) {
+                        gpio_set_value(reg->en_gpio, 1);
+                        reg->is_enable = true;
+                        pr_info("[NCP6951] %s: gpio: 1\n", __func__);
+                } else {
+                        gpio_set_value(reg->en_gpio, 0);
+                        reg->is_enable = false;
+                        pr_info("[NCP6951] %s: gpio: 0\n", __func__);
+                }
+        }
 	return ret;
 }
 
@@ -105,7 +147,6 @@ static bool ncp6951_is_enable(struct ncp6951_regulator *reg)
 static int ncp6951_i2c_write(struct device *dev, u8 reg_addr, u8 data)
 {
 	int res;
-	int orig_state;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ncp6951_regulator *reg = i2c_get_clientdata(client);
 	u8 values[] = {reg_addr, data};
@@ -120,19 +161,12 @@ static int ncp6951_i2c_write(struct device *dev, u8 reg_addr, u8 data)
 	};
 
 	mutex_lock(&reg->i2clock);
-	orig_state = ncp6951_is_enable(reg);
-	if (orig_state == false)
-		ncp6951_enable(reg, true);
 	res = i2c_transfer(client->adapter, msg, 1);
 
 	pr_info("[NCP6951] %s, i2c: addr: %x, val: %x, %d\n", __func__, reg_addr, data, res);
 	
 	
 	
-	if ((orig_state == false && !(reg_addr == NCP6951_ENABLE && data != 0x00)) ||
-	    (reg_addr == NCP6951_ENABLE && data == 0x00)) {
-		ncp6951_enable(reg, false);
-	}
 	mutex_unlock(&reg->i2clock);
 	if (res > 0)
 		res = 0;
@@ -143,6 +177,7 @@ static int ncp6951_i2c_write(struct device *dev, u8 reg_addr, u8 data)
 int ncp6951_i2c_ex_write(u8 reg_addr, u8 data)
 {
 	int res = -EINVAL;
+
 	if (regulator) {
 		ncp6951_i2c_write(regulator->dev, reg_addr, data);
 		res = 0;
@@ -157,7 +192,6 @@ EXPORT_SYMBOL(ncp6951_i2c_ex_write);
 static int ncp6951_i2c_read(struct device *dev, u8 reg_addr, u8 *data)
 {
 	int res;
-	int curr_state;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ncp6951_regulator *reg = i2c_get_clientdata(client);
 
@@ -177,14 +211,9 @@ static int ncp6951_i2c_read(struct device *dev, u8 reg_addr, u8 *data)
 	};
 
 	mutex_lock(&reg->i2clock);
-	curr_state = ncp6951_is_enable(reg);
-	if (curr_state == 0)
-		ncp6951_enable(reg, true);
 	res = i2c_transfer(client->adapter, msg, 2);
 	pr_info("[NCP6951] %s, i2c: base: %x, data: %x, %d\n", __func__, reg_addr, *data, res);
 	
-	if (curr_state == 0)
-		ncp6951_enable(reg, false);
 	mutex_unlock(&reg->i2clock);
 	if (res >= 0)
 		res = 0;
@@ -358,6 +387,52 @@ static int ncp6951_vreg_get_voltage(struct regulator_dev *rdev)
 	return vol;
 }
 
+int ncp6951_reset(void)
+{
+	int ret = 0;
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+	u8 data = 0;
+        
+        ncp6951_i2c_read(regulator->dev, regulator->ncp6951_vregs[0].enable_addr, &data);
+        if (data & 0x7F) {
+		pr_err("%s: NCP6951 in use, cancel power reset\n", __func__);
+                return -1;
+        }
+	ncp6951_enable(regulator, false);
+	ncp6951_force_clock_disable();
+	ncp6951_enable_power(regulator, false);
+
+	mdelay(5);
+	ncp6951_enable_power(regulator, true);
+	ncp6951_force_clock_enable();
+	ncp6951_enable(regulator, true);
+	pr_info("%s: power reset\n", __func__);
+	ncp6951_init(regulator);
+	ncp6951_flt_reg_init();
+#endif
+	return ret;
+}
+EXPORT_SYMBOL(ncp6951_reset);
+
+static int ncp6951_force_clock_enable(void)
+{
+	return 0;
+}
+
+static int ncp6951_force_clock_disable(void)
+{
+	return 0;
+}
+
+static int ncp6951_init(struct ncp6951_regulator *reg)
+{
+	if (!reg) {
+		pr_err("%s: regulator not init\n", __func__);
+	}
+	ncp6951_vreg_set_voltage(reg->ncp6951_vregs[0].rdev, 1900000, 1900000, NULL);
+	return 0;
+}
+
 static struct regulator_ops ncp6951_vreg_ops = {
 	.enable		= ncp6951_vreg_enable,
 	.disable	= ncp6951_vreg_disable,
@@ -382,6 +457,7 @@ static int ncp6951_probe(struct i2c_client *client, const struct i2c_device_id *
 	struct regulator_init_data *init_data;
 	struct regulator_config reg_config = {};
 	int en_gpio = 0;
+	int pwr_gpio = 0;
 	int num_vregs = 0;
 	int vreg_idx = 0;
 	int ret = 0;
@@ -400,6 +476,20 @@ static int ncp6951_probe(struct i2c_client *client, const struct i2c_device_id *
 	}
 
 	reg->dev = dev;
+        reg->pwr_gpio = -1;
+        pwr_gpio = -1;
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+        pwr_gpio = of_get_named_gpio(node, "ncp,pwr-gpio", 0);
+        if (gpio_is_valid(pwr_gpio)) {
+                pr_info("%s: Read NCP6951_power gpio: %d\n", __func__, pwr_gpio);
+                reg->pwr_gpio = pwr_gpio;
+                gpio_request(reg->pwr_gpio, "NCP6951_PWR_GPIO");
+		gpio_direction_output(reg->pwr_gpio, 1);
+                gpio_set_value(reg->pwr_gpio, 1);
+        } else {
+                pr_err("%s: Fail to read NCP6951_power gpio: %d\n", __func__, pwr_gpio);
+        }
+#endif
 
 	ret = of_property_read_u32(node, "ncp,use-ioexpander", &use_ioexpander);
 	pr_info("use-ioexpander = %d \n", use_ioexpander);
@@ -415,6 +505,7 @@ static int ncp6951_probe(struct i2c_client *client, const struct i2c_device_id *
 			pr_info("%s: Read NCP6951_enable gpio: %d\n", __func__, en_gpio);
 			reg->en_gpio = en_gpio;
 			gpio_request(reg->en_gpio, "NCP6951_EN_GPIO");
+			gpio_direction_output(reg->en_gpio, 0);
 		} else {
 			pr_err("%s: Fail to read NCP6951_enable gpio: %d\n", __func__, en_gpio);
 			goto fail_free_regulator;
@@ -539,8 +630,9 @@ static int ncp6951_probe(struct i2c_client *client, const struct i2c_device_id *
 	}
 	i2c_set_clientdata(client, reg);
 	regulator = reg;
-	ret = ncp6951_enable(reg, true);
-	ncp6951_vreg_set_voltage(reg->ncp6951_vregs[0].rdev, 1900000, 1900000, NULL);
+	ncp6951_force_clock_enable();
+	ncp6951_enable(reg, true);
+	ncp6951_init(reg);
 
 	return ret;
 
@@ -569,8 +661,9 @@ static int ncp6951_suspend(struct i2c_client *client, pm_message_t state)
 			ncp6951_vreg_disable(reg->ncp6951_vregs[idx].rdev);
 	}
 
-	if (on_vreg_num == 0)
+	if (on_vreg_num == 0) {
 		ncp6951_enable(reg, false);
+	}
 
 	return 0;
 }
@@ -581,10 +674,21 @@ static int ncp6951_resume(struct i2c_client *client)
 
 	pr_info("%s\n", __func__);
 	reg = i2c_get_clientdata(client);
-	if (ncp6951_is_enable(reg) == false)
+	if (ncp6951_is_enable(reg) == false) {
 		ncp6951_enable(reg, true);
+	}
 
 	return 0;
+}
+
+static void ncp6951_shutdown(struct i2c_client *client)
+{
+        struct ncp6951_regulator *reg;
+
+        reg = i2c_get_clientdata(client);
+
+        ncp6951_enable(reg, false);
+        ncp6951_force_clock_disable();
 }
 
 static int ncp6951_remove(struct i2c_client *client)
@@ -592,6 +696,7 @@ static int ncp6951_remove(struct i2c_client *client)
 	struct ncp6951_regulator *reg;
 
 	reg = i2c_get_clientdata(client);
+
 	kfree(reg->ncp6951_vregs);
 	kfree(reg);
 
@@ -618,6 +723,7 @@ static struct i2c_driver ncp6951_driver = {
 	.remove		= ncp6951_remove,
 	.suspend	= ncp6951_suspend,
 	.resume		= ncp6951_resume,
+	.shutdown       = ncp6951_shutdown,
 	.id_table	= ncp6951_id,
 };
 

@@ -28,8 +28,8 @@
 extern unsigned char cam_awb_ram[AWB_CAL_MAX_SIZE];
 
 struct qct_isp_struct{
-    uint32_t verify;  
-    uint32_t isp_caBuff[445];  
+    uint32_t verify;  //3009+bin
+    uint32_t isp_caBuff[445];  //3009+bin
     uint32_t fuse_id[4];
     uint32_t check_sum;
 };
@@ -924,10 +924,10 @@ static int ISP_vreg_on(void)
 		AIT_ISPCtrl->AIT_pinctrl_status = 0;
 	} else {
 		AIT_ISPCtrl->AIT_pinctrl_status = 1;
-		
+		//CDBG("%s msm_camera_pinctrl_init ok\n", __func__);
 	}
 	
-	
+	//Turn on ISP 1v2 and 1v8
 	for (i = 0 ; i < 2; i++){
 		if (i == 0)
 			ISP_gpio = AIT_ISPCtrl->pdata->ISP_1v2_enable;
@@ -942,7 +942,7 @@ static int ISP_vreg_on(void)
 			gpio_direction_output(ISP_gpio, 1);
 			gpio_free(ISP_gpio);
 		} else {
-			
+			//CDBG("%s msm_camera_config_single_vreg (%d)\n", __func__, i);
 			msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[i],
 				(struct regulator **)&ISP_vreg_data[i],
@@ -951,8 +951,8 @@ static int ISP_vreg_on(void)
 		mdelay(1);
 	}
 #if 0
-	
-	
+	//Set ISP_gpio_vana high
+	//CDBG("%s ISP_gpio_vana high\n", __func__); 
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_gpio_vana;
 	rc = gpio_request(ISP_gpio, "AIT_ISP");
 	if (rc < 0) {
@@ -961,8 +961,8 @@ static int ISP_vreg_on(void)
 	gpio_direction_output(ISP_gpio, 1);
 	mdelay(1);
 
-	    
-	
+	    //Set ISP_A2v8 high
+	//CDBG("%s ISP_A2v8 high\n", __func__);
 	msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[2],
 				(struct regulator **)&ISP_vreg_data[2],
@@ -970,8 +970,8 @@ static int ISP_vreg_on(void)
 	mdelay(1);
 #endif
 	    
-	
-	
+	//Turn on ISP enable pin
+	//CDBG("%s ISP_enable\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_enable;
 	rc = gpio_request(ISP_gpio, "AIT_ISP");
 	if (rc < 0) {
@@ -981,7 +981,7 @@ static int ISP_vreg_on(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
+	//Set ISP CAM_SEL pin low
 	if(camera_index == CAMERA_INDEX_SUB_OV2722)
 	CDBG("%s sub CAM_SEL low\n", __func__);
 	else
@@ -998,8 +998,8 @@ static int ISP_vreg_on(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 	    
-	
-	
+	//Set ISP CAM_SEL2 pin low
+	//CDBG("%s ISP_CAM_SEL2\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_CAM_SEL2;
 	rc = gpio_request(ISP_gpio, "AIT_ISP");
 	if (rc < 0) {
@@ -1009,7 +1009,7 @@ static int ISP_vreg_on(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
+	//Set ISP ISP_MCLK_SEL pin high
 	if(camera_index == CAMERA_INDEX_SUB_OV2722)
 	CDBG("%s ISP_MCLK_SEL high\n", __func__);
 	else
@@ -1028,8 +1028,8 @@ static int ISP_vreg_on(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
-	
+	//Set ISP ISP_V_SR_3V pin high
+	//CDBG("%s ISP_V_SR_3V\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_V_SR_3V;
 	rc = gpio_request(ISP_gpio, "AIT_ISP");
 	if (rc < 0) {
@@ -1039,8 +1039,8 @@ static int ISP_vreg_on(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
-	
+	//Turn on MCLK
+	//CDBG("%s  CAMIF_MCLK\n", __func__);
 	rc = gpio_request_one(AIT_ISPCtrl->pdata->ISP_mclk, 1, "CAMIF_MCLK");
 	if (rc < 0) {
 		pr_err("%s, CAMIF_MCLK (%d) request failed", __func__, AIT_ISPCtrl->pdata->ISP_mclk);
@@ -1064,8 +1064,8 @@ static int ISP_vreg_on(void)
 	}
 	mdelay(1);
 	    
-	
-	
+	//Set two SPI pins high 
+	//CDBG("%s  ISP_SPI pin high\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_APG6;
 	rc = gpio_request_one(ISP_gpio, 0, "AIT_ISP");
 	if (rc < 0) {
@@ -1081,8 +1081,8 @@ static int ISP_vreg_on(void)
 	gpio_direction_output(ISP_gpio1, 1);
 	mdelay(1);
 
-	
-	
+	//Set ISP reset pin high
+	//CDBG("%s  ISP_reset \n", __func__);
 	ISP_gpio2 = AIT_ISPCtrl->pdata->ISP_reset;
 	rc = gpio_request(ISP_gpio2, "AIT_ISP");
 	if (rc < 0) {
@@ -1092,8 +1092,8 @@ static int ISP_vreg_on(void)
 	gpio_free(ISP_gpio2);
 	mdelay(1);
 
-	
-	
+	//CDBG("%s  SPI pin low, delay 5ms\n", __func__);
+	//Set two SPI pins low 
 	gpio_direction_output(ISP_gpio, 0);
 	gpio_free(ISP_gpio);
 	
@@ -1115,10 +1115,10 @@ static int ISP_vreg_off(void)
 
 	CDBG("%s +\n", __func__);
 	
+	//sensor_power_off();
 	
-	
-	
-	
+	//Set ISP reset pin low
+	//CDBG("%s ISP_reset\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_reset;
 	rc = gpio_request(ISP_gpio, "AIT_ISP");
 	if (rc < 0) {
@@ -1128,8 +1128,8 @@ static int ISP_vreg_off(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
-	
+	//Set ISP_enable low
+	//CDBG("%s ISP_enable\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_enable;
 	rc = gpio_request(ISP_gpio, "AIT_ISP");
 	if (rc < 0) {
@@ -1139,8 +1139,8 @@ static int ISP_vreg_off(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
-	
+	//Turn off MCLK
+	//CDBG("%s MCLK\n", __func__);
 	rc = msm_cam_clk_enable(AIT_ISPCtrl->sensor_dev, ISP_clk_info,
 		AIT_ISPCtrl->ISP_clk, ARRAY_SIZE(ISP_clk_info), 0);
 	if (rc < 0)
@@ -1159,8 +1159,8 @@ static int ISP_vreg_off(void)
 	gpio_free(AIT_ISPCtrl->pdata->ISP_mclk);
 	mdelay(1);
 
-	
-	
+	//Set two SPI pins low 
+	//CDBG("%s  ISP_SPI pin low\n", __func__);
 	ISP_gpio = AIT_ISPCtrl->pdata->ISP_APG6;
 	rc = gpio_request_one(ISP_gpio, 0, "AIT_ISP");
 	if (rc < 0) {
@@ -1178,21 +1178,21 @@ static int ISP_vreg_off(void)
 	gpio_free(ISP_gpio);
 	mdelay(1);
 
-	
-	
+	//Set ISP_A2v8 low
+	//CDBG("%s ISP_A2v8 low\n", __func__);
 	msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[2],
 				(struct regulator **)&ISP_vreg_data[2],
 				0);
 	mdelay(1);
 
-	
-	
+	//Set ISP_gpio_vana low
+	//CDBG("%s ISP_gpio_vana low\n", __func__);
 	gpio_direction_output(AIT_ISPCtrl->pdata->ISP_gpio_vana, 0);
 	gpio_free(AIT_ISPCtrl->pdata->ISP_gpio_vana);
 	mdelay(1);
 	    
-	
+	//Turn off ISP 1v8 and 1v2
 	for (i = 1 ; i >= 0; i--){
 		if (i == 0)
 			ISP_gpio = AIT_ISPCtrl->pdata->ISP_1v2_enable;
@@ -1207,7 +1207,7 @@ static int ISP_vreg_off(void)
 			gpio_direction_output(ISP_gpio, 0);
 			gpio_free(ISP_gpio);
 		} else {
-			
+			//CDBG("%s msm_camera_config_single_vreg (%d)\n", __func__, i);
 			msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[i],
 				(struct regulator **)&ISP_vreg_data[i],
@@ -1222,10 +1222,10 @@ static int ISP_vreg_off(void)
 int AIT_ISP_power_up(const struct msm_camera_AIT_info *pdata)
 {
 	int rc = 0;
-	
+	/* HTC_CAM_S, use msm_cam_clk_enable */
 	struct device *dev = NULL;
 	dev = AIT_ISPCtrl->dev;
-	
+	/* HTC_CAM_E, use msm_cam_clk_enable */
 	CDBG("[CAM] %s\n", __func__);
 
 	if (pdata->camera_ISP_power_on == NULL) {
@@ -1242,10 +1242,10 @@ int AIT_ISP_power_up(const struct msm_camera_AIT_info *pdata)
 int AIT_ISP_power_down(const struct msm_camera_AIT_info *pdata)
 {
 	int rc = 0;
-	
+	/* HTC_CAM_S, use msm_cam_clk_enable */
 	struct device *dev = NULL;
 	dev = AIT_ISPCtrl->dev;
-	
+	/* HTC_CAM_E, use msm_cam_clk_enable */
 	CDBG("%s\n", __func__);
 
 	if (pdata->camera_ISP_power_off == NULL) {
@@ -1268,12 +1268,12 @@ int AIT_ISP_match_id(void)
 	read_id = GetVenusRegB(0x6900);
 	if(read_id != 0xd0)
 	    pr_err("AIT_ISP_match_id read 0x6900 failure:0x%x\n", read_id);
-	
+	//CDBG("%s  0x6900:0x%x\n", __func__, read_id);
 	
 	read_id = GetVenusRegB(0x6902);
 	if(read_id != 0x5)
 	    pr_err("AIT_ISP_match_id read 0x6902 failure:0x%x\n", read_id);
-	
+	//CDBG("%s  0x6902:0x%x\n", __func__, read_id);
 	
 	SetVenusRegB(0x69F0, 0x01);
 	read = GetVenusRegW(0x69FE);
@@ -1441,7 +1441,7 @@ open_read_id_retry:
 	    Cntl_SensorPWDN(OV2722_PWDN, 1);
 	    mdelay(3);
 
-	    
+	    //Set ISP_gpio_vana high
 	    CDBG("%s ISP_gpio_vana high\n", __func__); 
 	    ISP_gpio = AIT_ISPCtrl->pdata->ISP_gpio_vana;
 	    rc = gpio_request(ISP_gpio, "AIT_ISP");
@@ -1451,7 +1451,7 @@ open_read_id_retry:
 	    gpio_direction_output(ISP_gpio, 1);
 	    mdelay(1);
 
-	    
+	    //Set ISP_A2v8 high
 	    CDBG("%s ISP_A2v8 high\n", __func__);
 	    msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[2],
@@ -1472,7 +1472,7 @@ open_read_id_retry:
 	    Cntl_SensorPWDN(OV2722_PWDN, 1);
 	    mdelay(3);
 
-	    
+	    //Set ISP_gpio_vana high
 	    CDBG("%s ISP_gpio_vana high\n", __func__); 
 	    ISP_gpio = AIT_ISPCtrl->pdata->ISP_gpio_vana;
 	    rc = gpio_request(ISP_gpio, "AIT_ISP");
@@ -1482,7 +1482,7 @@ open_read_id_retry:
 	    gpio_direction_output(ISP_gpio, 1);
 	    mdelay(1);
 
-	    
+	    //Set ISP_A2v8 high
 	    CDBG("%s ISP_A2v8 high\n", __func__);
 	    msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[2],
@@ -1528,7 +1528,7 @@ open_read_id_retry:
 	
 	atomic_set(&interrupt, 0);
 
-	
+	/*create irq*/
 	rc = request_irq(pdata->isp_intr0, AIT_ISP_irq_handler,
 		IRQF_TRIGGER_HIGH, "AIT_ISP_irq", 0);
 	if (rc < 0) {
@@ -1577,7 +1577,7 @@ probe_read_id_retry:
 	    Cntl_SensorPWDN(OV2722_PWDN, 1);
 	    mdelay(3);
 
-	    
+	    //Set ISP_gpio_vana high
 	    CDBG("%s ISP_gpio_vana high\n", __func__); 
 	    ISP_gpio = AIT_ISPCtrl->pdata->ISP_gpio_vana;
 	    rc = gpio_request(ISP_gpio, "AIT_ISP");
@@ -1587,7 +1587,7 @@ probe_read_id_retry:
 	    gpio_direction_output(ISP_gpio, 1);
 	    mdelay(1);
 
-	    
+	    //Set ISP_A2v8 high
 	    CDBG("%s ISP_A2v8 high\n", __func__);
 	    msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[2],
@@ -1608,7 +1608,7 @@ probe_read_id_retry:
 	    Cntl_SensorPWDN(OV2722_PWDN, 1);
 	    mdelay(3);
 
-	    
+	    //Set ISP_gpio_vana high
 	    CDBG("%s ISP_gpio_vana high\n", __func__); 
 	    ISP_gpio = AIT_ISPCtrl->pdata->ISP_gpio_vana;
 	    rc = gpio_request(ISP_gpio, "AIT_ISP");
@@ -1618,7 +1618,7 @@ probe_read_id_retry:
 	    gpio_direction_output(ISP_gpio, 1);
 	    mdelay(1);
 
-	    
+	    //Set ISP_A2v8 high
 	    CDBG("%s ISP_A2v8 high\n", __func__);
 	    msm_camera_config_single_vreg(AIT_ISPCtrl->dev,
 				&ISP_vreg[2],
@@ -1912,13 +1912,13 @@ void AIT_ISP_Get_AE_calibration(uint16_t *Gain, uint16_t *GainBase, uint32_t *N_
 	ret = VA_GetAEROICurrentLuma(&luma_temp);
 	*Luma_Value = (uint16_t)luma_temp;
 	CDBG("%s VA_GetCustomAEROILuma done (%d)luma_temp:0x%x(0x%x)\n", __func__, ret, luma_temp, *Luma_Value);
-	
+	//AIT_ISP_Dump_status();
 	ret = VA_GetOverallGain(Gain, GainBase);
 	CDBG("%s VA_GetOverallGain done (%d)(0x%x, 0x%x)\n", __func__, ret, *Gain, *GainBase);
-	
+	//AIT_ISP_Dump_status();
 	ret = VA_GetExposureTime(N_parameter, ExposureTimeBase);
 	CDBG("%s VA_GetExposureTime done (%d)(0x%x, 0x%x)\n", __func__, ret, *N_parameter, *ExposureTimeBase);
-	
+	//AIT_ISP_Dump_status();
 	CDBG("%s -\n", __func__);
 	
 }
@@ -1929,7 +1929,7 @@ void AIT_ISP_Get_AWB_calibration(uint32_t *R_Sum, uint32_t *G_Sum, uint32_t *B_S
 	CDBG("%s +\n", __func__);
 	ret = VA_GetAWBROIACC(R_Sum, G_Sum, B_Sum, pixel_count);
 	CDBG("%s VA_GetAWBROIACC done (%d)(%u, %u, %u, %u)\n", __func__, ret, *R_Sum, *G_Sum, *B_Sum, *pixel_count);
-	
+	//AIT_ISP_Dump_status();
 	CDBG("%s -\n", __func__);
 }
 
@@ -2083,9 +2083,9 @@ static int AIT_ISP_driver_probe(struct platform_device *pdev)
 	}
 
 
-	
+	/* HTC_CAM_S, use msm_cam_clk_enable */
 	AIT_ISPCtrl->dev = &pdev->dev;
-	
+	/* HTC_CAM_E, use msm_cam_clk_enable */
 
 	rc1 = msm_AIT_ISP_attr_node();
 	CDBG("%s -\n", __func__);

@@ -40,17 +40,29 @@ struct __compat_mtp_event {
 	compat_caddr_t	data;
 };
 
+/* Sends the specified file range to the host */
 #define COMPAT_MTP_SEND_FILE              _IOW('M', 0, \
 						struct __compat_mtp_file_range)
+/* Receives data from the host and writes it to a file.
+ * The file is created if it does not exist.
+ */
 #define COMPAT_MTP_RECEIVE_FILE           _IOW('M', 1, \
 						struct __compat_mtp_file_range)
+/* Sends an event to the host via the interrupt endpoint */
 #define COMPAT_MTP_SEND_EVENT             _IOW('M', 3, \
 						struct __compat_mtp_event)
+/* Sends the specified file range to the host,
+ * with a 12 byte MTP data packet header at the beginning.
+ */
 #define COMPAT_MTP_SEND_FILE_WITH_HEADER  _IOW('M', 4, \
 						struct __compat_mtp_file_range)
+/*++ 2014/07/02, USB Team, PCN00022 ++*/
 #define MTP_SET_CPU_PERF   _IOW('M', 5, int)
+/*-- 2014/07/02, USB Team, PCN00022 --*/
+/*++ 2014/07/02, USB Team, PCN00023 ++*/
 #define MTP_THREAD_SUPPORTED    _IOW('M', 64, int)
+/*-- 2014/07/02, USB Team, PCN00023 --*/
 
-#endif 
-#endif 
-#endif 
+#endif /* __KERNEL__ */
+#endif /* CONFIG_COMPAT */
+#endif /* __LINUX_USB_F_MTP_H */

@@ -14,12 +14,9 @@
 # Based on the ia64 boot/Makefile.
 #
 
-include $(srctree)/arch/arm64/boot/dts/Makefile
+include $(srctree)/arch/arm64/boot/dts/qcom/Makefile
 
 targets := Image Image.gz
-
-#used for cleaning - not building
-subdir- := dts
 
 DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
 ifneq ($(DTB_NAMES),)

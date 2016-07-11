@@ -1,8 +1,12 @@
+/*
+ * Definitions for akm09911 compass chip.
+ */
 #ifndef AKM09911_H
 #define AKM09911_H
 
 #include <linux/ioctl.h>
 
+/* Device specific constant values */
 #define AK09911_REG_WIA1			0x00
 #define AK09911_REG_WIA2			0x01
 #define AK09911_REG_INFO1			0x02
@@ -34,6 +38,66 @@
 #define AK09911_WIA1_VALUE		0x48
 #define AK09911_WIA2_VALUE		0x05
 
+/*** Limit of factory shipment test *******************************************/
+#define TLIMIT_TN_REVISION_09911				""
+#define TLIMIT_TN_RST_WIA1_09911				"RST_WIA1"
+#define TLIMIT_LO_RST_WIA1_09911				0x48
+#define TLIMIT_HI_RST_WIA1_09911				0x48
+#define TLIMIT_TN_RST_WIA2_09911				"RST_WIA2"
+#define TLIMIT_LO_RST_WIA2_09911				0x05
+#define TLIMIT_HI_RST_WIA2_09911				0x05
+
+#define TLIMIT_TN_ASAX_09911					"ASAX"
+#define TLIMIT_LO_ASAX_09911					1
+#define TLIMIT_HI_ASAX_09911					254
+#define TLIMIT_TN_ASAY_09911					"ASAY"
+#define TLIMIT_LO_ASAY_09911					1
+#define TLIMIT_HI_ASAY_09911					254
+#define TLIMIT_TN_ASAZ_09911					"ASAZ"
+#define TLIMIT_LO_ASAZ_09911					1
+#define TLIMIT_HI_ASAZ_09911					254
+
+#define TLIMIT_TN_SNG_ST1_09911				"SNG_ST1"
+#define TLIMIT_LO_SNG_ST1_09911				1
+#define TLIMIT_HI_SNG_ST1_09911				1
+
+#define TLIMIT_TN_SNG_HX_09911				"SNG_HX"
+#define TLIMIT_LO_SNG_HX_09911				-8189
+#define TLIMIT_HI_SNG_HX_09911				8189
+
+#define TLIMIT_TN_SNG_HY_09911				"SNG_HY"
+#define TLIMIT_LO_SNG_HY_09911				-8189
+#define TLIMIT_HI_SNG_HY_09911				8189
+
+#define TLIMIT_TN_SNG_HZ_09911				"SNG_HZ"
+#define TLIMIT_LO_SNG_HZ_09911				-8189
+#define TLIMIT_HI_SNG_HZ_09911				8189
+
+#define TLIMIT_TN_SNG_ST2_09911				"SNG_ST2"
+#define TLIMIT_LO_SNG_ST2_09911				0
+#define TLIMIT_HI_SNG_ST2_09911				0
+
+#define TLIMIT_TN_SLF_ST1_09911				"SLF_ST1"
+#define TLIMIT_LO_SLF_ST1_09911				1
+#define TLIMIT_HI_SLF_ST1_09911				1
+
+#define TLIMIT_TN_SLF_RVHX_09911				"SLF_REVSHX"
+#define TLIMIT_LO_SLF_RVHX_09911				-30
+#define TLIMIT_HI_SLF_RVHX_09911				30
+
+#define TLIMIT_TN_SLF_RVHY_09911				"SLF_REVSHY"
+#define TLIMIT_LO_SLF_RVHY_09911				-30
+#define TLIMIT_HI_SLF_RVHY_09911				30
+
+#define TLIMIT_TN_SLF_RVHZ_09911				"SLF_REVSHZ"
+#define TLIMIT_LO_SLF_RVHZ_09911				-400
+#define TLIMIT_HI_SLF_RVHZ_09911				-50
+
+#define TLIMIT_TN_SLF_ST2_09911				"SLF_ST2"
+#define TLIMIT_LO_SLF_ST2_09911				0
+#define TLIMIT_HI_SLF_ST2_09911				0
+
+/* To avoid device dependency, convert to general name */
 #define AKM_I2C_NAME			"akm09911"
 #define AKM_MISCDEV_NAME		"akm09911_dev"
 #define AKM_SYSCLS_NAME			"compass"
@@ -70,6 +134,7 @@
 
 #define AKMIO				0xA1
 
+/* IOCTLs for AKM library */
 #define ECS_IOCTL_READ				_IOWR(AKMIO, 0x01, char)
 #define ECS_IOCTL_WRITE				_IOW(AKMIO, 0x02, char)
 #define ECS_IOCTL_RESET				_IO(AKMIO, 0x03)

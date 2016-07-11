@@ -11,9 +11,11 @@
  *
  */
 #include "msm_sensor.h"
+/*HTC_START*/
 #ifdef CONFIG_CAMERA_AIT
 #include "AIT.h"
 #endif
+/*HTC_END*/
 #define OV2722_SENSOR_NAME "ov2722_yuv"
 #define PLATFORM_DRIVER_NAME "msm_camera_ov2722_yuv"
 #define ov2722_obj ov2722_yuv_##obj
@@ -30,9 +32,11 @@
 DEFINE_MSM_MUTEX(ov2722_mut);
 
 
+/*********************for image adjust********************/
 #define SENSOR_SUCCESS 0
 static struct msm_camera_i2c_client ov2722_sensor_i2c_client;
 
+/********************************************************/
 
 
 static struct msm_sensor_ctrl_t ov2722_s_ctrl;
@@ -104,12 +108,12 @@ static int32_t ov2722_platform_probe(struct platform_device *pdev)
 	int32_t rc = 0;
 	const struct of_device_id *match;
 	match = of_match_device(ov2722_dt_match, &pdev->dev);
-	
+	/* HTC_START */
 	if (!match) {
 		pr_err("%s:%d match is NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
-	
+	/* HTC_END */
 	rc = msm_sensor_platform_probe(pdev, match->data);
 	return rc;
 }
@@ -197,8 +201,8 @@ int32_t ov2722_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 	long rc = 0;
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	
-	
+	//CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
+	//	s_ctrl->sensordata->sensor_name, cdata->cfgtype);
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
 		memcpy(cdata->cfg.sensor_info.sensor_name,
@@ -332,7 +336,7 @@ int32_t ov2722_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		#ifdef CONFIG_CAMERA_AIT
-		rc = AIT_ISP_open_init(CAMERA_INDEX_SUB_OV2722); 
+		rc = AIT_ISP_open_init(CAMERA_INDEX_SUB_OV2722); //sub cam
 		#endif
 		if (s_ctrl->func_tbl->sensor_power_up)
 			rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
@@ -451,7 +455,7 @@ int32_t ov2722_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		case CFG_SET_AUTOFOCUS: {
-		
+		/* TO-DO: set the Auto Focus */
 		pr_debug("%s: Setting Auto Focus", __func__);
 		break;
 		}
@@ -459,7 +463,7 @@ int32_t ov2722_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		break;
 		}
 		case CFG_CANCEL_AUTOFOCUS: {
-		
+		/* TO-DO: Cancel the Auto Focus */
 		pr_debug("%s: Cancelling Auto Focus", __func__);
 		break;
 		}
@@ -502,7 +506,7 @@ int32_t ov2722_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
     s_ctrl->power_setting_array.power_setting = ov2722_power_down_setting;
     s_ctrl->power_setting_array.size = ARRAY_SIZE(ov2722_power_down_setting);
 
-    
+    //When release regulator, need the same data pointer from power up sequence.
     for(i = 0; i < s_ctrl->power_setting_array.size;  i++)
     {
         data_size = sizeof(ov2722_power_setting[i].data)/sizeof(void *);
@@ -522,8 +526,8 @@ int32_t ov2722_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 	long rc = 0;
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	
-	
+	//CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
+	//	s_ctrl->sensordata->sensor_name, cdata->cfgtype);
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
 		CDBG("%s:%d %s cfgtype = %d, CFG_GET_SENSOR_INFO+\n", __func__, __LINE__,
@@ -603,15 +607,15 @@ int32_t ov2722_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		
 		#if 0
 		AIT_ISP_enable_MEC_MWB(1, 1);
-		
-		
-		
+		//void AIT_ISP_config_MEC(uint32_t N_parameter, uint16_t Overall_Gain);
+		// Exposure Time = Exposure Time / 1048576.
+		// real Gain = Overall_Gain / 256
 		AIT_ISP_config_MEC(0x8520, 0x151);
-		
-		
-		
-		
-		
+		//void AIT_ISP_config_MWB(uint16_t R_Gain, uint16_t G_Gain, uint16_t B_Gain);
+		//fainl R Gain = R_Gain / 1024.
+		//fainl G Gain = G_Gain / 1024.
+		//fainl B Gain = B_Gain / 1024.
+		//The range of R_Gain, G_Gain and B_Gain is [1024, 4087]
 		AIT_ISP_config_MWB(2048, 2048, 2048);
 		#endif
 		
@@ -662,8 +666,8 @@ int32_t ov2722_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 
 		conf_array.reg_setting = reg_setting;
-		
-		
+		//rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write_table(
+		//	s_ctrl->sensor_i2c_client, &conf_array);
 		kfree(reg_setting);
 		CDBG("%s:%d %s cfgtype = %d, CFG_WRITE_I2C_ARRAY -\n", __func__, __LINE__,
 		s_ctrl->sensordata->sensor_name, cdata->cfgtype);
@@ -681,7 +685,7 @@ int32_t ov2722_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		
 		#ifdef CONFIG_CAMERA_AIT
-		rc = AIT_ISP_open_init(CAMERA_INDEX_SUB_OV2722); 
+		rc = AIT_ISP_open_init(CAMERA_INDEX_SUB_OV2722); //sub cam
 		#endif
 		if (s_ctrl->func_tbl->sensor_power_up)
 			rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
@@ -780,7 +784,7 @@ int32_t ov2722_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		case CFG_SET_AUTOFOCUS: {
-		
+		/* TO-DO: set the Auto Focus */
 		pr_debug("%s: Setting Auto Focus", __func__);
 		break;
 		}
@@ -789,7 +793,7 @@ int32_t ov2722_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		break;
 		}
 		case CFG_CANCEL_AUTOFOCUS: {
-		
+		/* TO-DO: Cancel the Auto Focus */
 		pr_debug("%s: Cancelling Auto Focus", __func__);
 		break;
 		}
@@ -882,6 +886,7 @@ static int ov2722_yuv_read_fuseid32(struct sensorb_cfg_data32 *cdata,
 
 	return rc;
 }
+//HTC_START , move read OTP to sensor probe
 int32_t ov2722_yuv_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
@@ -906,6 +911,7 @@ int32_t ov2722_yuv_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 
 	return rc;
 }
+//HTC_END
 static struct msm_sensor_fn_t sensor_func_tbl = {
 	.sensor_config = ov2722_sensor_config,
 #ifdef CONFIG_COMPAT

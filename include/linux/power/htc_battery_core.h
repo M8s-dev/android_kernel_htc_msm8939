@@ -66,6 +66,7 @@ enum {
 	BATT_CABLEIN,
 	USB_TEMP,
 	USB_OVERHEAT,
+	OVERLOAD,
 };
 
 enum htc_batt_rt_attr {
@@ -75,6 +76,9 @@ enum htc_batt_rt_attr {
 	HTC_BATT_RT_VOLTAGE_UV,
 #if defined(CONFIG_MACH_B2_WLJ)
 	HTC_USB_RT_TEMPERATURE,
+#endif
+#ifdef CONFIG_QPNP_VM_BMS
+	HTC_BATT_RT_MFG_CHARGING,
 #endif
 };
 

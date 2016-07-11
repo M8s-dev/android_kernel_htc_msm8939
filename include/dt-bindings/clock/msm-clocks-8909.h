@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,10 +19,8 @@
 #define clk_gpll1_clk_src			0x916f8847
 #define clk_gpll2_clk_src			0x7c34503b
 
-/* SR2PLL */
 #define clk_a7sspll				0xf761da94
 
-/* SRCs */
 #define clk_apss_ahb_clk_src			0x36f8495f
 #define clk_blsp1_qup1_i2c_apps_clk_src		0x17f78f5e
 #define clk_blsp1_qup1_spi_apps_clk_src		0xf534c4fa
@@ -69,7 +67,6 @@
 #define clk_vfe0_clk_src			0xa0c2bd8f
 #define clk_vcodec0_clk_src			0xbc193019
 
-/* BRANCHEs*/
 #define clk_gcc_apss_ahb_clk			0x2b0d39ff
 #define clk_gcc_blsp1_ahb_clk			0x8caa5b4f
 #define clk_gcc_boot_rom_ahb_clk		0xde2adeb1
@@ -163,11 +160,11 @@
 #define clk_gcc_gtcu_ahb_bridge_clk		0x19d2c5fe
 #define clk_gcc_bimc_gpu_clk			0x19922503
 #define clk_gcc_bimc_gfx_clk			0x3edd69ad
+#define clk_gcc_snoc_qosgen_clk			0x37d40ce2
 
 #define clk_pixel_clk_src			0x8b6f83d8
 #define clk_byte_clk_src			0x3a911c53
 
-/* RPM */
 #define clk_pcnoc_clk				0xc1296d0f
 #define clk_pcnoc_a_clk				0x9bcffee4
 #define clk_pcnoc_msmbus_clk			0x2b53b688
@@ -210,7 +207,6 @@
 #define clk_rf_clk2				0x24a30992
 #define clk_rf_clk2_pin				0xa7c5602a
 
-/* DEBUG */
 #define clk_gcc_debug_mux			0x8121ac15
 #define clk_rpm_debug_mux			0x25cd1f3a
 #define clk_wcnss_m_clk				0x709f430b
@@ -222,5 +218,8 @@
 #define clk_apc2_m_clk				0x252cd4ae
 #define clk_apc3_m_clk				0x78c64486
 #define clk_l2_m_clk                            0x4bedf4d0
+
+#define clk_audio_ap_clk			0x312ac429
+#define clk_audio_pmi_clk			0xb7ba2274
 
 #endif

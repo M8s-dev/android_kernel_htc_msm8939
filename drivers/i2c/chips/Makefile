@@ -12,17 +12,17 @@
 obj-$(CONFIG_SENSORS_NFC_PN544) 	+= pn544.o
 obj-$(CONFIG_SENSORS_NFC_PN544)         += pn544_htc.o
 #obj-$(CONFIG_SENSORS_NFC_PN544) 	+= pn544.o
-#obj-$(CONFIG_TI_TCA6418)      		+= tca6418_ioexpander.o
-#obj-$(CONFIG_BOSCH_BMA250)      	+= bma250_bosch.o
+obj-$(CONFIG_TI_TCA6418)      		+= tca6418_ioexpander.o
+obj-$(CONFIG_BOSCH_BMA250)      	+= bma250_bosch.o
 obj-$(CONFIG_KIONIX_KXTJ2)      	+= kxtj2.o
-#obj-$(CONFIG_YAMAHA_YAS532)      	+= yas532.o
+obj-$(CONFIG_YAMAHA_YAS532)      	+= yas532.o
+obj-$(CONFIG_SENSORS_YAS_MAGNETOMETER)  += yas_mag_drv-yas532.o yas_mag_kernel.o
 obj-$(CONFIG_AMP_TFA9887)       	+= tfa9895.o
 obj-$(CONFIG_AMP_TFA9887L)      	+= tfa9895l.o
 obj-$(CONFIG_AMP_RT5506)		+= rt5506.o
-#obj-$(CONFIG_SENSORS_AK8963_DOE_PLUS)	+= akm8963_doe_plus.o
+obj-$(CONFIG_SENSORS_AK8963_DOE_PLUS)	+= akm8963_doe_plus.o
 obj-$(CONFIG_SENSORS_AK09911)    	+= akm09911.o
-#obj-$(CONFIG_BOSCH_BMA250)      	+= bma250_bosch.o
-#obj-$(CONFIG_AMP_TPA6130A2)       	+= tpa6130a2.o
+obj-$(CONFIG_AMP_TPA6130A2)       	+= tpa6130a2.o
 obj-$(CONFIG_INPUT_CWSTM32)    	+= CwMcuSensor.o
 #CFLAGS_CwMcuSensor.o := -DDEBUG
 

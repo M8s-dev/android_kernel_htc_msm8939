@@ -193,13 +193,14 @@ static u8 regdata	= 0x00;
 
 extern int ncp6951_i2c_ex_write(uint8_t reg_addr, uint8_t data);
 extern int ncp6951_i2c_ex_read(uint8_t reg_addr, uint8_t *data);
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+extern int ncp6951_reset(void);
+#endif
 
 int ncp6951_flt_torch(struct ncp6951_flt_data *, uint32_t);
 int ncp6951_flt_flash(struct ncp6951_flt_data *, uint32_t);
 int ncp6951_flt_flashlight_control(struct ncp6951_flt_data *, uint8_t);
 static int ncp6951_flt_turn_off(struct ncp6951_flt_data *);
-
-
 
 static int reboot_notify_sys(struct notifier_block *this,
 			      unsigned long event,
@@ -208,7 +209,7 @@ static int reboot_notify_sys(struct notifier_block *this,
 	struct ncp6951_flt_data *flt = container_of(
 		this, struct ncp6951_flt_data, reboot_notifier);
 
-	FLT_INFO_LOG("%s: %ld", __func__, event);
+	FLT_INFO_LOG("%s: %ld\n", __func__, event);
 	switch (event) {
 		case SYS_RESTART:
 		case SYS_HALT:
@@ -257,7 +258,7 @@ static ssize_t sw_timeout_store(
 	struct ncp6951_flt_data *flt = dev_get_drvdata(dev);
 	input = simple_strtoul(buf, NULL, 10);
 
-	if(input >= 0 && input <= 2000){
+	if(input <= 2000){
 		flt->flash_timeout_sw = input;
 		FLT_DBG_LOG("%s: %4u\n", __func__, flt->flash_timeout_sw);
 	}else
@@ -428,6 +429,7 @@ int ncp6951_flt_flash(struct ncp6951_flt_data *flt, uint32_t mA)
 		en = 0;
 	} else if(mA > 0 && mA < 100) {
 		lv = 0;
+		en = 0x05;
 	} else if (mA >= 100 && mA <= 550) {
 		lv = mA - 100;
 		lv = lv * 15 / 433;
@@ -500,6 +502,11 @@ int ncp6951_flt_flashlight_control(struct ncp6951_flt_data *flt, uint8_t mode)
 
 	if (cancel_delayed_work_sync(&flt->ncp6951_flt_delayed_work))
 		FLT_INFO_LOG("delayed work is cancelled\n");
+
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+    if( flt->mode_status==0 && mode!=FL_MODE_OFF )
+		ncp6951_reset();
+#endif
 
 	switch (mode) {
 	case FL_MODE_OFF:
@@ -599,6 +606,65 @@ static void ncp6951_flt_turn_off_work(struct work_struct *work)
 	FLT_INFO_LOG("%s\n", __func__);
 	ncp6951_flt_turn_off(flt);
 }
+
+int ncp6951_flt_reg_init(void)
+{
+	int rc=0;
+	FLT_INFO_LOG("%s start.\n", __func__);
+	rc = ncp6951_i2c_ex_write(REG_FLASH_SETTING, 0x1F);
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_FLASH_SETTING failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_REDUCED_CURRENT, 0x00);
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_REDUCED_CURRENT failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_TORCH_CURRENT, 0x05);
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_TORCH_CURRENT failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_PROTECTION, 0x20);
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_PROTECTION failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_FLASH_TIMER, 0x05);	
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_FLASH_TIMER failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_RED_EYE, 0x05);	
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_RED_EYE failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_FLASH_CONF, 0x08);
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_FLASH_CONF failed(%d).\n", __func__, rc);
+		return rc;
+	}
+	rc = ncp6951_i2c_ex_write(REG_FLASH_ENABLE, 0x00);
+	if(rc<0)
+	{
+		FLT_INFO_LOG("%s: REG_FLASH_ENABLE failed(%d).\n", __func__, rc);
+		return rc;
+	}
+
+	return rc;
+}
+#ifdef CONFIG_HTC_NCP6951_POWER_RESET
+EXPORT_SYMBOL(ncp6951_flt_reg_init);
+#endif
 
 static int ncp6951_flt_parse_dt(
 	struct device_node *dt,
@@ -836,14 +902,7 @@ static int ncp6951_flt_probe(struct platform_device *pdev)
 	
 
 	flt->flash_timeout_sw = 600;
-	ncp6951_i2c_ex_write(REG_FLASH_SETTING, 0x1F);
-	ncp6951_i2c_ex_write(REG_REDUCED_CURRENT, 0x00);
-	ncp6951_i2c_ex_write(REG_TORCH_CURRENT, 0x05);
-	ncp6951_i2c_ex_write(REG_PROTECTION, 0x20);
-	ncp6951_i2c_ex_write(REG_FLASH_TIMER, 0x05);	
-	ncp6951_i2c_ex_write(REG_RED_EYE, 0x05);	
-	ncp6951_i2c_ex_write(REG_FLASH_CONF, 0x08);
-	ncp6951_i2c_ex_write(REG_FLASH_ENABLE, 0x00);
+	ncp6951_flt_reg_init();
 
 	if(0) {
 		FLT_ERR_LOG("%s, Unable to initialize the chip, err: %d\n",

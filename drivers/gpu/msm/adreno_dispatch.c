@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -126,7 +126,7 @@ static inline bool _isidle(struct kgsl_device *device)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	unsigned int ts, i;
 
-	if (!kgsl_pwrctrl_isenabled(device))
+	if (!kgsl_state_is_awake(device))
 		goto ret;
 
 	
@@ -198,6 +198,23 @@ static void _retire_marker(struct kgsl_cmdbatch *cmdbatch)
 	kgsl_cmdbatch_destroy(cmdbatch);
 }
 
+static int _check_context_queue(struct adreno_context *drawctxt)
+{
+	int ret;
+
+	spin_lock(&drawctxt->lock);
+
+
+	if (kgsl_context_invalid(&drawctxt->base))
+		ret = 1;
+	else
+		ret = drawctxt->queued < _context_cmdqueue_size ? 1 : 0;
+
+	spin_unlock(&drawctxt->lock);
+
+	return ret;
+}
+
 static bool _marker_expired(struct kgsl_cmdbatch *cmdbatch)
 {
 	return (cmdbatch->flags & KGSL_CMDBATCH_MARKER) &&
@@ -211,10 +228,9 @@ static inline void _pop_cmdbatch(struct adreno_context *drawctxt)
 		ADRENO_CONTEXT_CMDQUEUE_SIZE);
 	drawctxt->queued--;
 }
-
-static struct kgsl_cmdbatch *_get_cmdbatch(struct adreno_context *drawctxt)
+static struct kgsl_cmdbatch *_expire_markers(struct adreno_context *drawctxt)
 {
-	struct kgsl_cmdbatch *cmdbatch = NULL;
+	struct kgsl_cmdbatch *cmdbatch;
 	bool pending = false;
 
 	if (drawctxt->cmdqueue_head == drawctxt->cmdqueue_tail)
@@ -222,20 +238,53 @@ static struct kgsl_cmdbatch *_get_cmdbatch(struct adreno_context *drawctxt)
 
 	cmdbatch = drawctxt->cmdqueue[drawctxt->cmdqueue_head];
 
+	if (cmdbatch == NULL)
+		return NULL;
+
 	
-	if (cmdbatch->flags & KGSL_CMDBATCH_MARKER) {
-		if (_marker_expired(cmdbatch)) {
-			_pop_cmdbatch(drawctxt);
-			_retire_marker(cmdbatch);
-
-			
-			return _get_cmdbatch(drawctxt);
-		}
-
-
-		if (!test_bit(CMDBATCH_FLAG_SKIP, &cmdbatch->priv))
-			pending = true;
+	if ((cmdbatch->flags & KGSL_CMDBATCH_MARKER) &&
+			_marker_expired(cmdbatch)) {
+		_pop_cmdbatch(drawctxt);
+		_retire_marker(cmdbatch);
+		return _expire_markers(drawctxt);
 	}
+
+	if (cmdbatch->flags & KGSL_CMDBATCH_SYNC) {
+		spin_lock_bh(&cmdbatch->lock);
+		if (!list_empty(&cmdbatch->synclist))
+			pending = true;
+		spin_unlock_bh(&cmdbatch->lock);
+
+		if (!pending) {
+			_pop_cmdbatch(drawctxt);
+			kgsl_cmdbatch_destroy(cmdbatch);
+			return _expire_markers(drawctxt);
+		}
+	}
+
+	return cmdbatch;
+}
+
+static void expire_markers(struct adreno_context *drawctxt)
+{
+	spin_lock(&drawctxt->lock);
+	_expire_markers(drawctxt);
+	spin_unlock(&drawctxt->lock);
+}
+
+static struct kgsl_cmdbatch *_get_cmdbatch(struct adreno_context *drawctxt)
+{
+	struct kgsl_cmdbatch *cmdbatch;
+	bool pending = false;
+
+	cmdbatch = _expire_markers(drawctxt);
+
+	if (cmdbatch == NULL)
+		return NULL;
+
+	if ((cmdbatch->flags & KGSL_CMDBATCH_MARKER) &&
+			(!test_bit(CMDBATCH_FLAG_SKIP, &cmdbatch->priv)))
+		pending = true;
 
 	spin_lock_bh(&cmdbatch->lock);
 	if (!list_empty(&cmdbatch->synclist))
@@ -243,13 +292,13 @@ static struct kgsl_cmdbatch *_get_cmdbatch(struct adreno_context *drawctxt)
 	spin_unlock_bh(&cmdbatch->lock);
 
 	if (pending) {
-		if (!timer_pending(&cmdbatch->timer))
-			mod_timer(&cmdbatch->timer, jiffies + (5 * HZ));
+		if (!cmdbatch->timeout_jiffies) {
+			cmdbatch->timeout_jiffies = jiffies + 5 * HZ;
+			mod_timer(&cmdbatch->timer, cmdbatch->timeout_jiffies);
+		}
 
-		return ERR_PTR(-EBUSY);
+		return ERR_PTR(-EAGAIN);
 	}
-
-	del_timer_sync(&cmdbatch->timer);
 
 	_pop_cmdbatch(drawctxt);
 	return cmdbatch;
@@ -263,6 +312,9 @@ static struct kgsl_cmdbatch *adreno_dispatcher_get_cmdbatch(
 	spin_lock(&drawctxt->lock);
 	cmdbatch = _get_cmdbatch(drawctxt);
 	spin_unlock(&drawctxt->lock);
+
+	if (!IS_ERR_OR_NULL(cmdbatch))
+		del_timer_sync(&cmdbatch->timer);
 
 	return cmdbatch;
 }
@@ -278,7 +330,7 @@ static inline int adreno_dispatcher_requeue_cmdbatch(
 		spin_unlock(&drawctxt->lock);
 		
 		kgsl_cmdbatch_destroy(cmdbatch);
-		return -EINVAL;
+		return -ENOENT;
 	}
 
 	prev = drawctxt->cmdqueue_head == 0 ?
@@ -337,6 +389,11 @@ static int sendcmd(struct adreno_device *adreno_dev,
 		return -EBUSY;
 	}
 
+	if (kgsl_context_detached(cmdbatch->context)) {
+		mutex_unlock(&device->mutex);
+		return -ENOENT;
+	}
+
 	dispatcher->inflight++;
 	dispatch_q->inflight++;
 
@@ -382,8 +439,12 @@ static int sendcmd(struct adreno_device *adreno_dev,
 	if (ret) {
 		dispatcher->inflight--;
 		dispatch_q->inflight--;
-		KGSL_DRV_ERR(device,
-			"Unable to submit command to the ringbuffer %d\n", ret);
+
+
+		if (ret != -ENOENT)
+			KGSL_DRV_ERR(device,
+				"Unable to submit command to the ringbuffer %d\n",
+				ret);
 		return ret;
 	}
 
@@ -426,8 +487,10 @@ static int dispatcher_context_sendcmds(struct adreno_device *adreno_dev,
 	int inflight = _cmdqueue_inflight(dispatch_q);
 	unsigned int timestamp;
 
-	if (dispatch_q->inflight >= inflight)
+	if (dispatch_q->inflight >= inflight) {
+		expire_markers(drawctxt);
 		return -EBUSY;
+	}
 
 	while ((count < _context_cmdbatch_burst) &&
 		(dispatch_q->inflight < inflight)) {
@@ -455,10 +518,17 @@ static int dispatcher_context_sendcmds(struct adreno_device *adreno_dev,
 
 		ret = sendcmd(adreno_dev, cmdbatch);
 
-		if (ret) {
-			if (adreno_dispatcher_requeue_cmdbatch(drawctxt,
-				cmdbatch))
-				ret = -EINVAL;
+		if (ret != 0) {
+			
+			if (ret == -ENOENT)
+				kgsl_cmdbatch_destroy(cmdbatch);
+			else {
+				int r = adreno_dispatcher_requeue_cmdbatch(
+					drawctxt, cmdbatch);
+				if (r)
+					ret = r;
+			}
+
 			break;
 		}
 
@@ -468,7 +538,7 @@ static int dispatcher_context_sendcmds(struct adreno_device *adreno_dev,
 	}
 
 
-	if (count)
+	if (_check_context_queue(drawctxt))
 		wake_up_all(&drawctxt->wq);
 
 	if (!ret)
@@ -478,18 +548,19 @@ static int dispatcher_context_sendcmds(struct adreno_device *adreno_dev,
 	return ret;
 }
 
-static int _adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
+static void _adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 {
 	struct adreno_dispatcher *dispatcher = &adreno_dev->dispatcher;
 	struct adreno_context *drawctxt, *next;
-	struct plist_head requeue;
+	struct plist_head requeue, busy_list;
 	int ret;
 
 	
 	if (adreno_gpu_fault(adreno_dev) != 0)
-			return 0;
+		return;
 
 	plist_head_init(&requeue);
+	plist_head_init(&busy_list);
 
 	
 	while (1) {
@@ -524,19 +595,22 @@ static int _adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 
 		ret = dispatcher_context_sendcmds(adreno_dev, drawctxt);
 
-		if (ret != 0) {
+		
+		if (ret != 0 && ret != -ENOENT) {
 			spin_lock(&dispatcher->plist_lock);
 
-			if (plist_node_empty(&drawctxt->pending)) {
-				plist_add(&drawctxt->pending, &requeue);
-			} else {
-				if (-EBUSY == ret) {
-					plist_del(&drawctxt->pending,
-							&dispatcher->pending);
-					plist_add(&drawctxt->pending, &requeue);
-				}
+
+			if (!plist_node_empty(&drawctxt->pending)) {
+				plist_del(&drawctxt->pending,
+						&dispatcher->pending);
 				kgsl_context_put(&drawctxt->base);
 			}
+
+			if (ret == -EBUSY)
+				
+				plist_add(&drawctxt->pending, &busy_list);
+			else
+				plist_add(&drawctxt->pending, &requeue);
 
 			spin_unlock(&dispatcher->plist_lock);
 		} else {
@@ -545,52 +619,35 @@ static int _adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 		}
 	}
 
-	
-
 	spin_lock(&dispatcher->plist_lock);
 
+	
+	plist_for_each_entry_safe(drawctxt, next, &busy_list, pending) {
+		plist_del(&drawctxt->pending, &busy_list);
+		plist_add(&drawctxt->pending, &dispatcher->pending);
+	}
+
+	
 	plist_for_each_entry_safe(drawctxt, next, &requeue, pending) {
 		plist_del(&drawctxt->pending, &requeue);
 		plist_add(&drawctxt->pending, &dispatcher->pending);
 	}
 
 	spin_unlock(&dispatcher->plist_lock);
-
-	return 0;
 }
 
-static int adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
+static void adreno_dispatcher_issuecmds(struct adreno_device *adreno_dev)
 {
 	struct adreno_dispatcher *dispatcher = &adreno_dev->dispatcher;
-	int ret;
 
 	
 	if (!mutex_trylock(&dispatcher->mutex)) {
 		adreno_dispatcher_schedule(&adreno_dev->dev);
-		return 0;
+		return;
 	}
 
-	ret = _adreno_dispatcher_issuecmds(adreno_dev);
+	_adreno_dispatcher_issuecmds(adreno_dev);
 	mutex_unlock(&dispatcher->mutex);
-
-	return ret;
-}
-
-static int _check_context_queue(struct adreno_context *drawctxt)
-{
-	int ret;
-
-	spin_lock(&drawctxt->lock);
-
-
-	if (kgsl_context_invalid(&drawctxt->base))
-		ret = 1;
-	else
-		ret = drawctxt->queued < _context_cmdqueue_size ? 1 : 0;
-
-	spin_unlock(&drawctxt->lock);
-
-	return ret;
 }
 
 static int get_timestamp(struct adreno_context *drawctxt,
@@ -626,7 +683,7 @@ int adreno_dispatcher_queue_cmd(struct adreno_device *adreno_dev,
 
 	if (kgsl_context_detached(&drawctxt->base)) {
 		spin_unlock(&drawctxt->lock);
-		return -EINVAL;
+		return -ENOENT;
 	}
 
 
@@ -682,7 +739,7 @@ int adreno_dispatcher_queue_cmd(struct adreno_device *adreno_dev,
 	}
 	if (kgsl_context_detached(&drawctxt->base)) {
 		spin_unlock(&drawctxt->lock);
-		return -EINVAL;
+		return -ENOENT;
 	}
 
 	ret = get_timestamp(drawctxt, cmdbatch, timestamp);
@@ -1174,9 +1231,14 @@ static int dispatcher_do_fault(struct kgsl_device *device)
 	if (dispatcher->inflight == 0) {
 		KGSL_DRV_WARN(device,
 		"dispatcher_do_fault with 0 inflight commands\n");
-		if (kgsl_pwrctrl_isenabled(device))
-			kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
-		return 0;
+		mutex_lock(&device->mutex);
+		if (device->state == KGSL_STATE_AWARE)
+			ret = kgsl_pwrctrl_change_state(device,
+				KGSL_STATE_ACTIVE);
+		else
+			ret = 0;
+		mutex_unlock(&device->mutex);
+		return ret;
 	}
 
 	
@@ -1692,6 +1754,10 @@ int adreno_dispatcher_init(struct adreno_device *adreno_dev)
 
 	setup_timer(&dispatcher->fault_timer, adreno_dispatcher_fault_timer,
 		(unsigned long) adreno_dev);
+
+	
+	if (adreno_is_a304(adreno_dev))
+		_fault_timer_interval = 400;
 
 	INIT_WORK(&dispatcher->work, adreno_dispatcher_work);
 

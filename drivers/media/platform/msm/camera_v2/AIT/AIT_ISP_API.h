@@ -1,3 +1,12 @@
+/*************************************************************************************************/
+/* AIT ISP Host API                                                                              */
+/* All rights reserved by Alpah Image Technology Corp.                                           */
+/*-----------------------------------------------------------------------------------------------*/
+/* File name: AIT_ISP_API.h                                                                      */
+/* Description: ISP Host API hardware independent layer                                          */
+/*                                                                                               */
+/* Version 0.01   20141209                                                                       */
+/*************************************************************************************************/
 
 #ifndef _AIT_ISP_API_H_
 #define _AIT_ISP_API_H_
@@ -6,9 +15,15 @@
 #include "AIT_ISP_project.h"
 
 
+/*****************************************************************************/
+/* Host Base Address                                                         */
+/*****************************************************************************/
 #define	HOST_BASE_ADDR						(0x65E0)
 
 
+/*****************************************************************************/
+/* Host Parameter Register Index                                             */
+/*****************************************************************************/
 #define	HOST_PARAMETER_0					(HOST_BASE_ADDR + 0x10)
 #define	HOST_PARAMETER_1					(HOST_BASE_ADDR + 0x11)
 #define	HOST_PARAMETER_2					(HOST_BASE_ADDR + 0x12)
@@ -24,6 +39,9 @@
 #define	HOST_PARAMETER_C					(HOST_BASE_ADDR + 0x1C)
 #define	HOST_PARAMETER_D					(HOST_BASE_ADDR + 0x1D)
 
+/*****************************************************************************/
+/* Host Command & Status Register Index                                      */
+/*****************************************************************************/
 #define HOST_CMD_ADDR0						(HOST_BASE_ADDR + 0x08)
 #define HOST_CMD_ADDR1						(HOST_BASE_ADDR + 0x09)
 #define HOST_STATUS_ADDR					(HOST_BASE_ADDR + 0x1E)
@@ -31,8 +49,11 @@
 #define VENUS_CMD_TAIL						(0xE0)
 
 
-#define VA_PREVIEW_STATUS_STOP				0 
-#define VA_PREVIEW_STATUS_START				1 
+/*************************************************************************************************/
+/* Typedefine                                                                                    */
+/*************************************************************************************************/
+#define VA_PREVIEW_STATUS_STOP				0 /* VENUS_PREVIEW_STATUS_STOP */
+#define VA_PREVIEW_STATUS_START				1 /* VENUS_PREVIEW_STATUS_START */
 
 typedef enum
 {
@@ -46,6 +67,9 @@ typedef enum
 } VENUS_COLOR_FORMAT;
 
 
+/*****************************************************************************/
+/* AE Mode Definition                                                        */
+/*****************************************************************************/
 #define AE_MODE_AUTO						0
 #define AE_MODE_MANUAL						1
 #define AE_MODE_ISO							2
@@ -97,6 +121,7 @@ typedef enum
 	VENUS_PREVIEW_FORMAT_YUV422_UYVY			= 9
 } VENUS_PREVIEW_FORMAT;
 
+/*******	Host Interrupt		***************************************************************/
 typedef enum {
 	VENUS_ENABLE_VIF_FRAME_START_INTERRUPT			= 0x0001,
 	VENUS_ENABLE_VIF_FRAME_END_INTERRUPT			= 0x0002,
@@ -113,12 +138,17 @@ typedef enum {
 	VENUS_ENABLE_ALL_INTERRUPT						= 0x07FF
 } VENUS_INTERRUPT_CASE;
 
+/*************************************************************************************************/
+/* Venus : Macros                                                                                */
+/*************************************************************************************************/
 #define VA_MIN(a, b)						(((a) < (b)) ? (a) : (b))
 #define VA_MAX(a, b)						(((a) > (b)) ? (a) : (b))
 #define VR_ARRSIZE(a)						(sizeof((a)) / sizeof((a[0])))
 
+/*******	Configure Sensor  	***************************************************************/
 uint8 VA_InitializeSensor(void);
-uint8 VA_SetCaliTable(uint8 *SetCaliStatus);
+uint8 VA_SetCaliTable(uint8 *SetCaliStatus);//htc
+/*******	Start/Stop Preview   	***************************************************************/
 uint8 VA_SetPreviewControl(uint8 status);
 
 uint8 VA_SetPreviewResolution(uint16 width, uint16 height);
@@ -126,6 +156,7 @@ uint8 VA_SetPreviewResolution(uint16 width, uint16 height);
 uint8 VA_SetPreviewFormat(VENUS_PREVIEW_FORMAT format);
 
 
+/*******	ISP		***************************************************************/
 uint8 VA_SetSharpness(uint8 Sharpness_parameter);
 
 uint8 VA_SetGamma(uint8 Gamma_parameter);
@@ -136,6 +167,7 @@ uint8 VA_SetSaturation(uint8 Saturation_parameter);
 
 uint8 VA_GetLux(uint32 *Lux);
 
+/*******	AWB		***************************************************************/
 uint8 VA_AutoAWBMode(ISP_AWB_MODE AWB_Mode);
 
 uint8 VA_GetRGBGain(uint16 *R_Gain, uint16 *G_Gain, uint16 *B_Gain, uint16 *Gain_Base);
@@ -147,6 +179,7 @@ uint8 VA_SetAWBROIPosition(uint16 width, uint16 height, uint16 offsetx, uint16 o
 uint8 VA_GetAWBROIACC(uint32 *R_Sum, uint32 *G_Sum, uint32 *B_Sum, uint32 *pixel_count);
 
 
+/*******	AE		***************************************************************/
 uint8 VA_SetFlickerMode(uint8 Flicker_Mode);
 
 uint8 VA_SetISO(uint16 ISO_Parameter);
@@ -160,12 +193,13 @@ uint8 VA_GetEV(uint16 *Exposure_Parameter);
 uint8 VA_SetEVLevel(VENUS_AE_EV Exposure_Level);
 
 
+/*******	Exposur		***************************************************************/
 typedef enum
 {
-    ISP_AE_MODE_P					= 0, 
-    ISP_AE_MODE_A					= 1, 
-    ISP_AE_MODE_S					= 2, 
-    ISP_AE_MODE_M					= 3, 
+    ISP_AE_MODE_P					= 0, /* program				*/
+    ISP_AE_MODE_A					= 1, /* aperture priority	*/
+    ISP_AE_MODE_S					= 2, /* shutter priority	*/
+    ISP_AE_MODE_M					= 3, /* manual				*/
     ISP_AE_MODE_NUM
 } VENUS_AE_MODE;
 
@@ -173,28 +207,31 @@ uint8 VA_SetExposureMode(VENUS_AE_MODE AE_MODE);
 
 uint8 VA_SetManualExposureTime(uint16 Exposure_Levle, uint16 Exposure_Partition);
 
-uint8 VA_GetExposureTime(uint32 *N, uint32 *M);
+uint8 VA_GetExposureTime(uint32 *N, uint32 *M);/* N/M */
 
-uint8 VA_SetExposureTime(uint32 N_parameter);
+uint8 VA_SetExposureTime(uint32 N_parameter);/* N_parameter/ExposureTimeBase */
 
 uint8 VA_SetOverallGain(uint16 Overall_Gain);
 
-uint8 VA_GetOverallGain(uint16 *Gain, uint16 *GainBase);
+uint8 VA_GetOverallGain(uint16 *Gain, uint16 *GainBase);/* Gain/GainBase */
 
 
+/*******	AEROI		***************************************************************/
 uint8 VA_SetAEROIPosition(uint16 width, uint16 height, uint16 offsetx, uint16 offsety);
 
-uint8 VA_SetAEROIMeteringTable(uint8 *Metering_Ptr);	
+uint8 VA_SetAEROIMeteringTable(uint8 *Metering_Ptr);	/* This function will be modified later */
 
 uint8 VA_GetAEROICurrentLuma(uint32 *AERIO_Luma);
 
+/*******	Custom AEROI		***************************************************************/
 uint8 VA_CustomAEROIModeEnable(ISP_CUSTOM_WIN_MODE Custom_Enable);
 
 uint8 VA_SetCustomAEROIPosition(uint16 StartX, uint16 EndX, uint16 StartY, uint16 EndY);
 
-uint8 VA_SetCustomAEROIWeight(uint16 weight);			
+uint8 VA_SetCustomAEROIWeight(uint16 weight);			/* This function will be modified later */
 
 
+/*******	Luma	***************************************************************/
 uint8 VA_SetLumaFormula(uint16 paraR, uint16 paraGr, uint16 paraGb, uint16 paraB);
 
 uint8 VA_SetLumaTargetMode(uint8 Enable);
@@ -204,6 +241,7 @@ uint8 VA_SetAEROILumaTarget(uint16 Luma_Target);
 uint8 VA_GetCustomAEROILuma(uint16 *Luma_Value);
 
 
+/*******	Sensor	***************************************************************/
 uint16 VA_GetSensorReg(uint16 sensor_reg_addr);
 
 uint16 VA_ReadSensorOTP(uint8 *OTP_buf);
@@ -211,6 +249,7 @@ uint16 VA_ReadSensorOTP(uint8 *OTP_buf);
 uint8 VA_SENSOR_READ_OTP(uint8 page, uint16 Address);
 
 
+/*******	IQ status		***************************************************************/
 uint8 VA_GetIQGainStatus(uint16 *Gain_Status);
 
 uint8 VA_GetIQEnergyStatus(uint16 *Energy_Status);
@@ -227,6 +266,7 @@ uint8 VA_GetIQOPR (uint8 *Status_1, uint8 *Status_2);
 
 
 
+/*******	Status	***************************************************************/
 uint8 VA_SetChipStandby(void);
 
 uint8 VA_SetChipStreaming(void);
@@ -240,6 +280,7 @@ uint8 VA_GetFWVersion(uint8 *version);
 uint8 VA_HostEvent(uint16 event);
 
 
+/*******	Streaming debug		***************************************************************/
 typedef enum
 {
 	VENUS_STREAMING_IN_FRAM_COUNT,
@@ -249,6 +290,7 @@ typedef enum
 uint8 VA_StreamingDebug(VENUS_STREAMING_DEBUG_MODE DebugCase, uint32 *DebugMessage);
 
 
+/*******	Sensor debug		***************************************************************/
 typedef enum
 {
 	VENUS_SNR_S5K5E2_READ_ID,
@@ -262,6 +304,7 @@ typedef enum
 
 uint8 VA_SensorDebug(VENUS_SENSOR_DEBUG_MODE DebugCase);
 
+/*******	ISP debug		***************************************************************/
 typedef enum
 {
 	VENUS_AE_GET_EV_BIAS_PARAMETER,
@@ -276,6 +319,7 @@ typedef enum
 uint8 VA_ISPDebug(VENUS_ISP_DEBUG_MODE DebugCase, uint32 *DebugMessage);
 
 
+/*******	Host Interrupt		***************************************************************/
 uint8 VA_HostIntertuptEnable(uint8 Enable);
 
 uint8 VA_HostIntertuptModeEnable(uint32 InterruptCase);
@@ -288,6 +332,7 @@ uint8 VA_HostIntertuptModeCheckStatus(uint32 *InterruptCase);
 
 uint8 VA_CheckHostInterruptStatusList(uint32 *Interrupt_Status);
 
+/*******	Host Interrupt		***************************************************************/
 uint8 VA_CustomHostIntertupt0Enable(uint8 Enable);
 
 uint8 VA_CustomHostIntertupt0ClearStatus(uint8 Enable);
@@ -300,12 +345,17 @@ uint8 VA_CustomHostIntertupt0ModeStatusClear(uint8 InterruptCase);
 
 uint8 VA_CustomHostIntertupt0ModeCheckStatus(uint8 *InterruptCase);
 
+/*******	dump Opr 		***************************************************************/
 uint8 Dump_Opr(uint16 Start_Address, uint16 Dump_Size);
 
+/*******	Debug Message		***************************************************************/
 uint8 Debug_ISPStatus(void);
 
 uint8 Debug_StreamingStatus(uint8 Enable_FrameCounterDebug, uint8 Enable_HostIntStatus);
 
+/*******	SPI test		***************************************************************/
+/* Return 1 means the command has be done.		*/
+/* Return 0 means the command fail.				*/
 
 uint8 TST_RDOP(void);
 
@@ -315,6 +365,7 @@ uint8 TST_Bulk_RDOP_WRDA(void);
 
 uint8 TST_Flow(void);
 
+/*******	Streaming debug		***************************************************************/
 typedef enum
 {
 	OV2722_PWDN,
@@ -324,6 +375,6 @@ typedef enum
 } SENSOR_PWDN_PIN;
 
 
-void Cntl_SensorPWDN(SENSOR_PWDN_PIN Sensor, uint8 Output);
-#endif 
+void Cntl_SensorPWDN(SENSOR_PWDN_PIN Sensor, uint8 Output);//HTC
+#endif /* _AIT_ISP_API_H_	*/
 

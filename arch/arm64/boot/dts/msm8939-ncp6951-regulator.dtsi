@@ -18,6 +18,7 @@
 			ncp,use-ioexpander = <0>; /* 1: en_pin at gpio-expander */
 			ncp,enable-ioexp = <8>;
 			ncp,enable-gpio = <&msm_gpio 34 0>;
+			ncp,pwr-gpio = <&msm_gpio 109 0>;
 
 			ncp6951_dcdc: regulator-dcdc {
 				regulator-name = "ncp6951_dcdc";

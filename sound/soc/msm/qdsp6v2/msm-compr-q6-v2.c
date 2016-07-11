@@ -38,6 +38,7 @@
 #include "audio_ocmem.h"
 #include <sound/tlv.h>
 
+//htc audio ++
 #include <sound/q6adm-v2.h>
 #include <linux/wakelock.h>
 #include <sound/htc_acoustic_alsa.h>
@@ -45,9 +46,14 @@
 #undef pr_err
 #define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
 #define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
 
 #define COMPRE_CAPTURE_NUM_PERIODS	16
+/* Allocate the worst case frame size for compressed audio */
 #define COMPRE_CAPTURE_HEADER_SIZE	(sizeof(struct snd_compr_audio_info))
+/* Changing period size to 4032. 4032 will make sure COMPRE_CAPTURE_PERIOD_SIZE
+ * is 4096 with meta data size of 64 and MAX_NUM_FRAMES_PER_BUFFER 1
+ */
 #define COMPRE_CAPTURE_MAX_FRAME_SIZE	(4032)
 #define COMPRE_CAPTURE_PERIOD_SIZE	((COMPRE_CAPTURE_MAX_FRAME_SIZE + \
 					  COMPRE_CAPTURE_HEADER_SIZE) * \
@@ -110,10 +116,12 @@ static struct snd_pcm_hardware msm_compr_hardware_playback = {
 	.fifo_size =	    0,
 };
 
+/* Conventional and unconventional sample rate supported */
 static unsigned int supported_sample_rates[] = {
 	8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000
 };
 
+/* Add supported codecs for compress capture path */
 static uint32_t supported_compr_capture_codecs[] = {
 	SND_AUDIOCODEC_AMRWB
 };
@@ -175,6 +183,9 @@ static void compr_event_handler(uint32_t opcode,
 		} else
 			atomic_set(&prtd->pending_buffer, 0);
 
+		/*
+		 * check for underrun
+		 */
 		snd_pcm_stream_lock_irq(substream);
 		if (runtime->status->hw_ptr >= runtime->control->appl_ptr) {
 			runtime->render_flag |= SNDRV_RENDER_STOPPED;
@@ -392,11 +403,13 @@ static int msm_compr_playback_prepare(struct snd_pcm_substream *substream)
 	if (runtime->format == SNDRV_PCM_FORMAT_S24_LE)
 		bits_per_sample = 24;
 
+//HTC_AUD_START
 	if (htc_acoustic_query_feature(HTC_AUD_24BIT)) {
 		pr_info("%s:enable 24 bit Audio in POPP compr prepare\n",
 			__func__);
 		bits_per_sample = 24;
 	}
+//HTC_AUD_END
 
 	ret = q6asm_open_write_v2(prtd->audio_client,
 			compr->codec, bits_per_sample);
@@ -410,6 +423,10 @@ static int msm_compr_playback_prepare(struct snd_pcm_substream *substream)
 			prtd->audio_client->perf_mode,
 			prtd->session_id,
 			substream->stream);
+	/*
+	 * the number of channels are required to call volume api
+	 * accoridngly. So, get channels from hw params
+	 */
 	if ((params_channels(params) > 0) &&
 			(params_periods(params) <= runtime->hw.channels_max))
 		prtd->channel_mode = params_channels(params);
@@ -433,7 +450,7 @@ static int msm_compr_playback_prepare(struct snd_pcm_substream *substream)
 	prtd->pcm_size = snd_pcm_lib_buffer_bytes(substream);
 	prtd->pcm_count = snd_pcm_lib_period_bytes(substream);
 	prtd->pcm_irq_pos = 0;
-	
+	/* rate and channels are sent to audio driver */
 	prtd->samp_rate = runtime->rate;
 	prtd->channel_mode = runtime->channels;
 	prtd->out_head = 0;
@@ -444,7 +461,7 @@ static int msm_compr_playback_prepare(struct snd_pcm_substream *substream)
 
 	switch (compr->info.codec_param.codec.id) {
 	case SND_AUDIOCODEC_MP3:
-		
+		/* No media format block for mp3 */
 		break;
 	case SND_AUDIOCODEC_AAC:
 		pr_debug("%s: SND_AUDIOCODEC_AAC\n", __func__);
@@ -509,6 +526,10 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 
 	if (!msm_compr_capture_codecs(
 				compr->info.codec_param.codec.id)) {
+		/*
+		 * request codec invalid or not supported,
+		 * use default compress format
+		 */
 		compr->info.codec_param.codec.id =
 			SND_AUDIOCODEC_AMRWB;
 	}
@@ -530,6 +551,11 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 		break;
 	default:
 		pr_debug("q6asm_open_read_compressed(COMPRESSED_META_DATA_MODE)\n");
+		/*
+		   ret = q6asm_open_read_compressed(prtd->audio_client,
+		   MAX_NUM_FRAMES_PER_BUFFER,
+		   COMPRESSED_META_DATA_MODE);
+		 */
 			ret = -EINVAL;
 			break;
 	}
@@ -548,9 +574,13 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 		}
 
 	if (!msm_compr_capture_codecs(codec->id)) {
+		/*
+		 * request codec invalid or not supported,
+		 * use default compress format
+		 */
 		codec->id = SND_AUDIOCODEC_AMRWB;
 	}
-	
+	/* rate and channels are sent to audio driver */
 	prtd->samp_rate = runtime->rate;
 	prtd->channel_mode = runtime->channels;
 
@@ -563,8 +593,12 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 		pr_debug("SND_AUDIOCODEC_AMRWB\n");
 		ret = q6asm_enc_cfg_blk_amrwb(prtd->audio_client,
 			MAX_NUM_FRAMES_PER_BUFFER,
+			/*
+			 * use fixed band mode and dtx mode
+			 * band mode - 23.85 kbps
+			 */
 			AMR_WB_BAND_MODE,
-			
+			/* dtx mode - disable */
 			AMR_WB_DTX_MODE);
 		if (ret < 0)
 			pr_err("%s: CMD Format block failed: %d\n",
@@ -593,6 +627,8 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 			break;
 		default:
 			read_param.paddr = buf[i].phys;
+			/*q6asm_async_read_compressed(prtd->audio_client,
+				&read_param);*/
 			pr_debug("%s: To add support for read compressed\n",
 								__func__);
 			ret = -EINVAL;
@@ -622,6 +658,10 @@ static int msm_compr_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 			if (!msm_compr_capture_codecs(
 				compr->info.codec_param.codec.id)) {
+				/*
+				 * request codec invalid or not supported,
+				 * use default compress format
+				 */
 				compr->info.codec_param.codec.id =
 				SND_AUDIOCODEC_AMRWB;
 			}
@@ -677,7 +717,7 @@ static void populate_codec_list(struct compr_audio *compr,
 		struct snd_pcm_runtime *runtime)
 {
 	pr_debug("%s\n", __func__);
-	
+	/* MP3 Block */
 	compr->info.compr_cap.num_codecs = 5;
 	compr->info.compr_cap.min_fragment_size = runtime->hw.period_bytes_min;
 	compr->info.compr_cap.max_fragment_size = runtime->hw.period_bytes_max;
@@ -688,7 +728,7 @@ static void populate_codec_list(struct compr_audio *compr,
 	compr->info.compr_cap.codecs[2] = SND_AUDIOCODEC_AC3;
 	compr->info.compr_cap.codecs[3] = SND_AUDIOCODEC_EAC3;
 	compr->info.compr_cap.codecs[4] = SND_AUDIOCODEC_AMRWB;
-	
+	/* Add new codecs here */
 }
 
 static int msm_compr_open(struct snd_pcm_substream *substream)
@@ -733,7 +773,7 @@ static int msm_compr_open(struct snd_pcm_substream *substream)
 			&constraints_sample_rates);
 	if (ret < 0)
 		pr_info("snd_pcm_hw_constraint_list failed\n");
-	
+	/* Ensure that buffer size is a multiple of period size */
 	ret = snd_pcm_hw_constraint_integer(runtime,
 			    SNDRV_PCM_HW_PARAM_PERIODS);
 	if (ret < 0)
@@ -910,7 +950,7 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 	else
 		dir = OUT;
 
-	
+	/* Modifying kernel hardware params based on userspace config */
 	if (params_periods(params) > 0 &&
 		(params_periods(params) != runtime->hw.periods_max)) {
 		runtime->hw.periods_max = params_periods(params);
@@ -999,7 +1039,7 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 			sizeof(struct snd_compr_params));
 		switch (compr->info.codec_param.codec.id) {
 		case SND_AUDIOCODEC_MP3:
-			
+			/* For MP3 we dont need any other parameter */
 			pr_debug("SND_AUDIOCODEC_MP3\n");
 			compr->codec = FORMAT_MP3;
 			break;
@@ -1010,12 +1050,12 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 		case SND_AUDIOCODEC_AC3: {
 			char params_value[MAX_AC3_PARAM_SIZE];
 			int *params_value_data = (int *)params_value;
-			
+			/* 36 is the max param length for ddp */
 			int i;
 			struct snd_dec_ddp *ddp =
 				&compr->info.codec_param.codec.options.ddp;
 			uint32_t params_length = 0;
-			
+			/* check integer overflow */
 			if (ddp->params_length > UINT_MAX/sizeof(int)) {
 				pr_err("%s: Integer overflow ddp->params_length %d\n",
 				__func__, ddp->params_length);
@@ -1023,7 +1063,7 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 			}
 			params_length = ddp->params_length*sizeof(int);
 			if (params_length > MAX_AC3_PARAM_SIZE) {
-				
+				/*MAX is 36*sizeof(int) this should not happen*/
 				pr_err("%s: params_length(%d) is greater than %zd\n",
 				__func__, params_length, MAX_AC3_PARAM_SIZE);
 				return -EINVAL;
@@ -1050,19 +1090,19 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 		case SND_AUDIOCODEC_EAC3: {
 			char params_value[MAX_AC3_PARAM_SIZE];
 			int *params_value_data = (int *)params_value;
-			
+			/* 36 is the max param length for ddp */
 			int i;
 			struct snd_dec_ddp *ddp =
 				&compr->info.codec_param.codec.options.ddp;
 			uint32_t params_length = 0;
-			
+			/* check integer overflow */
 			if (ddp->params_length > UINT_MAX/sizeof(int)) {
 				pr_err("%s: Integer overflow ddp->params_length %d\n",
 				__func__, ddp->params_length);
 				return -EINVAL;
 			}
 			if (params_length > MAX_AC3_PARAM_SIZE) {
-				
+				/*MAX is 36*sizeof(int) this should not happen*/
 				pr_err("%s: params_length(%d) is greater than %zd\n",
 				__func__, params_length, MAX_AC3_PARAM_SIZE);
 				return -EINVAL;
@@ -1094,6 +1134,8 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 		return 0;
 	case SNDRV_PCM_IOCTL1_RESET:
 		pr_debug("SNDRV_PCM_IOCTL1_RESET\n");
+		/* Flush only when session is started during CAPTURE,
+		   while PLAYBACK has no such restriction. */
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK ||
 			  (substream->stream == SNDRV_PCM_STREAM_CAPTURE &&
 						atomic_read(&prtd->start))) {
@@ -1103,6 +1145,8 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 				atomic_set(&prtd->eos, 0);
 			}
 
+			/* A unlikely race condition possible with FLUSH
+			   DRAIN if ack is set by flush and reset by drain */
 			prtd->cmd_ack = 0;
 			rc = q6asm_cmd(prtd->audio_client, CMD_FLUSH);
 			if (rc < 0) {
@@ -1129,7 +1173,7 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 		atomic_set(&prtd->pending_buffer, 0);
 		prtd->cmd_ack = 0;
 		q6asm_cmd_nowait(prtd->audio_client, CMD_EOS);
-		
+		/* Wait indefinitely for  DRAIN. Flush can also signal this*/
 		rc = wait_event_interruptible(the_locks.eos_wait,
 			(prtd->cmd_ack || prtd->cmd_interrupt));
 
@@ -1149,7 +1193,7 @@ static int msm_compr_ioctl_shared(struct snd_pcm_substream *substream,
 }
 #ifdef CONFIG_COMPAT
 struct snd_enc_wma32 {
-	u32 super_block_align; 
+	u32 super_block_align; /* WMA Type-specific data */
 	u32 encodeopt1;
 	u32 encodeopt2;
 };
@@ -1174,7 +1218,7 @@ struct snd_enc_flac32 {
 };
 
 struct snd_enc_generic32 {
-	u32 bw;	
+	u32 bw;	/* encoder bandwidth */
 	s32 reserved[15];
 };
 struct snd_dec_ddp32 {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,7 @@
 #include "kgsl_log.h"
 
 static DEFINE_MUTEX(kernel_map_global_lock);
+static DEFINE_MUTEX(driver_page_count_lock);
 
 struct cp2_mem_chunks {
 	unsigned int chunk_list;
@@ -80,27 +81,6 @@ static int kgsl_cma_unlock_secure(struct kgsl_device *device,
 			struct kgsl_memdesc *memdesc);
 
 
-static struct kgsl_process_private *
-_get_priv_from_kobj(struct kobject *kobj)
-{
-	struct kgsl_process_private *private;
-	unsigned int name;
-
-	if (!kobj)
-		return NULL;
-
-	if (kstrtou32(kobj->name, 0, &name))
-		return NULL;
-
-	list_for_each_entry(private, &kgsl_driver.process_list, list) {
-		if (private->pid == name)
-			return private;
-	}
-
-	return NULL;
-}
-
-
 static ssize_t
 mem_entry_show(struct kgsl_process_private *priv, int type, char *buf)
 {
@@ -126,15 +106,14 @@ static ssize_t mem_entry_sysfs_show(struct kobject *kobj,
 	struct kgsl_process_private *priv;
 	ssize_t ret;
 
-	mutex_lock(&kgsl_driver.process_mutex);
-	priv = _get_priv_from_kobj(kobj);
+	priv = kobj ? container_of(kobj, struct kgsl_process_private, kobj) :
+			NULL;
 
 	if (priv && pattr->show)
 		ret = pattr->show(priv, pattr->memtype, buf);
 	else
 		ret = -EIO;
 
-	mutex_unlock(&kgsl_driver.process_mutex);
 	return ret;
 }
 
@@ -172,6 +151,8 @@ kgsl_process_uninit_sysfs(struct kgsl_process_private *private)
 	}
 
 	kobject_put(&private->kobj);
+	
+	kgsl_process_private_put(private);
 }
 
 int
@@ -196,6 +177,11 @@ kgsl_process_init_sysfs(struct kgsl_device *device,
 		ret = sysfs_create_file(&private->kobj,
 			&mem_stats[i].max_attr.attr);
 	}
+
+	
+	if (!ret)
+		kgsl_process_private_get(private);
+
 	return ret;
 }
 
@@ -205,25 +191,25 @@ static ssize_t kgsl_drv_memstat_show(struct device *dev,
 {
 	unsigned int val = 0;
 
-	if (!strncmp(attr->attr.name, "vmalloc", 7))
+	if (!strcmp(attr->attr.name, "vmalloc"))
 		val = kgsl_driver.stats.vmalloc;
-	else if (!strncmp(attr->attr.name, "vmalloc_max", 11))
+	else if (!strcmp(attr->attr.name, "vmalloc_max"))
 		val = kgsl_driver.stats.vmalloc_max;
-	else if (!strncmp(attr->attr.name, "page_alloc", 10))
+	else if (!strcmp(attr->attr.name, "page_alloc"))
 		val = kgsl_driver.stats.page_alloc;
-	else if (!strncmp(attr->attr.name, "page_alloc_max", 14))
+	else if (!strcmp(attr->attr.name, "page_alloc_max"))
 		val = kgsl_driver.stats.page_alloc_max;
-	else if (!strncmp(attr->attr.name, "coherent", 8))
+	else if (!strcmp(attr->attr.name, "coherent"))
 		val = kgsl_driver.stats.coherent;
-	else if (!strncmp(attr->attr.name, "coherent_max", 12))
+	else if (!strcmp(attr->attr.name, "coherent_max"))
 		val = kgsl_driver.stats.coherent_max;
 	else if (!strcmp(attr->attr.name, "secure"))
 		val = kgsl_driver.stats.secure;
 	else if (!strcmp(attr->attr.name, "secure_max"))
 		val = kgsl_driver.stats.secure_max;
-	else if (!strncmp(attr->attr.name, "mapped", 6))
+	else if (!strcmp(attr->attr.name, "mapped"))
 		val = kgsl_driver.stats.mapped;
-	else if (!strncmp(attr->attr.name, "mapped_max", 10))
+	else if (!strcmp(attr->attr.name, "mapped_max"))
 		val = kgsl_driver.stats.mapped_max;
 
 	return snprintf(buf, PAGE_SIZE, "%u\n", val);
@@ -364,13 +350,15 @@ static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 	int sglen = memdesc->sglen;
 	struct kgsl_process_private *priv = memdesc->private;
 
+	mutex_lock(&driver_page_count_lock);
 	kgsl_driver.stats.page_alloc -= memdesc->size;
+	mutex_unlock(&driver_page_count_lock);
 
 	kgsl_page_alloc_unmap_kernel(memdesc);
 	
 	BUG_ON(memdesc->hostptr);
 
-	if (memdesc->sg)
+	if (sglen && memdesc->sg)
 		for_each_sg(memdesc->sg, sg, sglen, i)
 			__free_pages(sg_page(sg), get_order(sg->length));
 
@@ -449,12 +437,17 @@ static void kgsl_cma_coherent_free(struct kgsl_memdesc *memdesc)
 {
 	if (memdesc->hostptr) {
 		if (memdesc->priv & KGSL_MEMDESC_SECURE) {
+			mutex_lock(&driver_page_count_lock);
 			kgsl_driver.stats.secure -= memdesc->size;
+			mutex_unlock(&driver_page_count_lock);
 			if (memdesc->priv & KGSL_MEMDESC_TZ_LOCKED)
 				kgsl_cma_unlock_secure(
 				memdesc->pagetable->mmu->device, memdesc);
-		} else
+		} else {
+			mutex_lock(&driver_page_count_lock);
 			kgsl_driver.stats.coherent -= memdesc->size;
+			mutex_unlock(&driver_page_count_lock);
+		}
 
 		dma_free_coherent(memdesc->dev, memdesc->size,
 				memdesc->hostptr, memdesc->physaddr);
@@ -615,7 +608,9 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 
 			memdesc->sglen = sglen;
 			memdesc->size = (size - len);
-			sg_mark_end(&memdesc->sg[sglen - 1]);
+
+			if (sglen > 0)
+				sg_mark_end(&memdesc->sg[sglen - 1]);
 
 			KGSL_CORE_ERR(
 				"Out of memory: only allocated %zuKB of %zuKB requested\n",
@@ -662,8 +657,10 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	}
 
 done:
+	mutex_lock(&driver_page_count_lock);
 	KGSL_STATS_ADD(memdesc->size, kgsl_driver.stats.page_alloc,
 		kgsl_driver.stats.page_alloc_max);
+	mutex_unlock(&driver_page_count_lock);
 
 	kgsl_free(pages);
 
@@ -844,8 +841,10 @@ int kgsl_cma_alloc_coherent(struct kgsl_device *device,
 
 	
 
+	mutex_lock(&driver_page_count_lock);
 	KGSL_STATS_ADD(size, kgsl_driver.stats.coherent,
 		       kgsl_driver.stats.coherent_max);
+	mutex_unlock(&driver_page_count_lock);
 
 err:
 	if (result)
@@ -929,8 +928,10 @@ int kgsl_cma_alloc_secure(struct kgsl_device *device,
 	}
 
 	
+	mutex_lock(&driver_page_count_lock);
 	KGSL_STATS_ADD(size, kgsl_driver.stats.secure,
 		       kgsl_driver.stats.secure_max);
+	mutex_unlock(&driver_page_count_lock);
 
 err:
 	kfree(chunk_list);

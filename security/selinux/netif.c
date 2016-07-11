@@ -44,52 +44,23 @@ static LIST_HEAD(sel_netif_list);
 static DEFINE_SPINLOCK(sel_netif_lock);
 static struct list_head sel_netif_hash[SEL_NETIF_HASH_SIZE];
 
-/**
- * sel_netif_hashfn - Hashing function for the interface table
- * @ifindex: the network interface
- *
- * Description:
- * This is the hashing function for the network interface table, it returns the
- * bucket number for the given interface.
- *
- */
 static inline u32 sel_netif_hashfn(int ifindex)
 {
 	return (ifindex & (SEL_NETIF_HASH_SIZE - 1));
 }
 
-/**
- * sel_netif_find - Search for an interface record
- * @ifindex: the network interface
- *
- * Description:
- * Search the network interface table and return the record matching @ifindex.
- * If an entry can not be found in the table return NULL.
- *
- */
 static inline struct sel_netif *sel_netif_find(int ifindex)
 {
 	int idx = sel_netif_hashfn(ifindex);
 	struct sel_netif *netif;
 
 	list_for_each_entry_rcu(netif, &sel_netif_hash[idx], list)
-		/* all of the devices should normally fit in the hash, so we
-		 * optimize for that case */
 		if (likely(netif->nsec.ifindex == ifindex))
 			return netif;
 
 	return NULL;
 }
 
-/**
- * sel_netif_insert - Insert a new interface into the table
- * @netif: the new interface record
- *
- * Description:
- * Add a new interface record to the network interface hash table.  Returns
- * zero on success, negative values on failure.
- *
- */
 static int sel_netif_insert(struct sel_netif *netif)
 {
 	int idx;
@@ -104,14 +75,6 @@ static int sel_netif_insert(struct sel_netif *netif)
 	return 0;
 }
 
-/**
- * sel_netif_destroy - Remove an interface record from the table
- * @netif: the existing interface record
- *
- * Description:
- * Remove an existing interface record from the network interface table.
- *
- */
 static void sel_netif_destroy(struct sel_netif *netif)
 {
 	list_del_rcu(&netif->list);
@@ -119,18 +82,6 @@ static void sel_netif_destroy(struct sel_netif *netif)
 	kfree_rcu(netif, rcu_head);
 }
 
-/**
- * sel_netif_sid_slow - Lookup the SID of a network interface using the policy
- * @ifindex: the network interface
- * @sid: interface SID
- *
- * Description:
- * This function determines the SID of a network interface by quering the
- * security policy.  The result is added to the network interface table to
- * speedup future queries.  Returns zero on success, negative values on
- * failure.
- *
- */
 static int sel_netif_sid_slow(int ifindex, u32 *sid)
 {
 	int ret;
@@ -138,8 +89,6 @@ static int sel_netif_sid_slow(int ifindex, u32 *sid)
 	struct sel_netif *new = NULL;
 	struct net_device *dev;
 
-	/* NOTE: we always use init's network namespace since we don't
-	 * currently support containers */
 
 	dev = dev_get_by_index(&init_net, ifindex);
 	if (unlikely(dev == NULL)) {
@@ -183,19 +132,6 @@ out:
 	return ret;
 }
 
-/**
- * sel_netif_sid - Lookup the SID of a network interface
- * @ifindex: the network interface
- * @sid: interface SID
- *
- * Description:
- * This function determines the SID of a network interface using the fastest
- * method possible.  First the interface table is queried, but if an entry
- * can't be found then the policy is queried and the result is added to the
- * table to speedup future queries.  Returns zero on success, negative values
- * on failure.
- *
- */
 int sel_netif_sid(int ifindex, u32 *sid)
 {
 	struct sel_netif *netif;
@@ -212,15 +148,6 @@ int sel_netif_sid(int ifindex, u32 *sid)
 	return sel_netif_sid_slow(ifindex, sid);
 }
 
-/**
- * sel_netif_kill - Remove an entry from the network interface table
- * @ifindex: the network interface
- *
- * Description:
- * This function removes the entry matching @ifindex from the network interface
- * table if it exists.
- *
- */
 static void sel_netif_kill(int ifindex)
 {
 	struct sel_netif *netif;
@@ -234,14 +161,7 @@ static void sel_netif_kill(int ifindex)
 	rcu_read_unlock();
 }
 
-/**
- * sel_netif_flush - Flush the entire network interface table
- *
- * Description:
- * Remove all entries from the network interface table.
- *
- */
-static void sel_netif_flush(void)
+void sel_netif_flush(void)
 {
 	int idx;
 	struct sel_netif *netif;
@@ -251,15 +171,6 @@ static void sel_netif_flush(void)
 		list_for_each_entry(netif, &sel_netif_hash[idx], list)
 			sel_netif_destroy(netif);
 	spin_unlock_bh(&sel_netif_lock);
-}
-
-static int sel_netif_avc_callback(u32 event)
-{
-	if (event == AVC_CALLBACK_RESET) {
-		sel_netif_flush();
-		synchronize_net();
-	}
-	return 0;
 }
 
 static int sel_netif_netdev_notifier_handler(struct notifier_block *this,
@@ -282,7 +193,7 @@ static struct notifier_block sel_netif_netdev_notifier = {
 
 static __init int sel_netif_init(void)
 {
-	int i, err;
+	int i;
 
 	if (!selinux_enabled)
 		return 0;
@@ -292,11 +203,7 @@ static __init int sel_netif_init(void)
 
 	register_netdevice_notifier(&sel_netif_netdev_notifier);
 
-	err = avc_add_callback(sel_netif_avc_callback, AVC_CALLBACK_RESET);
-	if (err)
-		panic("avc_add_callback() failed, error %d\n", err);
-
-	return err;
+	return 0;
 }
 
 __initcall(sel_netif_init);

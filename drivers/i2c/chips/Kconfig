@@ -139,6 +139,11 @@ config BOSCH_BMA250_ENABLE_INT2
 	  If you say yes here you get INT2 support for Bosch Sensortec's
 	  acceleration sensors BMA250.
 
+config CIR_ALWAYS_READY
+        bool "BMA250 CIR Always Ready"
+	default n
+	help
+	  Enable CIR Always Ready
 config SENSORS_BMA250
 	tristate "BMA250 acceleration sensor support"
 	depends on I2C=y
@@ -150,11 +155,29 @@ config INPUT_YAS_MAGNETOMETER
 	depends on I2C
 
 
+config YAMAHA_YAS532
+        tristate "YAS53x compass sensor support"
+	depends on I2C=y
+	help
+	  If you say yes here you get support for Yamaha Sensortec's
+	  acceleration sensors YAS532.
+
+config SENSORS_YAS_MAGNETOMETER
+	tristate "Yamaha 3-Axis Magnetometer"
+	depends on I2C && SYSFS && IIO && IIO_KFIFO_BUF && IIO_TRIGGER
+	help
+	  Say Y here to add support for the Yamaha 3-Axis Magnetometer.
+
 config SENSORS_NFC_PN544
 	tristate "PN544 NFC sensor support"
 	depends on I2C=y
 	help
 	  PN544 NFC Driver implemented.
+
+config NFC_MFG_FTM
+       bool " NFC FTM mode support"
+       help
+       If you say yes here, NXP PN547 will support FTM mode.
 
 config INPUT_CAPELLA_CM3628
 	tristate "CM3628 proximity and light sensor"
@@ -247,6 +270,18 @@ config AMP_TFA9895L
 	help
 		NXP TFA9895L Speaker AMP Driver implemented by HTC.
 
+config AMP_TPA6130A2
+        tristate "TI TPA6130A2 Headset AMP Driver"
+	depends on I2C=y
+        help
+         TI TPA6130A2 Headset AMP Driver implemented by HTC.
+
+config AMP_TPA2011
+        tristate "TI TPA2011 Receiver AMP"
+	default n
+        help
+         TI TPA2011 Receiver AMP control.
+
 config INPUT_ISL29028
 	tristate "ISL29028 proximity and light sensor"
 	help
@@ -282,5 +317,13 @@ config LIGHTSENSOR_EPL88051
 	depends on I2C
 	help
 	  Say Y here to enable the EPL88051.
+
+config TI_TCA6418
+	tristate "TCA6418 GPIO expander support"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for Texas Instruments's
+	  GPIO expander TCA6418.
 
 endmenu

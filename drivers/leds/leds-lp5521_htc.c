@@ -882,8 +882,10 @@ static int lp5521_led_probe(struct i2c_client *client
 	cdata->client = client;
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	if (pdata == NULL)
+	if (pdata == NULL) {
 		ret = -ENOMEM;
+		goto err_exit;
+	}
 	ret = lp5521_parse_dt(&client->dev, pdata);
 	led_rw_delay = 5;
 	
@@ -891,13 +893,13 @@ static int lp5521_led_probe(struct i2c_client *client
 		ret = gpio_request(pdata->ena_gpio, "led_enable");
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_request failed %d\n", __func__, ret);
-			return ret;
+			goto err_request_ena_gpio;
 		}
 		ret = gpio_direction_output(pdata->ena_gpio, 1);
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_direction_output failed %d\n", __func__, ret);
 			gpio_free(pdata->ena_gpio);
-			return ret;
+			goto err_request_ena_gpio;
 		}
 	} 
 	
@@ -905,7 +907,6 @@ static int lp5521_led_probe(struct i2c_client *client
 		ret = gpio_request(pdata->charging_gpio, "charging_led_switch");
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_request failed %d\n", __func__, ret);
-			return ret;
 		}
 	}
 	
@@ -913,13 +914,11 @@ static int lp5521_led_probe(struct i2c_client *client
 		ret = gpio_request(pdata->tri_gpio, "led_trigger");
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_request failed %d\n", __func__, ret);
-			return ret;
 		}
 		ret = gpio_direction_output(pdata->tri_gpio, 0);
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_direction_output failed %d\n", __func__, ret);
 			gpio_free(pdata->tri_gpio);
-			return ret;
 		}
 	}
 	private_lp5521_client = client;
@@ -978,7 +977,6 @@ static int lp5521_led_probe(struct i2c_client *client
 
 
 err_register_attr_off_timer:
-	kfree(cdata);
 	for (i = 0; i < pdata->num_leds; i++) {
 		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_off_timer);
 	}
@@ -988,7 +986,10 @@ err_register_attr_ModeRGB:
 			device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_ModeRGB);
 	}
 err_create_work_queue:
+err_request_ena_gpio:
 	kfree(pdata);
+err_exit:
+	kfree(cdata);
 err_cdata:
 	return ret;
 }

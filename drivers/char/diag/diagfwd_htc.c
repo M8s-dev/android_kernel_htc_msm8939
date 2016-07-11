@@ -1,4 +1,5 @@
 
+/* diagfwd_dbg_raw_data: for internal diag debug */
 extern unsigned diag7k_debug_mask;
 extern unsigned diag9k_debug_mask;
 
@@ -18,19 +19,19 @@ void __diagfwd_dbg_raw_data(void *buf, const char *src, unsigned dbg_flag, unsig
 		len = sprintf(reason_str, "Drop Packet Data from %s", src);
 		break;
 	default:
-		
+		/* We dont care about other reason */
 		return;
 	}
 
 	if (mask || dbg_flag == DIAG_DBG_DROP) {
-		
+		/* for debug reason */
 		len = sprintf(reason_str + len, "(%s)", "first 16 bytes");
 
 	} else if (driver->qxdmusb_drop && driver->logging_mode == USB_MODE) {
-	
+	/* receive unknown packets */
 		len = sprintf(reason_str + len, "(%s)", "Unknown packet");
 	} else {
-		
+		/* We dont care about other reason */
 		return;
 	}
 	if (diag7k_debug_mask || diag9k_debug_mask)

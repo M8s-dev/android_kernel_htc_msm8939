@@ -73,14 +73,6 @@ static int ieee80211_change_iface(struct wiphy *wiphy,
 		struct ieee80211_local *local = sdata->local;
 
 		if (ieee80211_sdata_running(sdata)) {
-			/*
-			 * Prohibit MONITOR_FLAG_COOK_FRAMES to be
-			 * changed while the interface is up.
-			 * Else we would need to add a lot of cruft
-			 * to update everything:
-			 *	cooked_mntrs, monitor and all fif_* counters
-			 *	reconfigure hardware
-			 */
 			if ((*flags & MONITOR_FLAG_COOK_FRAMES) !=
 			    (sdata->u.mntr_flags & MONITOR_FLAG_COOK_FRAMES))
 				return -EBUSY;
@@ -91,11 +83,6 @@ static int ieee80211_change_iface(struct wiphy *wiphy,
 
 			ieee80211_configure_filter(local);
 		} else {
-			/*
-			 * Because the interface is down, ieee80211_do_stop
-			 * and ieee80211_do_open take care of "everything"
-			 * mentioned in the comment above.
-			 */
 			sdata->u.mntr_flags = *flags;
 		}
 	}
@@ -137,7 +124,7 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	if (!ieee80211_sdata_running(sdata))
 		return -ENETDOWN;
 
-	/* reject WEP and TKIP keys if WEP failed to initialize */
+	
 	switch (params->cipher) {
 	case WLAN_CIPHER_SUITE_WEP40:
 	case WLAN_CIPHER_SUITE_TKIP:
@@ -164,16 +151,6 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 			sta = sta_info_get(sdata, mac_addr);
 		else
 			sta = sta_info_get_bss(sdata, mac_addr);
-		/*
-		 * The ASSOC test makes sure the driver is ready to
-		 * receive the key. When wpa_supplicant has roamed
-		 * using FT, it attempts to set the key before
-		 * association has completed, this rejects that attempt
-		 * so it will set the key again after assocation.
-		 *
-		 * TODO: accept the key if we have a station entry and
-		 *       add it to the device after the station.
-		 */
 		if (!sta || !test_sta_flag(sta, WLAN_STA_ASSOC)) {
 			ieee80211_key_free_unused(key);
 			err = -ENOENT;
@@ -188,12 +165,12 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 		break;
 	case NL80211_IFTYPE_AP:
 	case NL80211_IFTYPE_AP_VLAN:
-		/* Keys without a station are used for TX only */
+		
 		if (key->sta && test_sta_flag(key->sta, WLAN_STA_MFP))
 			key->conf.flags |= IEEE80211_KEY_FLAG_RX_MGMT;
 		break;
 	case NL80211_IFTYPE_ADHOC:
-		/* no MFP (yet) */
+		
 		break;
 	case NL80211_IFTYPE_MESH_POINT:
 #ifdef CONFIG_MAC80211_MESH
@@ -208,7 +185,7 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	case NUM_NL80211_IFTYPES:
 	case NL80211_IFTYPE_P2P_CLIENT:
 	case NL80211_IFTYPE_P2P_GO:
-		/* shouldn't happen */
+		
 		WARN_ON_ONCE(1);
 		break;
 	}
@@ -611,11 +588,6 @@ static void ieee80211_get_et_stats(struct wiphy *wiphy,
 		data[i++] += sta->beacon_loss_count;	\
 	} while (0)
 
-	/* For Managed stations, find the single station based on BSSID
-	 * and use that.  For interface types, iterate through all available
-	 * stations and add stats for any station that is assigned to this
-	 * network device.
-	 */
 
 	mutex_lock(&local->sta_mtx);
 
@@ -648,7 +620,7 @@ static void ieee80211_get_et_stats(struct wiphy *wiphy,
 		i++;
 	} else {
 		list_for_each_entry(sta, &local->sta_list, list) {
-			/* Make sure this station belongs to the proper dev */
+			
 			if (sta->sdata->dev != dev)
 				continue;
 
@@ -661,7 +633,7 @@ static void ieee80211_get_et_stats(struct wiphy *wiphy,
 
 do_survey:
 	i = STA_STATS_LEN - STA_STATS_SURVEY_LEN;
-	/* Get survey stats for current channel */
+	
 	survey.filled = 0;
 
 	rcu_read_lock();
@@ -852,19 +824,19 @@ static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 
 	old = rtnl_dereference(sdata->u.ap.beacon);
 
-	/* Need to have a beacon head if we don't have one yet */
+	
 	if (!params->head && !old)
 		return -EINVAL;
 
-	/* new or old head? */
+	
 	if (params->head)
 		new_head_len = params->head_len;
 	else
 		new_head_len = old->head_len;
 
-	/* new or old tail? */
+	
 	if (params->tail || !old)
-		/* params->tail_len will be zero for !params->tail */
+		
 		new_tail_len = params->tail_len;
 	else
 		new_tail_len = old->tail_len;
@@ -875,24 +847,20 @@ static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 	if (!new)
 		return -ENOMEM;
 
-	/* start filling the new info now */
+	
 
-	/*
-	 * pointers go into the block we allocated,
-	 * memory is | beacon_data | head | tail |
-	 */
 	new->head = ((u8 *) new) + sizeof(*new);
 	new->tail = new->head + new_head_len;
 	new->head_len = new_head_len;
 	new->tail_len = new_tail_len;
 
-	/* copy in head */
+	
 	if (params->head)
 		memcpy(new->head, params->head, new_head_len);
 	else
 		memcpy(new->head, old->head, new_head_len);
 
-	/* copy in optional tail */
+	
 	if (params->tail)
 		memcpy(new->tail, params->tail, new_tail_len);
 	else
@@ -931,7 +899,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	if (old)
 		return -EALREADY;
 
-	/* TODO: make hostapd tell us what it wants */
+	
 	sdata->smps_mode = IEEE80211_SMPS_OFF;
 	sdata->needed_rx_chains = sdata->local->rx_chains;
 	sdata->radar_required = params->radar_required;
@@ -942,10 +910,6 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	ieee80211_vif_copy_chanctx_to_vlans(sdata, false);
 
-	/*
-	 * Apply control port protocol, this allows us to
-	 * not encrypt dynamic WEP control frames.
-	 */
 	sdata->control_port_protocol = params->crypto.control_port_ethertype;
 	sdata->control_port_no_encrypt = params->crypto.control_port_no_encrypt;
 	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list) {
@@ -1033,12 +997,12 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 		return -ENOENT;
 	old_probe_resp = rtnl_dereference(sdata->u.ap.probe_resp);
 
-	/* turn off carrier for this interface and dependent VLANs */
+	
 	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list)
 		netif_carrier_off(vlan->dev);
 	netif_carrier_off(dev);
 
-	/* remove beacon and probe response */
+	
 	RCU_INIT_POINTER(sdata->u.ap.beacon, NULL);
 	RCU_INIT_POINTER(sdata->u.ap.probe_resp, NULL);
 	kfree_rcu(old_beacon, rcu_head);
@@ -1070,7 +1034,7 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 
 	drv_stop_ap(sdata->local, sdata);
 
-	/* free all potentially still buffered bcast frames */
+	
 	local->total_ps_buffered -= skb_queue_len(&sdata->u.ap.ps.bc_buf);
 	skb_queue_purge(&sdata->u.ap.ps.bc_buf);
 
@@ -1080,13 +1044,12 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 	return 0;
 }
 
-/* Layer 2 Update frame (802.2 Type 1 LLC XID Update response) */
 struct iapp_layer2_update {
-	u8 da[ETH_ALEN];	/* broadcast */
-	u8 sa[ETH_ALEN];	/* STA addr */
-	__be16 len;		/* 6 */
-	u8 dsap;		/* 0 */
-	u8 ssap;		/* 0 */
+	u8 da[ETH_ALEN];	
+	u8 sa[ETH_ALEN];	
+	__be16 len;		
+	u8 dsap;		
+	u8 ssap;		
 	u8 control;
 	u8 xid_info[3];
 } __packed;
@@ -1096,27 +1059,22 @@ static void ieee80211_send_layer2_update(struct sta_info *sta)
 	struct iapp_layer2_update *msg;
 	struct sk_buff *skb;
 
-	/* Send Level 2 Update Frame to update forwarding tables in layer 2
-	 * bridge devices */
 
 	skb = dev_alloc_skb(sizeof(*msg));
 	if (!skb)
 		return;
 	msg = (struct iapp_layer2_update *)skb_put(skb, sizeof(*msg));
 
-	/* 802.2 Type 1 Logical Link Control (LLC) Exchange Identifier (XID)
-	 * Update response frame; IEEE Std 802.2-1998, 5.4.1.2.1 */
 
 	eth_broadcast_addr(msg->da);
 	memcpy(msg->sa, sta->sta.addr, ETH_ALEN);
 	msg->len = htons(6);
 	msg->dsap = 0;
-	msg->ssap = 0x01;	/* NULL LSAP, CR Bit: Response */
-	msg->control = 0xaf;	/* XID response lsb.1111F101.
-				 * F=0 (no poll command; unsolicited frame) */
-	msg->xid_info[0] = 0x81;	/* XID format identifier */
-	msg->xid_info[1] = 1;	/* LLC types/classes: Type 1 LLC */
-	msg->xid_info[2] = 0;	/* XID sender's receive window size (RW) */
+	msg->ssap = 0x01;	
+	msg->control = 0xaf;	
+	msg->xid_info[0] = 0x81;	
+	msg->xid_info[1] = 1;	
+	msg->xid_info[2] = 0;	
 
 	skb->dev = sta->sdata->dev;
 	skb->protocol = eth_type_trans(skb, sta->sdata->dev);
@@ -1194,20 +1152,11 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	set = params->sta_flags_set;
 
 	if (ieee80211_vif_is_mesh(&sdata->vif)) {
-		/*
-		 * In mesh mode, ASSOCIATED isn't part of the nl80211
-		 * API but must follow AUTHENTICATED for driver state.
-		 */
 		if (mask & BIT(NL80211_STA_FLAG_AUTHENTICATED))
 			mask |= BIT(NL80211_STA_FLAG_ASSOCIATED);
 		if (set & BIT(NL80211_STA_FLAG_AUTHENTICATED))
 			set |= BIT(NL80211_STA_FLAG_ASSOCIATED);
 	} else if (test_sta_flag(sta, WLAN_STA_TDLS_PEER)) {
-		/*
-		 * TDLS -- everything follows authorized, but
-		 * only becoming authorized is possible, not
-		 * going back
-		 */
 		if (set & BIT(NL80211_STA_FLAG_AUTHORIZED)) {
 			set |= BIT(NL80211_STA_FLAG_AUTHENTICATED) |
 			       BIT(NL80211_STA_FLAG_ASSOCIATED);
@@ -1256,20 +1205,9 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 		sta->sta.max_sp = params->max_sp;
 	}
 
-	/*
-	 * cfg80211 validates this (1-2007) and allows setting the AID
-	 * only when creating a new station entry
-	 */
 	if (params->aid)
 		sta->sta.aid = params->aid;
 
-	/*
-	 * Some of the following updates would be racy if called on an
-	 * existing station, via ieee80211_change_station(). However,
-	 * all such changes are rejected by cfg80211 except for updates
-	 * changing the supported rates on an existing but not yet used
-	 * TDLS peer.
-	 */
 
 	if (params->listen_interval >= 0)
 		sta->listen_interval = params->listen_interval;
@@ -1327,14 +1265,14 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 				      ieee80211_mps_local_status_update(sdata);
 				break;
 			default:
-				/*  nothing  */
+				
 				break;
 			}
 		}
 
 		switch (params->plink_action) {
 		case NL80211_PLINK_ACTION_NO_ACTION:
-			/* nothing */
+			
 			break;
 		case NL80211_PLINK_ACTION_OPEN:
 			changed |= mesh_plink_open(sta);
@@ -1383,10 +1321,6 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	if (!sta)
 		return -ENOMEM;
 
-	/*
-	 * defaults -- if userspace wants something else we'll
-	 * change it accordingly in sta_apply_parameters()
-	 */
 	if (!(params->sta_flags_set & BIT(NL80211_STA_FLAG_TDLS_PEER))) {
 		sta_info_pre_move_state(sta, IEEE80211_STA_AUTH);
 		sta_info_pre_move_state(sta, IEEE80211_STA_ASSOC);
@@ -1398,10 +1332,6 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	}
 
-	/*
-	 * for TDLS, rate control should be initialized only when
-	 * rates are known and station is marked authorized
-	 */
 	if (!test_sta_flag(sta, WLAN_STA_TDLS_PEER))
 		rate_control_rate_init(sta);
 
@@ -1423,14 +1353,14 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
-				 u8 *mac)
+				 struct station_del_parameters *params)
 {
 	struct ieee80211_sub_if_data *sdata;
 
 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 
-	if (mac)
-		return sta_info_destroy_addr_bss(sdata, mac);
+	if (params->mac)
+		return sta_info_destroy_addr_bss(sdata, params->mac);
 
 	sta_info_flush(sdata);
 	return 0;
@@ -1527,7 +1457,7 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 	if (err)
 		goto out_err;
 
-	/* When peer becomes authorized, init rate control as well */
+	
 	if (test_sta_flag(sta, WLAN_STA_TDLS_PEER) &&
 	    test_sta_flag(sta, WLAN_STA_AUTHORIZED))
 		rate_control_rate_init(sta);
@@ -1725,7 +1655,7 @@ static int copy_mesh_setup(struct ieee80211_if_mesh *ifmsh,
 	struct ieee80211_sub_if_data *sdata = container_of(ifmsh,
 					struct ieee80211_sub_if_data, u.mesh);
 
-	/* allocate information elements */
+	
 	new_ie = NULL;
 	old_ie = ifmsh->ie;
 
@@ -1739,7 +1669,7 @@ static int copy_mesh_setup(struct ieee80211_if_mesh *ifmsh,
 	ifmsh->ie = new_ie;
 	kfree(old_ie);
 
-	/* now copy the rest of the setup parameters */
+	
 	ifmsh->mesh_id_len = setup->mesh_id_len;
 	memcpy(ifmsh->mesh_id, setup->mesh_id, ifmsh->mesh_id_len);
 	ifmsh->mesh_sp_id = setup->sync_method;
@@ -1752,7 +1682,7 @@ static int copy_mesh_setup(struct ieee80211_if_mesh *ifmsh,
 	if (setup->is_secure)
 		ifmsh->security |= IEEE80211_MESH_SEC_SECURED;
 
-	/* mcast rate setting in Mesh Node */
+	
 	memcpy(sdata->vif.bss_conf.mcast_rate, setup->mcast_rate,
 						sizeof(setup->mcast_rate));
 
@@ -1773,7 +1703,7 @@ static int ieee80211_update_mesh_config(struct wiphy *wiphy,
 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	ifmsh = &sdata->u.mesh;
 
-	/* Set the config options which we are interested in setting */
+	
 	conf = &(sdata->u.mesh.mshcfg);
 	if (_chg_mesh_attr(NL80211_MESHCONF_RETRY_TIMEOUT, mask))
 		conf->dot11MeshRetryTimeout = nconf->dot11MeshRetryTimeout;
@@ -1822,9 +1752,6 @@ static int ieee80211_update_mesh_config(struct wiphy *wiphy,
 		ieee80211_mesh_root_setup(ifmsh);
 	}
 	if (_chg_mesh_attr(NL80211_MESHCONF_GATE_ANNOUNCEMENTS, mask)) {
-		/* our current gate announcement implementation rides on root
-		 * announcements, so require this ifmsh to also be a root node
-		 * */
 		if (nconf->dot11MeshGateAnnouncementProtocol &&
 		    !(conf->dot11MeshHWMPRootMode > IEEE80211_ROOTMODE_ROOT)) {
 			conf->dot11MeshHWMPRootMode = IEEE80211_PROACTIVE_RANN;
@@ -1839,9 +1766,6 @@ static int ieee80211_update_mesh_config(struct wiphy *wiphy,
 	if (_chg_mesh_attr(NL80211_MESHCONF_FORWARDING, mask))
 		conf->dot11MeshForwarding = nconf->dot11MeshForwarding;
 	if (_chg_mesh_attr(NL80211_MESHCONF_RSSI_THRESHOLD, mask)) {
-		/* our RSSI threshold implementation is supported only for
-		 * devices that report signal in dBm.
-		 */
 		if (!(sdata->local->hw.flags & IEEE80211_HW_SIGNAL_DBM))
 			return -ENOTSUPP;
 		conf->rssi_threshold = nconf->rssi_threshold;
@@ -1884,7 +1808,7 @@ static int ieee80211_join_mesh(struct wiphy *wiphy, struct net_device *dev,
 	if (err)
 		return err;
 
-	/* can mesh use other SMPS modes? */
+	
 	sdata->smps_mode = IEEE80211_SMPS_OFF;
 	sdata->needed_rx_chains = sdata->local->rx_chains;
 
@@ -2014,10 +1938,6 @@ static int ieee80211_set_txq_params(struct wiphy *wiphy,
 	p.cw_min = params->cwmin;
 	p.txop = params->txop;
 
-	/*
-	 * Setting tx queue params disables u-apsd because it's only
-	 * called in master mode.
-	 */
 	p.uapsd = false;
 
 	sdata->tx_conf[params->ac] = p;
@@ -2066,19 +1986,7 @@ static int ieee80211_scan(struct wiphy *wiphy,
 	case NL80211_IFTYPE_P2P_GO:
 		if (sdata->local->ops->hw_scan)
 			break;
-		/*
-		 * FIXME: implement NoA while scanning in software,
-		 * for now fall through to allow scanning only when
-		 * beaconing hasn't been configured yet
-		 */
 	case NL80211_IFTYPE_AP:
-		/*
-		 * If the scan has been forced (and the driver supports
-		 * forcing), don't care about being beaconing already.
-		 * This will create problems to the attached stations (e.g. all
-		 * the  frames sent while scanning on other channel will be
-		 * lost)
-		 */
 		if (sdata->u.ap.beacon &&
 		    (!(wiphy->features & NL80211_FEATURE_AP_SCAN) ||
 		     !(req->flags & NL80211_SCAN_FLAG_AP)))
@@ -2326,11 +2234,6 @@ int __ieee80211_request_smps(struct ieee80211_sub_if_data *sdata,
 	    smps_mode != IEEE80211_SMPS_AUTOMATIC)
 		return 0;
 
-	/*
-	 * If not associated, or current association is not an HT
-	 * association, there's no need to do anything, just store
-	 * the new value until we associate.
-	 */
 	if (!sdata->u.mgd.associated ||
 	    sdata->vif.bss_conf.chandef.width == NL80211_CHAN_WIDTH_20_NOHT)
 		return 0;
@@ -2344,7 +2247,7 @@ int __ieee80211_request_smps(struct ieee80211_sub_if_data *sdata,
 			smps_mode = IEEE80211_SMPS_OFF;
 	}
 
-	/* send SM PS frame to AP */
+	
 	err = ieee80211_send_smps_action(sdata, smps_mode,
 					 ap, ap);
 	if (err)
@@ -2372,7 +2275,7 @@ static int ieee80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	sdata->u.mgd.powersave = enabled;
 	local->dynamic_ps_forced_timeout = timeout;
 
-	/* no change, but if automatic follow powersave */
+	
 	mutex_lock(&sdata->u.mgd.mtx);
 	__ieee80211_request_smps(sdata, sdata->u.mgd.req_smps);
 	mutex_unlock(&sdata->u.mgd.mtx);
@@ -2401,7 +2304,7 @@ static int ieee80211_set_cqm_rssi_config(struct wiphy *wiphy,
 	bss_conf->cqm_rssi_thold = rssi_thold;
 	bss_conf->cqm_rssi_hyst = rssi_hyst;
 
-	/* tell the driver upon association, unless already associated */
+	
 	if (sdata->u.mgd.associated &&
 	    sdata->vif.driver_flags & IEEE80211_VIF_SUPPORTS_CQM_RSSI)
 		ieee80211_bss_info_change_notify(sdata, BSS_CHANGED_CQM);
@@ -2479,15 +2382,11 @@ static int ieee80211_start_roc_work(struct ieee80211_local *local,
 	INIT_DELAYED_WORK(&roc->work, ieee80211_sw_roc_work);
 	INIT_LIST_HEAD(&roc->dependents);
 
-	/*
-	 * cookie is either the roc cookie (for normal roc)
-	 * or the SKB (for mgmt TX)
-	 */
 	if (!txskb) {
-		/* local->mtx protects this */
+		
 		local->roc_cookie_counter++;
 		roc->cookie = local->roc_cookie_counter;
-		/* wow, you wrapped 64 bits ... more likely a bug */
+		
 		if (WARN_ON(roc->cookie == 0)) {
 			roc->cookie = 1;
 			local->roc_cookie_counter++;
@@ -2497,28 +2396,19 @@ static int ieee80211_start_roc_work(struct ieee80211_local *local,
 		*cookie = (unsigned long)txskb;
 	}
 
-	/* if there's one pending or we're scanning, queue this one */
+	
 	if (!list_empty(&local->roc_list) ||
 	    local->scanning || local->radar_detect_enabled)
 		goto out_check_combine;
 
-	/* if not HW assist, just queue & schedule work */
+	
 	if (!local->ops->remain_on_channel) {
 		ieee80211_queue_delayed_work(&local->hw, &roc->work, 0);
 		goto out_queue;
 	}
 
-	/* otherwise actually kick it off here (for error handling) */
+	
 
-	/*
-	 * If the duration is zero, then the driver
-	 * wouldn't actually do anything. Set it to
-	 * 10 for now.
-	 *
-	 * TODO: cancel the off-channel operation
-	 *       when we get the SKB's TX status and
-	 *       the wait time was zero before.
-	 */
 	if (!duration)
 		duration = 10;
 
@@ -2536,14 +2426,6 @@ static int ieee80211_start_roc_work(struct ieee80211_local *local,
 		if (tmp->chan != channel || tmp->sdata != sdata)
 			continue;
 
-		/*
-		 * Extend this ROC if possible:
-		 *
-		 * If it hasn't started yet, just increase the duration
-		 * and add the new one to the list of dependents.
-		 * If the type of the new ROC has higher priority, modify the
-		 * type of the previous one to match that of the new one.
-		 */
 		if (!tmp->started) {
 			list_add_tail(&roc->list, &tmp->dependents);
 			tmp->duration = max(tmp->duration, roc->duration);
@@ -2552,26 +2434,10 @@ static int ieee80211_start_roc_work(struct ieee80211_local *local,
 			break;
 		}
 
-		/* If it has already started, it's more difficult ... */
+		
 		if (local->ops->remain_on_channel) {
 			unsigned long j = jiffies;
 
-			/*
-			 * In the offloaded ROC case, if it hasn't begun, add
-			 * this new one to the dependent list to be handled
-			 * when the master one begins. If it has begun,
-			 * check that there's still a minimum time left and
-			 * if so, start this one, transmitting the frame, but
-			 * add it to the list directly after this one with
-			 * a reduced time so we'll ask the driver to execute
-			 * it right after finishing the previous one, in the
-			 * hope that it'll also be executed right afterwards,
-			 * effectively extending the old one.
-			 * If there's no minimum time left, just add it to the
-			 * normal list.
-			 * TODO: the ROC type is ignored here, assuming that it
-			 * is better to immediately use the current ROC.
-			 */
 			if (!tmp->hw_begun) {
 				list_add_tail(&roc->list, &tmp->dependents);
 				queued = true;
@@ -2592,7 +2458,7 @@ static int ieee80211_start_roc_work(struct ieee80211_local *local,
 							   j);
 
 				if (new_dur > 0) {
-					/* add right after tmp */
+					
 					list_add(&roc->list, &tmp->list);
 				} else {
 					list_add_tail(&roc->list,
@@ -2603,20 +2469,13 @@ static int ieee80211_start_roc_work(struct ieee80211_local *local,
 		} else if (del_timer_sync(&tmp->work.timer)) {
 			unsigned long new_end;
 
-			/*
-			 * In the software ROC case, cancel the timer, if
-			 * that fails then the finish work is already
-			 * queued/pending and thus we queue the new ROC
-			 * normally, if that succeeds then we can extend
-			 * the timer duration and TX the frame (if any.)
-			 */
 
 			list_add_tail(&roc->list, &tmp->dependents);
 			queued = true;
 
 			new_end = jiffies + msecs_to_jiffies(roc->duration);
 
-			/* ok, it was started & we canceled timer */
+			
 			if (time_after(new_end, tmp->work.timer.expires))
 				mod_timer(&tmp->work.timer, new_end);
 			else
@@ -2668,7 +2527,7 @@ static int ieee80211_cancel_roc(struct ieee80211_local *local,
 				continue;
 			else if (mgmt_tx && dep->mgmt_tx_cookie != cookie)
 				continue;
-			/* found dependent item -- just remove it */
+			
 			list_del(&dep->list);
 			mutex_unlock(&local->mtx);
 
@@ -2690,12 +2549,6 @@ static int ieee80211_cancel_roc(struct ieee80211_local *local,
 		return -ENOENT;
 	}
 
-	/*
-	 * We found the item to cancel, so do that. Note that it
-	 * may have dependents, which we also cancel (and send
-	 * the expired signal for.) Not doing so would be quite
-	 * tricky here, but we may need to fix it later.
-	 */
 
 	if (local->ops->remain_on_channel) {
 		if (found->started) {
@@ -2714,13 +2567,13 @@ static int ieee80211_cancel_roc(struct ieee80211_local *local,
 
 		ieee80211_roc_notify_destroy(found, true);
 	} else {
-		/* work may be pending so use it all the time */
+		
 		found->abort = true;
 		ieee80211_queue_delayed_work(&local->hw, &found->work, 0);
 
 		mutex_unlock(&local->mtx);
 
-		/* work will clean up etc */
+		
 		flush_delayed_work(&found->work);
 		WARN_ON(!found->to_be_freed);
 		kfree(found);
@@ -2751,7 +2604,7 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 	if (!list_empty(&local->roc_list) || local->scanning)
 		return -EBUSY;
 
-	/* whatever, but channel contexts should not complain about that one */
+	
 	sdata->smps_mode = IEEE80211_SMPS_OFF;
 	sdata->needed_rx_chains = local->rx_chains;
 	sdata->radar_required = true;
@@ -2797,13 +2650,13 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	case NL80211_IFTYPE_ADHOC:
 		if (!sdata->vif.bss_conf.ibss_joined)
 			need_offchan = true;
-		/* fall through */
+		
 #ifdef CONFIG_MAC80211_MESH
 	case NL80211_IFTYPE_MESH_POINT:
 		if (ieee80211_vif_is_mesh(&sdata->vif) &&
 		    !sdata->u.mesh.mesh_id_len)
 			need_offchan = true;
-		/* fall through */
+		
 #endif
 	case NL80211_IFTYPE_AP:
 	case NL80211_IFTYPE_AP_VLAN:
@@ -2835,7 +2688,7 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 
 	mutex_lock(&local->mtx);
 
-	/* Check if the operating channel is the requested channel */
+	
 	if (!need_offchan) {
 		struct ieee80211_chanctx_conf *chanctx_conf;
 
@@ -2880,7 +2733,7 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		IEEE80211_SKB_CB(skb)->hw_queue =
 			local->hw.offchannel_tx_hw_queue;
 
-	/* This will handle all kinds of coalescing and immediate TX */
+	
 	ret = ieee80211_start_roc_work(local, sdata, chan,
 				       wait, cookie, skb,
 				       IEEE80211_ROC_TYPE_MGMT_TX);
@@ -2986,7 +2839,7 @@ static void ieee80211_tdls_add_ext_capab(struct sk_buff *skb)
 	u8 *pos = (void *)skb_put(skb, 7);
 
 	*pos++ = WLAN_EID_EXT_CAPABILITY;
-	*pos++ = 5; /* len */
+	*pos++ = 5; 
 	*pos++ = 0x0;
 	*pos++ = 0x0;
 	*pos++ = 0x0;
@@ -3153,7 +3006,7 @@ static int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	if (!(wiphy->flags & WIPHY_FLAG_SUPPORTS_TDLS))
 		return -ENOTSUPP;
 
-	/* make sure we are in managed mode, and associated */
+	
 	if (sdata->vif.type != NL80211_IFTYPE_STATION ||
 	    !sdata->u.mgd.associated)
 		return -EINVAL;
@@ -3164,8 +3017,8 @@ static int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	skb = dev_alloc_skb(local->hw.extra_tx_headroom +
 			    max(sizeof(struct ieee80211_mgmt),
 				sizeof(struct ieee80211_tdls_data)) +
-			    50 + /* supported rates */
-			    7 + /* ext capab */
+			    50 + 
+			    7 + 
 			    extra_ies_len +
 			    sizeof(struct ieee80211_tdls_lnkie));
 	if (!skb)
@@ -3201,19 +3054,19 @@ static int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	if (extra_ies_len)
 		memcpy(skb_put(skb, extra_ies_len), extra_ies, extra_ies_len);
 
-	/* the TDLS link IE is always added last */
+	
 	switch (action_code) {
 	case WLAN_TDLS_SETUP_REQUEST:
 	case WLAN_TDLS_SETUP_CONFIRM:
 	case WLAN_TDLS_TEARDOWN:
 	case WLAN_TDLS_DISCOVERY_REQUEST:
-		/* we are the initiator */
+		
 		ieee80211_tdls_add_link_ie(skb, sdata->vif.addr, peer,
 					   sdata->u.mgd.bssid);
 		break;
 	case WLAN_TDLS_SETUP_RESPONSE:
 	case WLAN_PUB_ACTION_TDLS_DISCOVER_RES:
-		/* we are the responder */
+		
 		ieee80211_tdls_add_link_ie(skb, peer, sdata->vif.addr,
 					   sdata->u.mgd.bssid);
 		break;
@@ -3227,10 +3080,6 @@ static int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		return 0;
 	}
 
-	/*
-	 * According to 802.11z: Setup req/resp are sent in AC_BK, otherwise
-	 * we should default to AC_VI.
-	 */
 	switch (action_code) {
 	case WLAN_TDLS_SETUP_REQUEST:
 	case WLAN_TDLS_SETUP_RESPONSE:
@@ -3243,7 +3092,7 @@ static int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		break;
 	}
 
-	/* disable bottom halves when entering the Tx path */
+	
 	local_bh_disable();
 	ret = ieee80211_subif_start_xmit(skb, dev);
 	local_bh_enable();
@@ -3286,7 +3135,7 @@ static int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
 	case NL80211_TDLS_TEARDOWN:
 	case NL80211_TDLS_SETUP:
 	case NL80211_TDLS_DISCOVERY_REQ:
-		/* We don't support in-driver setup/teardown/discovery */
+		
 		return -ENOTSUPP;
 	default:
 		return -ENOTSUPP;

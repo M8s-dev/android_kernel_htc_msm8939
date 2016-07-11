@@ -26,6 +26,7 @@
 #include <linux/smp.h>
 #include <linux/ptrace.h>
 #include <linux/user.h>
+#include <linux/seccomp.h>
 #include <linux/security.h>
 #include <linux/init.h>
 #include <linux/signal.h>
@@ -45,22 +46,12 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/syscalls.h>
 
-/*
- * TODO: does not yet catch signals sent when the child dies.
- * in exit.c or in signal.c.
- */
 
-/*
- * Called by kernel/ptrace.c when detaching..
- */
 void ptrace_disable(struct task_struct *child)
 {
 }
 
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
-/*
- * Handle hitting a HW-breakpoint.
- */
 static void ptrace_hbptriggered(struct perf_event *bp,
 				struct perf_sample_data *data,
 				struct pt_regs *regs)
@@ -97,10 +88,6 @@ send_sig:
 	force_sig_info(SIGTRAP, &info, current);
 }
 
-/*
- * Unregister breakpoints from this task and reset the pointers in
- * the thread_struct.
- */
 void flush_ptrace_hw_breakpoint(struct task_struct *tsk)
 {
 	int i;
@@ -192,10 +179,6 @@ static struct perf_event *ptrace_hbp_create(unsigned int note_type,
 
 	ptrace_breakpoint_init(&attr);
 
-	/*
-	 * Initialise fields to sane defaults
-	 * (i.e. values that will pass validation).
-	 */
 	attr.bp_addr	= 0;
 	attr.bp_len	= HW_BREAKPOINT_LEN_4;
 	attr.bp_type	= type;
@@ -369,7 +352,7 @@ static int hw_break_get(struct task_struct *target,
 	u32 info, ctrl;
 	u64 addr;
 
-	/* Resource info */
+	
 	ret = ptrace_hbp_get_resource_info(note_type, &info);
 	if (ret)
 		return ret;
@@ -379,14 +362,14 @@ static int hw_break_get(struct task_struct *target,
 	if (ret)
 		return ret;
 
-	/* Pad */
+	
 	offset = offsetof(struct user_hwdebug_state, pad);
 	ret = user_regset_copyout_zero(&pos, &count, &kbuf, &ubuf, offset,
 				       offset + PTRACE_HBP_PAD_SZ);
 	if (ret)
 		return ret;
 
-	/* (address, ctrl) registers */
+	
 	offset = offsetof(struct user_hwdebug_state, dbg_regs);
 	limit = regset->n * regset->size;
 	while (count && offset < limit) {
@@ -430,13 +413,13 @@ static int hw_break_set(struct task_struct *target,
 	u32 ctrl;
 	u64 addr;
 
-	/* Resource info and pad */
+	
 	offset = offsetof(struct user_hwdebug_state, dbg_regs);
 	ret = user_regset_copyin_ignore(&pos, &count, &kbuf, &ubuf, 0, offset);
 	if (ret)
 		return ret;
 
-	/* (address, ctrl) registers */
+	
 	limit = regset->n * regset->size;
 	while (count && offset < limit) {
 		ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &addr,
@@ -468,7 +451,7 @@ static int hw_break_set(struct task_struct *target,
 
 	return 0;
 }
-#endif	/* CONFIG_HAVE_HW_BREAKPOINT */
+#endif	
 
 static int gpr_get(struct task_struct *target,
 		   const struct user_regset *regset,
@@ -497,9 +480,6 @@ static int gpr_set(struct task_struct *target, const struct user_regset *regset,
 	return 0;
 }
 
-/*
- * TODO: update fp accessors for lazy context switching (sync/flush hwstate)
- */
 static int fpr_get(struct task_struct *target, const struct user_regset *regset,
 		   unsigned int pos, unsigned int count,
 		   void *kbuf, void __user *ubuf)
@@ -547,6 +527,32 @@ static int tls_set(struct task_struct *target, const struct user_regset *regset,
 	return ret;
 }
 
+static int system_call_get(struct task_struct *target,
+			   const struct user_regset *regset,
+			   unsigned int pos, unsigned int count,
+			   void *kbuf, void __user *ubuf)
+{
+	int syscallno = task_pt_regs(target)->syscallno;
+
+	return user_regset_copyout(&pos, &count, &kbuf, &ubuf,
+				   &syscallno, 0, -1);
+}
+
+static int system_call_set(struct task_struct *target,
+			   const struct user_regset *regset,
+			   unsigned int pos, unsigned int count,
+			   const void *kbuf, const void __user *ubuf)
+{
+	int syscallno, ret;
+
+	ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &syscallno, 0, -1);
+	if (ret)
+		return ret;
+
+	task_pt_regs(target)->syscallno = syscallno;
+	return ret;
+}
+
 enum aarch64_regset {
 	REGSET_GPR,
 	REGSET_FPR,
@@ -555,6 +561,7 @@ enum aarch64_regset {
 	REGSET_HW_BREAK,
 	REGSET_HW_WATCH,
 #endif
+	REGSET_SYSTEM_CALL,
 };
 
 static const struct user_regset aarch64_regsets[] = {
@@ -569,10 +576,6 @@ static const struct user_regset aarch64_regsets[] = {
 	[REGSET_FPR] = {
 		.core_note_type = NT_PRFPREG,
 		.n = sizeof(struct user_fpsimd_state) / sizeof(u32),
-		/*
-		 * We pretend we have 32-bit registers because the fpsr and
-		 * fpcr are 32-bits wide.
-		 */
 		.size = sizeof(u32),
 		.align = sizeof(u32),
 		.get = fpr_get,
@@ -604,6 +607,14 @@ static const struct user_regset aarch64_regsets[] = {
 		.set = hw_break_set,
 	},
 #endif
+	[REGSET_SYSTEM_CALL] = {
+		.core_note_type = NT_ARM_SYSTEM_CALL,
+		.n = 1,
+		.size = sizeof(int),
+		.align = sizeof(int),
+		.get = system_call_get,
+		.set = system_call_set,
+	},
 };
 
 static const struct user_regset_view user_aarch64_view = {
@@ -627,10 +638,10 @@ static int compat_gpr_get(struct task_struct *target,
 	int ret = 0;
 	unsigned int i, start, num_regs;
 
-	/* Calculate the number of AArch32 registers contained in count */
+	
 	num_regs = count / regset->size;
 
-	/* Convert pos into an register number */
+	
 	start = pos / regset->size;
 
 	if (start + num_regs > regset->n)
@@ -678,10 +689,10 @@ static int compat_gpr_set(struct task_struct *target,
 	int ret = 0;
 	unsigned int i, start, num_regs;
 
-	/* Calculate the number of AArch32 registers contained in count */
+	
 	num_regs = count / regset->size;
 
-	/* Convert pos into an register number */
+	
 	start = pos / regset->size;
 
 	if (start + num_regs > regset->n)
@@ -739,10 +750,6 @@ static int compat_vfp_get(struct task_struct *target,
 
 	uregs = &target->thread.fpsimd_state.user_fpsimd;
 
-	/*
-	 * The VFP registers are packed into the fpsimd_state, so they all sit
-	 * nicely together for us. We just need to create the fpscr separately.
-	 */
 	ret = user_regset_copyout(&pos, &count, &kbuf, &ubuf, uregs, 0,
 				  VFP_STATE_SIZE - sizeof(compat_ulong_t));
 
@@ -855,13 +862,6 @@ static int compat_ptrace_write_user(struct task_struct *tsk, compat_ulong_t off,
 
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
 
-/*
- * Convert a virtual register number into an index for a thread_info
- * breakpoint array. Breakpoints are identified using positive numbers
- * whilst watchpoints are negative. The registers are laid out as pairs
- * of (address, control), each pair mapping to a unique hw_breakpoint struct.
- * Register 0 is reserved for describing resource information.
- */
 static int compat_ptrace_hbp_num_to_idx(compat_long_t num)
 {
 	return (abs(num) - 1) >> 1;
@@ -939,13 +939,13 @@ static int compat_ptrace_gethbpregs(struct task_struct *tsk, compat_long_t num,
 	mm_segment_t old_fs = get_fs();
 
 	set_fs(KERNEL_DS);
-	/* Watchpoint */
+	
 	if (num < 0) {
 		ret = compat_ptrace_hbp_get(NT_ARM_HW_WATCH, tsk, num, &kdata);
-	/* Resource info */
+	
 	} else if (num == 0) {
 		ret = compat_ptrace_hbp_get_resource_info(&kdata);
-	/* Breakpoint */
+	
 	} else {
 		ret = compat_ptrace_hbp_get(NT_ARM_HW_BREAK, tsk, num, &kdata);
 	}
@@ -980,7 +980,7 @@ static int compat_ptrace_sethbpregs(struct task_struct *tsk, compat_long_t num,
 
 	return ret;
 }
-#endif	/* CONFIG_HAVE_HW_BREAKPOINT */
+#endif	
 
 long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 			compat_ulong_t caddr, compat_ulong_t cdata)
@@ -1059,7 +1059,7 @@ long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 
 	return ret;
 }
-#endif /* CONFIG_COMPAT */
+#endif 
 
 const struct user_regset_view *task_user_regset_view(struct task_struct *task)
 {
@@ -1087,10 +1087,6 @@ static void tracehook_report_syscall(struct pt_regs *regs,
 	int regno;
 	unsigned long saved_reg;
 
-	/*
-	 * A scratch register (ip(r12) on AArch32, x7 on AArch64) is
-	 * used to denote syscall entry/exit:
-	 */
 	regno = (is_compat_task() ? 12 : 7);
 	saved_reg = regs->regs[regno];
 	regs->regs[regno] = dir;
@@ -1105,11 +1101,23 @@ static void tracehook_report_syscall(struct pt_regs *regs,
 
 asmlinkage int syscall_trace_enter(struct pt_regs *regs)
 {
+	unsigned int saved_syscallno = regs->syscallno;
+
+	
+	if (secure_computing(regs->syscallno) == -1)
+		return RET_SKIP_SYSCALL_TRACE;
+
 	if (test_thread_flag(TIF_SYSCALL_TRACE))
 		tracehook_report_syscall(regs, PTRACE_SYSCALL_ENTER);
 
 	if (test_thread_flag(TIF_SYSCALL_TRACEPOINT))
 		trace_sys_enter(regs, regs->syscallno);
+
+	if (IS_SKIP_SYSCALL(regs->syscallno)) {
+		if (!test_thread_flag(TIF_SYSCALL_TRACE) ||
+				(IS_SKIP_SYSCALL(saved_syscallno)))
+			regs->regs[0] = -ENOSYS;
+	}
 
 	return regs->syscallno;
 }

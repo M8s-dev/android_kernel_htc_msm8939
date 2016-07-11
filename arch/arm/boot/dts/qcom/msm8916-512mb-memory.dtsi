@@ -41,11 +41,13 @@
 			label = "peripheral_mem";
 		};
 
-		venus_qseecom_mem: venus_qseecom_region@0 {
+//In msm8916.dtsi, the venus usage label is from "venus_qseecom_mem" to "venus_mem", we change the label here for unified.
+
+		venus_mem: venus_qseecom_region@0 {
 			linux,reserve-contiguous-region;
 			linux,memory-limit = <0x90000000>;
 			reg = <0 0 0 0x600000>;
-			label = "venus_qseecom_mem";
+			label = "venus_mem";
 		};
 
 		audio_mem: audio_region@0 {
@@ -54,11 +56,5 @@
 			label = "audio_mem";
 		};
 
-		cont_splash_mem: splash_region@83000000 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			reg = <0x0 0x83000000 0x0 0x1200000>;
-			label = "cont_splash_mem";
-		};
 	};
 };

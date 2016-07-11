@@ -171,11 +171,12 @@ static ssize_t mem_used_total_show(struct device *dev,
 {
 	u64 val = 0;
 	struct zram *zram = dev_to_zram(dev);
-	struct zram_meta *meta = zram->meta;
 
 	down_read(&zram->init_lock);
-	if (zram->init_done)
+	if (zram->init_done) {
+		struct zram_meta *meta = zram->meta;
 		val = zs_get_total_size_bytes(meta->mem_pool);
+	}
 	up_read(&zram->init_lock);
 
 	return sprintf(buf, "%llu\n", val);
@@ -525,6 +526,10 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		copy_page(cmem, src);
 		kunmap_atomic(src);
 	} else {
+		if (unlikely(!src)) {
+			ret = -ENOMEM;
+			goto out;
+		}
 		memcpy(cmem, src, clen);
 	}
 
@@ -855,6 +860,7 @@ static int create_device(struct zram *zram, int device_id)
 	zram->disk->private_data = zram;
 	snprintf(zram->disk->disk_name, 16, "zram%d", device_id);
 
+	__set_bit(QUEUE_FLAG_FAST, &zram->queue->queue_flags);
 	
 	set_capacity(zram->disk, 0);
 

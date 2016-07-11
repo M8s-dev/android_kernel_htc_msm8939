@@ -1,8 +1,12 @@
+/*
+ * Definitions for akm09911 compass chip.
+ */
 #ifndef AKM09911_H
 #define AKM09911_H
 
 #include <linux/ioctl.h>
 
+/* Device specific constant values */
 #define AK09911_REG_WIA1            0x00
 #define AK09911_REG_WIA2            0x01
 #define AK09911_REG_INFO1           0x02
@@ -34,6 +38,7 @@
 #define AK09911_WIA1_VALUE          0x48
 #define AK09911_WIA2_VALUE          0x05
 
+/* To avoid device dependency, convert to general name */
 #define AKM_I2C_NAME                "akm09911"
 #define AKM_MISCDEV_NAME            "akm09911_dev"
 #define AKM_SYSCLS_NAME             "compass"
@@ -105,6 +110,7 @@
 
 #define AKMIO                       0xA1
 
+/* IOCTLs for AKM library */
 #define ECS_IOCTL_READ              _IOWR(AKMIO, 0x01, char)
 #define ECS_IOCTL_WRITE             _IOW(AKMIO, 0x02, char)
 #define ECS_IOCTL_RESET             _IO(AKMIO, 0x03)

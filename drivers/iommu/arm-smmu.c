@@ -48,20 +48,30 @@
 
 #include <asm/pgalloc.h>
 
+/* Maximum number of stream IDs assigned to a single device */
 #define MAX_MASTER_STREAMIDS		MAX_PHANDLE_ARGS
 
+/* Maximum number of context banks per SMMU */
 #define ARM_SMMU_MAX_CBS		128
 
+/* Maximum number of mapping groups per SMMU */
 #define ARM_SMMU_MAX_SMRS		128
 
+/* SMMU global address space */
 #define ARM_SMMU_GR0(smmu)		((smmu)->base)
 #define ARM_SMMU_GR1(smmu)		((smmu)->base + (smmu)->pagesize)
 
+/*
+ * SMMU global address space with conditional offset to access secure
+ * aliases of non-secure registers (e.g. nsCR0: 0x400, nsGFSR: 0x448,
+ * nsGFSYNR0: 0x450)
+ */
 #define ARM_SMMU_GR0_NS(smmu)						\
 	((smmu)->base +							\
 		((smmu->options & ARM_SMMU_OPT_SECURE_CFG_ACCESS)	\
 			? 0x400 : 0))
 
+/* Page table bits */
 #define ARM_SMMU_PTE_XN			(((pteval_t)3) << 53)
 #define ARM_SMMU_PTE_CONT		(((pteval_t)1) << 52)
 #define ARM_SMMU_PTE_AF			(((pteval_t)1) << 10)
@@ -81,11 +91,13 @@
 #define ARM_SMMU_PTE_CONT_SIZE		(PAGE_SIZE * ARM_SMMU_PTE_CONT_ENTRIES)
 #define ARM_SMMU_PTE_CONT_MASK		(~(ARM_SMMU_PTE_CONT_SIZE - 1))
 
+/* Stage-1 PTE */
 #define ARM_SMMU_PTE_AP_UNPRIV		(((pteval_t)1) << 6)
 #define ARM_SMMU_PTE_AP_RDONLY		(((pteval_t)2) << 6)
 #define ARM_SMMU_PTE_ATTRINDX_SHIFT	2
 #define ARM_SMMU_PTE_nG			(((pteval_t)1) << 11)
 
+/* Stage-2 PTE */
 #define ARM_SMMU_PTE_HAP_FAULT		(((pteval_t)0) << 6)
 #define ARM_SMMU_PTE_HAP_READ		(((pteval_t)1) << 6)
 #define ARM_SMMU_PTE_HAP_WRITE		(((pteval_t)2) << 6)
@@ -93,6 +105,7 @@
 #define ARM_SMMU_PTE_MEMATTR_NC		(((pteval_t)0x5) << 2)
 #define ARM_SMMU_PTE_MEMATTR_DEV	(((pteval_t)0x1) << 2)
 
+/* Configuration registers */
 #define ARM_SMMU_GR0_sCR0		0x0
 #define sCR0_CLIENTPD			(1 << 0)
 #define sCR0_GFRE			(1 << 1)
@@ -106,6 +119,7 @@
 #define sCR0_BSU_SHIFT			14
 #define sCR0_BSU_MASK			0x3
 
+/* Identification registers */
 #define ARM_SMMU_GR0_ID0		0x20
 #define ARM_SMMU_GR0_ID1		0x24
 #define ARM_SMMU_GR0_ID2		0x28
@@ -156,6 +170,7 @@
 #define PIDR2_ARCH_SHIFT		4
 #define PIDR2_ARCH_MASK			0xf
 
+/* Global TLB invalidation */
 #define ARM_SMMU_GR0_STLBIALL		0x60
 #define ARM_SMMU_GR0_TLBIVMID		0x64
 #define ARM_SMMU_GR0_TLBIALLNSNH	0x68
@@ -163,8 +178,9 @@
 #define ARM_SMMU_GR0_sTLBGSYNC		0x70
 #define ARM_SMMU_GR0_sTLBGSTATUS	0x74
 #define sTLBGSTATUS_GSACTIVE		(1 << 0)
-#define TLB_LOOP_TIMEOUT		1000000	
+#define TLB_LOOP_TIMEOUT		1000000	/* 1s! */
 
+/* Stream mapping registers */
 #define ARM_SMMU_GR0_SMR(n)		(0x800 + ((n) << 2))
 #define SMR_VALID			(1 << 31)
 #define SMR_MASK_SHIFT			16
@@ -181,6 +197,7 @@
 #define S2CR_TYPE_BYPASS		(1 << S2CR_TYPE_SHIFT)
 #define S2CR_TYPE_FAULT			(2 << S2CR_TYPE_SHIFT)
 
+/* Context bank attribute registers */
 #define ARM_SMMU_GR1_CBAR(n)		(0x0 + ((n) << 2))
 #define CBAR_VMID_SHIFT			0
 #define CBAR_VMID_MASK			0xff
@@ -203,6 +220,7 @@
 #define CBA2R_RW64_32BIT		(0 << 0)
 #define CBA2R_RW64_64BIT		(1 << 0)
 
+/* Translation context bank */
 #define ARM_SMMU_CB_BASE(smmu)		((smmu)->base + ((smmu)->size >> 1))
 #define ARM_SMMU_CB(smmu, n)		((n) * (smmu)->pagesize)
 
@@ -269,6 +287,7 @@
 #define TTBCR2_PASIZE_SHIFT		0
 #define TTBCR2_PASIZE_MASK		0x7
 
+/* Common definitions for PASize and SEP fields */
 #define TTBCR2_ADDR_32			0
 #define TTBCR2_ADDR_36			1
 #define TTBCR2_ADDR_40			2
@@ -546,6 +565,7 @@ static void __arm_smmu_free_bitmap(unsigned long *map, int idx)
 	clear_bit(idx, map);
 }
 
+/* Wait for any pending TLB invalidations to complete */
 static void arm_smmu_tlb_sync(struct arm_smmu_device *smmu)
 {
 	int count = 0;
@@ -627,10 +647,10 @@ static irqreturn_t arm_smmu_context_fault(int irq, void *dev)
 		resume = RESUME_TERMINATE;
 	}
 
-	
+	/* Clear the faulting FSR */
 	writel(fsr, cb_base + ARM_SMMU_CB_FSR);
 
-	
+	/* Retry or terminate any stalled transactions */
 	if (fsr & FSR_SS)
 		writel_relaxed(resume, cb_base + ARM_SMMU_CB_RESUME);
 
@@ -667,10 +687,17 @@ static void arm_smmu_flush_pgtable(struct arm_smmu_device *smmu, void *addr,
 	unsigned long offset = (unsigned long)addr & ~PAGE_MASK;
 
 
-	
+	/* Ensure new page tables are visible to the hardware walker */
 	if (smmu->features & ARM_SMMU_FEAT_COHERENT_WALK) {
 		dsb(ishst);
 	} else {
+		/*
+		 * If the SMMU can't walk tables in the CPU caches, treat them
+		 * like non-coherent DMA since we need to flush the new entries
+		 * all the way out to memory. There's no possibility of
+		 * recursion here as the SMMU table walker will not be wired
+		 * through another SMMU.
+		 */
 		dma_map_page(smmu->dev, virt_to_page(addr), offset, size,
 				DMA_TO_DEVICE);
 	}
@@ -689,11 +716,15 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 	stage1 = cfg->cbar != CBAR_TYPE_S2_TRANS;
 	cb_base = ARM_SMMU_CB_BASE(smmu) + ARM_SMMU_CB(smmu, cfg->cbndx);
 
-	
+	/* CBAR */
 	reg = cfg->cbar;
 	if (smmu->version == 1)
 		reg |= cfg->irptndx << CBAR_IRPTNDX_SHIFT;
 
+	/*
+	 * Use the weakest shareability/memory types, so they are
+	 * overridden by the ttbcr/pte.
+	 */
 	if (stage1) {
 		reg |= (CBAR_S1_BPSHCFG_NSH << CBAR_S1_BPSHCFG_SHIFT) |
 			(CBAR_S1_MEMATTR_WB << CBAR_S1_MEMATTR_SHIFT);
@@ -703,7 +734,7 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 	writel_relaxed(reg, gr1_base + ARM_SMMU_GR1_CBAR(cfg->cbndx));
 
 	if (smmu->version > 1) {
-		
+		/* CBA2R */
 #ifdef CONFIG_64BIT
 		reg = CBA2R_RW64_64BIT;
 #else
@@ -712,7 +743,7 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 		writel_relaxed(reg,
 			       gr1_base + ARM_SMMU_GR1_CBA2R(cfg->cbndx));
 
-		
+		/* TTBCR2 */
 		switch (smmu->input_size) {
 		case 32:
 			reg = (TTBCR2_ADDR_32 << TTBCR2_SEP_SHIFT);
@@ -761,7 +792,7 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 			writel_relaxed(reg, cb_base + ARM_SMMU_CB_TTBCR2);
 	}
 
-	
+	/* TTBR0 */
 	arm_smmu_flush_pgtable(smmu, cfg->pgd,
 			       PTRS_PER_PGD * sizeof(pgd_t));
 	reg = __pa(cfg->pgd);
@@ -771,6 +802,10 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 		reg |= ARM_SMMU_CB_ASID(cfg) << TTBRn_HI_ASID_SHIFT;
 	writel_relaxed(reg, cb_base + ARM_SMMU_CB_TTBR0_HI);
 
+	/*
+	 * TTBCR
+	 * We use long descriptor, with inner-shareable WBWA tables in TTBR0.
+	 */
 	if (smmu->version > 1) {
 		if (PAGE_SIZE == SZ_4K)
 			reg = TTBCR_TG0_4K;
@@ -817,7 +852,7 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 
 	writel_relaxed(reg, cb_base + ARM_SMMU_CB_TTBCR);
 
-	
+	/* MAIR0 (stage-1 only) */
 	if (stage1) {
 		reg = (MAIR_ATTR_NC << MAIR_ATTR_SHIFT(MAIR_ATTR_IDX_NC)) |
 		      (MAIR_ATTR_WBRWA << MAIR_ATTR_SHIFT(MAIR_ATTR_IDX_CACHE)) |
@@ -825,7 +860,7 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain)
 		writel_relaxed(reg, cb_base + ARM_SMMU_CB_S1_MAIR0);
 	}
 
-	
+	/* SCTLR */
 	reg = SCTLR_CFCFG | SCTLR_CFIE | SCTLR_CFRE | SCTLR_M | SCTLR_EAE_SBOP;
 	if (stage1)
 		reg |= SCTLR_S1_ASIDPNE;
@@ -848,6 +883,10 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 		goto out_unlock;
 
 	if (smmu->features & ARM_SMMU_FEAT_TRANS_NESTED) {
+		/*
+		 * We will likely want to change this if/when KVM gets
+		 * involved.
+		 */
 		cfg->cbar = CBAR_TYPE_S1_TRANS_S2_BYPASS;
 		start = smmu->num_s2_context_banks;
 	} else if (smmu->features & ARM_SMMU_FEAT_TRANS_S1) {
@@ -902,7 +941,7 @@ static void arm_smmu_destroy_domain_context(struct iommu_domain *domain)
 	if (!smmu)
 		return;
 
-	
+	/* Disable the context bank and nuke the TLB before freeing it. */
 	cb_base = ARM_SMMU_CB_BASE(smmu) + ARM_SMMU_CB(smmu, cfg->cbndx);
 	writel_relaxed(0, cb_base + ARM_SMMU_CB_SCTLR);
 	arm_smmu_tlb_inv_context(smmu_domain);
@@ -920,6 +959,11 @@ static int arm_smmu_domain_init(struct iommu_domain *domain)
 	struct arm_smmu_domain *smmu_domain;
 	pgd_t *pgd;
 
+	/*
+	 * Allocate the domain and initialise some of its data structures.
+	 * We can't really do anything meaningful until we've added a
+	 * master.
+	 */
 	smmu_domain = kzalloc(sizeof(*smmu_domain), GFP_KERNEL);
 	if (!smmu_domain)
 		return -ENOMEM;
@@ -985,6 +1029,11 @@ static void arm_smmu_free_pgtables(struct arm_smmu_domain *smmu_domain)
 	struct arm_smmu_cfg *cfg = &smmu_domain->cfg;
 	pgd_t *pgd, *pgd_base = cfg->pgd;
 
+	/*
+	 * Recursively free the page tables for this domain. We don't
+	 * care about speculative TLB filling because the tables should
+	 * not be active in any context bank at this point (SCTLR.M is 0).
+	 */
 	pgd = pgd_base;
 	for (i = 0; i < PTRS_PER_PGD; ++i) {
 		if (pgd_none(*pgd))
@@ -1000,6 +1049,10 @@ static void arm_smmu_domain_destroy(struct iommu_domain *domain)
 {
 	struct arm_smmu_domain *smmu_domain = domain->priv;
 
+	/*
+	 * Free the domain resources. We assume that all devices have
+	 * already been detached.
+	 */
 	arm_smmu_destroy_domain_context(domain);
 	arm_smmu_free_pgtables(smmu_domain);
 	kfree(smmu_domain);
@@ -1025,7 +1078,7 @@ static int arm_smmu_master_configure_smrs(struct arm_smmu_device *smmu,
 		return -ENOMEM;
 	}
 
-	
+	/* Allocate the SMRs on the SMMU */
 	for (i = 0; i < cfg->num_streamids; ++i) {
 		int idx = __arm_smmu_alloc_bitmap(smmu->smr_map, 0,
 						  smmu->num_mapping_groups);
@@ -1036,12 +1089,12 @@ static int arm_smmu_master_configure_smrs(struct arm_smmu_device *smmu,
 
 		smrs[i] = (struct arm_smmu_smr) {
 			.idx	= idx,
-			.mask	= 0, 
+			.mask	= 0, /* We don't currently share SMRs */
 			.id	= cfg->streamids[i],
 		};
 	}
 
-	
+	/* It worked! Now, poke the actual hardware */
 	for (i = 0; i < cfg->num_streamids; ++i) {
 		u32 reg = SMR_VALID | smrs[i].id << SMR_ID_SHIFT |
 			  smrs[i].mask << SMR_MASK_SHIFT;
@@ -1068,7 +1121,7 @@ static void arm_smmu_master_free_smrs(struct arm_smmu_device *smmu,
 	if (!smrs)
 		return;
 
-	
+	/* Invalidate the SMRs before freeing back to the allocator */
 	for (i = 0; i < cfg->num_streamids; ++i) {
 		u8 idx = smrs[i].idx;
 
@@ -1110,6 +1163,10 @@ static void arm_smmu_domain_remove_master(struct arm_smmu_domain *smmu_domain,
 	struct arm_smmu_device *smmu = smmu_domain->smmu;
 	void __iomem *gr0_base = ARM_SMMU_GR0(smmu);
 
+	/*
+	 * We *must* clear the S2CR first, because freeing the SMR means
+	 * that it can be re-allocated immediately.
+	 */
 	for (i = 0; i < cfg->num_streamids; ++i) {
 		u32 idx = cfg->smrs ? cfg->smrs[i].idx : cfg->streamids[i];
 
@@ -1133,9 +1190,13 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		return -ENXIO;
 	}
 
+	/*
+	 * Sanity check the domain. We don't support domains across
+	 * different SMMUs.
+	 */
 	dom_smmu = ACCESS_ONCE(smmu_domain->smmu);
 	if (!dom_smmu) {
-		
+		/* Now that we have a master, we can finalise the domain */
 		ret = arm_smmu_init_domain_context(domain, smmu);
 		if (IS_ERR_VALUE(ret))
 			return ret;
@@ -1150,7 +1211,7 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		return -EINVAL;
 	}
 
-	
+	/* Looks ok, so add the device to the domain */
 	cfg = find_smmu_master_cfg(smmu_domain->smmu, dev);
 	if (!cfg)
 		return -ENODEV;
@@ -1183,7 +1244,7 @@ static int arm_smmu_alloc_init_pte(struct arm_smmu_device *smmu, pmd_t *pmd,
 	pteval_t pteval = ARM_SMMU_PTE_PAGE | ARM_SMMU_PTE_AF | ARM_SMMU_PTE_XN;
 
 	if (pmd_none(*pmd)) {
-		
+		/* Allocate a new set of tables */
 		pgtable_t table = alloc_page(GFP_ATOMIC|__GFP_ZERO);
 
 		if (!table)
@@ -1214,7 +1275,7 @@ static int arm_smmu_alloc_init_pte(struct arm_smmu_device *smmu, pmd_t *pmd,
 			pteval |= ARM_SMMU_PTE_MEMATTR_NC;
 	}
 
-	
+	/* If no access, create a faulting entry to avoid TLB fills */
 	if (prot & IOMMU_EXEC)
 		pteval &= ~ARM_SMMU_PTE_XN;
 	else if (!(prot & (IOMMU_READ | IOMMU_WRITE)))
@@ -1224,6 +1285,27 @@ static int arm_smmu_alloc_init_pte(struct arm_smmu_device *smmu, pmd_t *pmd,
 	start = pmd_page_vaddr(*pmd) + pte_index(addr);
 	pte = start;
 
+	/*
+	 * Install the page table entries. This is fairly complicated
+	 * since we attempt to make use of the contiguous hint in the
+	 * ptes where possible. The contiguous hint indicates a series
+	 * of ARM_SMMU_PTE_CONT_ENTRIES ptes mapping a physically
+	 * contiguous region with the following constraints:
+	 *
+	 *   - The region start is aligned to ARM_SMMU_PTE_CONT_SIZE
+	 *   - Each pte in the region has the contiguous hint bit set
+	 *
+	 * This complicates unmapping (also handled by this code, when
+	 * neither IOMMU_READ or IOMMU_WRITE are set) because it is
+	 * possible, yet highly unlikely, that a client may unmap only
+	 * part of a contiguous range. This requires clearing of the
+	 * contiguous hint bits in the range before installing the new
+	 * faulting entries.
+	 *
+	 * Note that re-mapping an address range without first unmapping
+	 * it is not supported, so TLB invalidation is not required here
+	 * and is instead performed at unmap and domain-init time.
+	 */
 	do {
 		int i = 1;
 
@@ -1444,7 +1526,7 @@ static int arm_smmu_domain_has_cap(struct iommu_domain *domain,
 	case IOMMU_CAP_CACHE_COHERENCY:
 		return features & ARM_SMMU_FEAT_COHERENT_WALK;
 	case IOMMU_CAP_INTR_REMAP:
-		return 1; 
+		return 1; /* MSIs are just memory writes */
 	default:
 		return 0;
 	}
@@ -1453,7 +1535,7 @@ static int arm_smmu_domain_has_cap(struct iommu_domain *domain,
 static int __arm_smmu_get_pci_sid(struct pci_dev *pdev, u16 alias, void *data)
 {
 	*((u16 *)data) = alias;
-	return 0; 
+	return 0; /* Continue walking */
 }
 
 static int arm_smmu_add_device(struct device *dev)
@@ -1488,6 +1570,10 @@ static int arm_smmu_add_device(struct device *dev)
 		}
 
 		cfg->num_streamids = 1;
+		/*
+		 * Assume Stream ID == Requester ID for now.
+		 * We need a way to describe the ID mappings in FDT.
+		 */
 		pci_for_each_dma_alias(pdev, __arm_smmu_get_pci_sid,
 				       &cfg->streamids[0]);
 		dev->archdata.iommu = cfg;
@@ -1534,47 +1620,47 @@ static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 	int i = 0;
 	u32 reg;
 
-	
+	/* clear global FSR */
 	reg = readl_relaxed(ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sGFSR);
 	writel(reg, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sGFSR);
 
-	
+	/* Mark all SMRn as invalid and all S2CRn as bypass */
 	for (i = 0; i < smmu->num_mapping_groups; ++i) {
 		writel_relaxed(~SMR_VALID, gr0_base + ARM_SMMU_GR0_SMR(i));
 		writel_relaxed(S2CR_TYPE_BYPASS,
 			gr0_base + ARM_SMMU_GR0_S2CR(i));
 	}
 
-	
+	/* Make sure all context banks are disabled and clear CB_FSR  */
 	for (i = 0; i < smmu->num_context_banks; ++i) {
 		cb_base = ARM_SMMU_CB_BASE(smmu) + ARM_SMMU_CB(smmu, i);
 		writel_relaxed(0, cb_base + ARM_SMMU_CB_SCTLR);
 		writel_relaxed(FSR_FAULT, cb_base + ARM_SMMU_CB_FSR);
 	}
 
-	
+	/* Invalidate the TLB, just in case */
 	writel_relaxed(0, gr0_base + ARM_SMMU_GR0_STLBIALL);
 	writel_relaxed(0, gr0_base + ARM_SMMU_GR0_TLBIALLH);
 	writel_relaxed(0, gr0_base + ARM_SMMU_GR0_TLBIALLNSNH);
 
 	reg = readl_relaxed(ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sCR0);
 
-	
+	/* Enable fault reporting */
 	reg |= (sCR0_GFRE | sCR0_GFIE | sCR0_GCFGFRE | sCR0_GCFGFIE);
 
-	
+	/* Disable TLB broadcasting. */
 	reg |= (sCR0_VMIDPNE | sCR0_PTM);
 
-	
+	/* Enable client access, but bypass when no mapping is found */
 	reg &= ~(sCR0_CLIENTPD | sCR0_USFCFG);
 
-	
+	/* Disable forced broadcasting */
 	reg &= ~sCR0_FB;
 
-	
+	/* Don't upgrade barriers */
 	reg &= ~(sCR0_BSU_MASK << sCR0_BSU_SHIFT);
 
-	
+	/* Push the button */
 	arm_smmu_tlb_sync(smmu);
 	writel(reg, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sCR0);
 }
@@ -1606,12 +1692,12 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 
 	dev_notice(smmu->dev, "probing hardware configuration...\n");
 
-	
+	/* Primecell ID */
 	id = readl_relaxed(gr0_base + ARM_SMMU_GR0_PIDR2);
 	smmu->version = ((id >> PIDR2_ARCH_SHIFT) & PIDR2_ARCH_MASK) + 1;
 	dev_notice(smmu->dev, "SMMUv%d with:\n", smmu->version);
 
-	
+	/* ID0 */
 	id = readl_relaxed(gr0_base + ARM_SMMU_GR0_ID0);
 #ifndef CONFIG_64BIT
 	if (((id >> ID0_PTFS_SHIFT) & ID0_PTFS_MASK) == ID0_PTFS_V8_ONLY) {
@@ -1677,11 +1763,11 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 			   smmu->num_mapping_groups, mask);
 	}
 
-	
+	/* ID1 */
 	id = readl_relaxed(gr0_base + ARM_SMMU_GR0_ID1);
 	smmu->pagesize = (id & ID1_PAGESIZE) ? SZ_64K : SZ_4K;
 
-	
+	/* Check for size mismatch of SMMU address space from mapped region */
 	size = 1 <<
 		(((id >> ID1_NUMPAGENDXB_SHIFT) & ID1_NUMPAGENDXB_MASK) + 1);
 	size *= (smmu->pagesize << 1);
@@ -1700,10 +1786,14 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 	dev_notice(smmu->dev, "\t%u context banks (%u stage-2 only)\n",
 		   smmu->num_context_banks, smmu->num_s2_context_banks);
 
-	
+	/* ID2 */
 	id = readl_relaxed(gr0_base + ARM_SMMU_GR0_ID2);
 	size = arm_smmu_id_size_to_bits((id >> ID2_IAS_SHIFT) & ID2_IAS_MASK);
 
+	/*
+	 * Stage-1 output limited by stage-2 input size due to pgd
+	 * allocation (PTRS_PER_PGD).
+	 */
 	if (smmu->features & ARM_SMMU_FEAT_TRANS_NESTED) {
 #ifdef CONFIG_64BIT
 		smmu->s1_output_size = min_t(unsigned long, VA_BITS, size);
@@ -1715,7 +1805,7 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 					     size);
 	}
 
-	
+	/* The stage-2 output mask is also applied for bypass */
 	size = arm_smmu_id_size_to_bits((id >> ID2_OAS_SHIFT) & ID2_OAS_MASK);
 	smmu->s2_output_size = min_t(unsigned long, PHYS_MASK_SHIFT, size);
 
@@ -1902,7 +1992,7 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	for (i = 0; i < smmu->num_global_irqs; ++i)
 		free_irq(smmu->irqs[i], smmu);
 
-	
+	/* Turn the thing off */
 	writel(sCR0_CLIENTPD, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sCR0);
 	return 0;
 }
@@ -1936,7 +2026,7 @@ static int __init arm_smmu_init(void)
 	if (ret)
 		return ret;
 
-	
+	/* Oh, for a proper bus abstraction */
 	if (!iommu_present(&platform_bus_type))
 		bus_set_iommu(&platform_bus_type, &arm_smmu_ops);
 

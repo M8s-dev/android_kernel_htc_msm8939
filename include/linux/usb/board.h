@@ -164,7 +164,7 @@ struct msm_camera_sensor_flash_data {
 
 struct msm_camera_sensor_strobe_flash_data {
 	uint8_t flash_trigger;
-	uint8_t flash_charge; 
+	uint8_t flash_charge; /* pin for charge */
 	uint8_t flash_charge_done;
 	uint32_t flash_recharge_duration;
 	uint32_t irq;
@@ -319,6 +319,10 @@ struct msm_cad_endpoints {
 };
 
 #define MSM_MAX_DEC_CNT 14
+/* 7k target ADSP information */
+/* Bit 23:0, for codec identification like mp3, wav etc *
+ * Bit 27:24, for mode identification like tunnel, non tunnel*
+ * bit 31:28, for operation support like DM, DMA */
 enum msm_adspdec_concurrency {
 	MSM_ADSP_CODEC_WAV = 0,
 	MSM_ADSP_CODEC_ADPCM = 1,
@@ -345,10 +349,13 @@ enum msm_adspdec_concurrency {
 struct msm_adspdec_info {
 	const char *module_name;
 	unsigned module_queueid;
-	int module_decid; 
+	int module_decid; /* objid */
 	unsigned nr_codec_support;
 };
 
+/* Carries information about number codec
+ * supported if same codec or different codecs
+ */
 struct dec_instance_table {
 	uint8_t max_instances_same_dec;
 	uint8_t max_instances_diff_dec;
@@ -357,7 +364,8 @@ struct dec_instance_table {
 struct msm_adspdec_database {
 	unsigned num_dec;
 	unsigned num_concurrency_support;
-	unsigned int *dec_concurrency_table; 
+	unsigned int *dec_concurrency_table; /* Bit masked entry to *
+					      *	represents codec, mode etc */
 	struct msm_adspdec_info  *dec_info_list;
 	struct dec_instance_table *dec_instance_list;
 };
@@ -393,8 +401,8 @@ struct msm_panel_common_pdata {
 	struct msm_bus_scale_pdata *mdp_bus_scale_table;
 #endif
 	int mdp_rev;
-	u32 ov0_wb_size;  
-	u32 ov1_wb_size;  
+	u32 ov0_wb_size;  /* overlay0 writeback size */
+	u32 ov1_wb_size;  /* overlay1 writeback size */
 	u32 mem_hid;
 	char cont_splash_enabled;
 	u32 splash_screen_addr;
@@ -443,6 +451,7 @@ enum mipi_dsi_3d_ctrl {
 	FPGA_SPI_INTF,
 };
 
+/* DSI PHY configuration */
 struct mipi_dsi_phy_ctrl {
 	uint32_t regulator[5];
 	uint32_t timing[12];
@@ -496,17 +505,31 @@ struct msm_hdmi_platform_data {
 
 struct msm_mhl_platform_data {
 	int irq;
-	
+	/* GPIO no. for mhl intr */
 	uint32_t gpio_mhl_int;
-	
+	/* GPIO no. for mhl block reset */
 	uint32_t gpio_mhl_reset;
-	
+	/*
+	 * below gpios are specific to targets
+	 * that have the integrated MHL soln.
+	 */
+	/* GPIO no. for mhl block power */
 	uint32_t gpio_mhl_power;
-	
+	/* GPIO no. for hdmi-mhl mux */
 	uint32_t gpio_hdmi_mhl_mux;
 	bool mhl_enabled;
 };
 
+/**
+ * msm_i2c_platform_data: i2c-qup driver configuration data
+ *
+ * @clk_ctl_xfer : When true, the clocks's state (prepare_enable/
+ *       unprepare_disable) is controlled by i2c-transaction's begining and
+ *       ending. When false, the clock's state is controlled by runtime-pm
+ *       events.
+ * @master_id master id number of the i2c core or its wrapper (BLSP/GSBI).
+ *       When zero, clock path voting is disabled.
+ */
 struct msm_i2c_platform_data {
 	int clk_freq;
 	bool clk_ctl_xfer;
@@ -551,9 +574,19 @@ enum msm_vidc_v4l2_iommu_map {
 };
 
 struct msm_vidc_v4l2_platform_data {
+	/*
+	 * Should be a <num_iommu_table x 2> array where
+	 * iommu_table[n][0] is the start address and
+	 * iommu_table[n][1] is the size.
+	 */
 	int64_t **iommu_table;
 	int num_iommu_table;
 
+	/*
+	 * Should be a <num_load_table x 2> array where
+	 * load_table[n][0] is the load and load_table[n][1]
+	 * is the desired clock rate.
+	 */
 	int64_t **load_table;
 	int num_load_table;
 
@@ -572,6 +605,7 @@ struct isp1763_platform_data {
 	int (*setup_gpio)(int enable);
 };
 #endif
+/* common init routines for use by arch/arm/mach-msm/board-*.c */
 
 #ifdef CONFIG_OF_DEVICE
 void msm_8974_init(struct of_dev_auxdata **);
@@ -617,6 +651,7 @@ void msm8610_init_gpiomux(void);
 void msm_map_msm8610_io(void);
 void msm8610_init_irq(void);
 
+/* Dump debug info (states, rate, etc) of clocks */
 #if defined(CONFIG_ARCH_MSM7X27)
 void msm_clk_dump_debug_info(void);
 #else
@@ -652,11 +687,12 @@ enum usb_connect_type {
 	CONNECT_TYPE_INTERNAL,
 	CONNECT_TYPE_UNSUPPORTED,
 #ifdef CONFIG_MACH_VERDI_LTE
-	
+	/* Y cable with USB and 9V charger */
 	CONNECT_TYPE_USB_9V_AC,
 #endif
 	CONNECT_TYPE_MHL_AC,
 };
+/* START: add USB connected notify function */
 struct t_usb_status_notifier{
 	struct list_head notifier_link;
 	const char *name;
@@ -667,6 +703,9 @@ int64_t htc_qpnp_adc_get_usbid_adc(void);
 int usb_get_connect_type(void);
 static LIST_HEAD(g_lh_usb_notifier_list);
 
+/***********************************
+Direction: cable detect drvier -> battery driver or other
+ ***********************************/
 struct t_cable_status_notifier{
 	struct list_head cable_notifier_link;
 	const char *name;
@@ -676,6 +715,9 @@ int cable_detect_register_notifier(struct t_cable_status_notifier *);
 static LIST_HEAD(g_lh_calbe_detect_notifier_list);
 
 #ifdef CONFIG_HTC_MHL_DETECTION
+/***********************************
+ Direction: sii9234 drvier -> cable detect driver
+***********************************/
 struct t_mhl_status_notifier{
         struct list_head mhl_notifier_link;
         const char *name;
@@ -685,6 +727,9 @@ int mhl_detect_register_notifier(struct t_mhl_status_notifier *);
 static LIST_HEAD(g_lh_mhl_detect_notifier_list);
 #endif
 
+/***********************************
+Direction: cable detect drvier -> usb driver
+ ***********************************/
 struct t_usb_host_status_notifier{
 	struct list_head usb_host_notifier_link;
 	const char *name;

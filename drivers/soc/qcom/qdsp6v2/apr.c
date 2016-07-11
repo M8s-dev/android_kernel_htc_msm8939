@@ -34,6 +34,7 @@
 #include <linux/qdsp6v2/apr.h>
 #include <linux/qdsp6v2/apr_tal.h>
 #include <linux/qdsp6v2/dsp_debug.h>
+#include <linux/ratelimit.h>
 
 #define SCM_Q6_NMI_CMD 0x1
 
@@ -42,7 +43,7 @@ static struct apr_client client[APR_DEST_MAX][APR_CLIENT_MAX];
 
 static wait_queue_head_t dsp_wait;
 static wait_queue_head_t modem_wait;
-/* Subsystem restart: QDSP6 data, functions */
+static bool is_modem_up = 0;
 static struct workqueue_struct *apr_reset_workqueue;
 static void apr_reset_deregister(struct work_struct *work);
 struct apr_reset_work {
@@ -227,7 +228,7 @@ int apr_wait_for_device_up(int dest_id)
 				    (1 * HZ));
 	else
 		pr_err("%s: unknown dest_id %d\n", __func__, dest_id);
-	/* returns left time */
+	
 	return rc;
 }
 
@@ -267,19 +268,22 @@ int apr_send_pkt(void *handle, uint32_t *buf)
 	uint16_t client_id;
 	uint16_t w_len;
 	unsigned long flags;
+	static DEFINE_RATELIMIT_STATE(rl, HZ/2, 1);
 
 	if (!handle || !buf) {
 		pr_err("APR: Wrong parameters\n");
 		return -EINVAL;
 	}
 	if (svc->need_reset) {
-		pr_err("apr: send_pkt service need reset\n");
+		if (__ratelimit(&rl))
+			pr_err("apr: send_pkt service need reset\n");
 		return -ENETRESET;
 	}
 
 	if ((svc->dest_id == APR_DEST_QDSP6) &&
 	    (apr_get_q6_state() != APR_SUBSYS_LOADED)) {
-		pr_err("%s: Still dsp is not Up\n", __func__);
+		if (__ratelimit(&rl))
+			pr_err("%s: Still dsp is not Up\n", __func__);
 		return -ENETRESET;
 	} else if ((svc->dest_id == APR_DEST_MODEM) &&
 		   (apr_get_modem_state() == APR_SUBSYS_DOWN)) {
@@ -324,6 +328,7 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 	int temp_port = 0;
 	struct apr_svc *svc = NULL;
 	int rc = 0;
+	static DEFINE_RATELIMIT_STATE(rl, HZ/2, 1);
 
 	if (!dest || !svc_name || !svc_fn)
 		return NULL;
@@ -331,7 +336,7 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 	if (!strcmp(dest, "ADSP"))
 		domain_id = APR_DOMAIN_ADSP;
 	else if (!strcmp(dest, "MODEM")) {
-		/* Register voice services if destination permits */
+		
 		if (!apr_register_voice_svc())
 			goto done;
 		domain_id = APR_DOMAIN_MODEM;
@@ -344,12 +349,18 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 
 	if (dest_id == APR_DEST_QDSP6) {
 		if (apr_get_q6_state() != APR_SUBSYS_LOADED) {
-			pr_err("%s: adsp not up\n", __func__);
+			if (__ratelimit(&rl))
+				pr_err("%s: adsp not up\n", __func__);
 			return NULL;
 		}
 		pr_debug("%s: adsp Up\n", __func__);
 	} else if (dest_id == APR_DEST_MODEM) {
 		if (apr_get_modem_state() == APR_SUBSYS_DOWN) {
+			if (is_modem_up) {
+				pr_err("%s: modem shutdown \
+					due to SSR, return", __func__);
+				return NULL;
+			}
 			pr_debug("%s: Wait for modem to bootup\n", __func__);
 			rc = apr_wait_for_device_up(APR_DEST_MODEM);
 			if (rc == 0) {
@@ -676,7 +687,6 @@ void apr_reset(void *handle)
 	queue_work(apr_reset_workqueue, &apr_reset_worker->work);
 }
 
-/* Dispatch the Reset events to Modem and audio clients */
 void dispatch_event(unsigned long code, uint16_t proc)
 {
 	struct apr_client *apr_client;
@@ -688,7 +698,7 @@ void dispatch_event(unsigned long code, uint16_t proc)
 	data.opcode = RESET_EVENTS;
 	data.reset_event = code;
 
-	/* Service domain can be different from the processor */
+	
 	data.reset_proc = apr_get_reset_domain(proc);
 
 	clnt = APR_CLIENT_AUDIO;
@@ -743,11 +753,11 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 	switch (code) {
 	case SUBSYS_BEFORE_SHUTDOWN:
 		pr_debug("M-Notify: Shutdown started\n");
-		apr_set_modem_state(APR_SUBSYS_DOWN);
-		dispatch_event(code, APR_DEST_MODEM);
 		break;
 	case SUBSYS_AFTER_SHUTDOWN:
 		pr_debug("M-Notify: Shutdown Completed\n");
+		apr_set_modem_state(APR_SUBSYS_DOWN);
+		dispatch_event(code, APR_DEST_MODEM);
 		break;
 	case SUBSYS_BEFORE_POWERUP:
 		pr_debug("M-notify: Bootup started\n");
@@ -756,6 +766,7 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 		if (apr_cmpxchg_modem_state(APR_SUBSYS_DOWN, APR_SUBSYS_UP) ==
 						APR_SUBSYS_DOWN)
 			wake_up(&modem_wait);
+		is_modem_up = 1;
 		pr_debug("M-Notify: Bootup Completed\n");
 		break;
 	default:
@@ -788,9 +799,9 @@ static int lpass_notifier_cb(struct notifier_block *this, unsigned long code,
 		apr_set_q6_state(APR_SUBSYS_DOWN);
 		dispatch_event(code, APR_DEST_QDSP6);
 		if (data && data->crashed) {
-			/* Send NMI to QDSP6 via an SCM call. */
+			
 			scm_call_atomic1(SCM_SVC_UTIL, SCM_Q6_NMI_CMD, 0x1);
-			/* The write should go through before q6 is shutdown */
+			
 			mb();
 			pr_debug("L-Notify: Q6 NMI was sent.\n");
 		}
@@ -824,7 +835,7 @@ static int panic_handler(struct notifier_block *this,
 				unsigned long event, void *ptr)
 {
 	if (powered_on)
-		/* Send NMI to QDSP6 via an SCM call. */
+		
 		scm_call_atomic1(SCM_SVC_UTIL, SCM_Q6_NMI_CMD, 0x1);
 	return NOTIFY_DONE;
 }

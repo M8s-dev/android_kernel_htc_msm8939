@@ -24,14 +24,13 @@
 
 #include <linux/poll.h>
 
-/* buffer for information */
 struct snd_info_buffer {
-	char *buffer;		/* pointer to begin of buffer */
-	unsigned int curr;	/* current position in buffer */
-	unsigned int size;	/* current size */
-	unsigned int len;	/* total length of buffer */
-	int stop;		/* stop flag */
-	int error;		/* error code */
+	char *buffer;		
+	unsigned int curr;	
+	unsigned int size;	
+	unsigned int len;	
+	int stop;		
+	int error;		
 };
 
 #define SNDRV_INFO_CONTENT_TEXT		0
@@ -94,8 +93,8 @@ struct snd_info_entry {
 int snd_info_minor_register(void);
 int snd_info_minor_unregister(void);
 #else
-#define snd_info_minor_register() /* NOP */
-#define snd_info_minor_unregister() /* NOP */
+#define snd_info_minor_register() 
+#define snd_info_minor_unregister() 
 #endif
 
 
@@ -134,7 +133,6 @@ void snd_info_card_disconnect(struct snd_card *card);
 void snd_info_card_id_change(struct snd_card *card);
 int snd_info_register(struct snd_info_entry *entry);
 
-/* for card drivers */
 int snd_card_proc_new(struct snd_card *card, const char *name,
 		      struct snd_info_entry **entryp);
 
@@ -147,7 +145,9 @@ static inline void snd_info_set_text_ops(struct snd_info_entry *entry,
 }
 
 int snd_info_check_reserved_words(const char *str);
-
+struct snd_info_entry *snd_register_module_info(struct module *module,
+						const char *name,
+						struct snd_info_entry *parent);
 #else
 
 #define snd_seq_root NULL
@@ -177,12 +177,11 @@ static inline void snd_info_set_text_ops(struct snd_info_entry *entry __attribut
 					 void (*read)(struct snd_info_entry *, struct snd_info_buffer *)) {}
 
 static inline int snd_info_check_reserved_words(const char *str) { return 1; }
-
+static inline struct snd_info_entry *snd_register_module_info(
+				struct module *module, const char *name,
+				struct snd_info_entry *parent) { return NULL; }
 #endif
 
-/*
- * OSS info part
- */
 
 #if defined(CONFIG_SND_OSSEMUL) && defined(CONFIG_PROC_FS)
 
@@ -197,6 +196,6 @@ static inline int snd_info_check_reserved_words(const char *str) { return 1; }
 int snd_oss_info_register(int dev, int num, char *string);
 #define snd_oss_info_unregister(dev, num) snd_oss_info_register(dev, num, NULL)
 
-#endif /* CONFIG_SND_OSSEMUL && CONFIG_PROC_FS */
+#endif 
 
-#endif /* __SOUND_INFO_H */
+#endif 

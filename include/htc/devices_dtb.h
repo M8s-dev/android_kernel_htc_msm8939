@@ -97,6 +97,7 @@ enum {
 	RADIO_FLAG_INDEX = 8,
 	RADIO_FLAG_EX1_INDEX = 10,
 	RADIO_FLAG_EX2_INDEX = 11,
+	CPUMASK_FLAG_INDEX = 12,
 	NUM_FLAG_INDEX
 };
 
@@ -106,5 +107,6 @@ unsigned int get_bootloader_flag(void);
 unsigned int get_radio_flag(void);
 unsigned int get_radio_ex1_flag(void);
 unsigned int get_radio_ex2_flag(void);
+unsigned int get_cpumask_flag(void);
 
 #endif

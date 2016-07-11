@@ -18,9 +18,6 @@
 #ifdef __KERNEL__
 #ifdef CONFIG_COMPAT
 
-/*
- * Architecture specific compatibility types
- */
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/ptrace.h>
@@ -114,7 +111,7 @@ struct compat_flock {
 	compat_pid_t	l_pid;
 };
 
-#define F_GETLK64	12	/*  using 'struct flock64' */
+#define F_GETLK64	12	
 #define F_SETLK64	13
 #define F_SETLKW64	14
 
@@ -135,7 +132,7 @@ struct compat_statfs {
 	int		f_files;
 	int		f_ffree;
 	compat_fsid_t	f_fsid;
-	int		f_namelen;	/* SunOS ignores this field. */
+	int		f_namelen;	
 	int		f_frsize;
 	int		f_flags;
 	int		f_spare[4];
@@ -161,62 +158,63 @@ typedef struct compat_siginfo {
 	int si_code;
 
 	union {
-		/* The padding is the same size as AArch64. */
+		
 		int _pad[128/sizeof(int) - 3];
 
-		/* kill() */
+		
 		struct {
-			compat_pid_t _pid;	/* sender's pid */
-			__compat_uid32_t _uid;	/* sender's uid */
+			compat_pid_t _pid;	
+			__compat_uid32_t _uid;	
 		} _kill;
 
-		/* POSIX.1b timers */
+		
 		struct {
-			compat_timer_t _tid;	/* timer id */
-			int _overrun;		/* overrun count */
-			compat_sigval_t _sigval;	/* same as below */
-			int _sys_private;       /* not to be passed to user */
+			compat_timer_t _tid;	
+			int _overrun;		
+			compat_sigval_t _sigval;	
+			int _sys_private;       
 		} _timer;
 
-		/* POSIX.1b signals */
+		
 		struct {
-			compat_pid_t _pid;	/* sender's pid */
-			__compat_uid32_t _uid;	/* sender's uid */
+			compat_pid_t _pid;	
+			__compat_uid32_t _uid;	
 			compat_sigval_t _sigval;
 		} _rt;
 
-		/* SIGCHLD */
+		
 		struct {
-			compat_pid_t _pid;	/* which child */
-			__compat_uid32_t _uid;	/* sender's uid */
-			int _status;		/* exit code */
+			compat_pid_t _pid;	
+			__compat_uid32_t _uid;	
+			int _status;		
 			compat_clock_t _utime;
 			compat_clock_t _stime;
 		} _sigchld;
 
-		/* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
+		
 		struct {
-			compat_uptr_t _addr; /* faulting insn/memory ref. */
-			short _addr_lsb; /* LSB of the reported address */
+			compat_uptr_t _addr; 
+			short _addr_lsb; 
 		} _sigfault;
 
-		/* SIGPOLL */
+		
 		struct {
-			compat_long_t _band;	/* POLL_IN, POLL_OUT, POLL_MSG */
+			compat_long_t _band;	
 			int _fd;
 		} _sigpoll;
+
+		
+		struct {
+			compat_uptr_t _call_addr; 
+			int _syscall;	
+			unsigned int _arch;	
+		} _sigsys;
 	} _sifields;
 } compat_siginfo_t;
 
 #define COMPAT_OFF_T_MAX	0x7fffffff
 #define COMPAT_LOFF_T_MAX	0x7fffffffffffffffL
 
-/*
- * A pointer passed in from user mode. This should not
- * be used for syscall parameters, just declare them
- * as pointers because the syscall entry code will have
- * appropriately converted them already.
- */
 
 static inline void __user *compat_ptr(compat_uptr_t uptr)
 {
@@ -303,13 +301,13 @@ static inline int is_compat_thread(struct thread_info *thread)
 	return test_ti_thread_flag(thread, TIF_32BIT);
 }
 
-#else /* !CONFIG_COMPAT */
+#else 
 
 static inline int is_compat_thread(struct thread_info *thread)
 {
 	return 0;
 }
 
-#endif /* CONFIG_COMPAT */
-#endif /* __KERNEL__ */
-#endif /* __ASM_COMPAT_H */
+#endif 
+#endif 
+#endif 

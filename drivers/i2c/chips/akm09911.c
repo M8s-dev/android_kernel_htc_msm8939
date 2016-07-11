@@ -330,6 +330,7 @@ static void AKECS_SetYPR(
 
 	
 	if (ready & ACC_DATA_READY) {
+		input_report_abs(akm->input, AKM_EVABS_ACC_X, 10000);
 		input_report_abs(akm->input, AKM_EVABS_ACC_X, rbuf[1]);
 		input_report_abs(akm->input, AKM_EVABS_ACC_Y, rbuf[2]);
 		input_report_abs(akm->input, AKM_EVABS_ACC_Z, rbuf[3]);
@@ -337,6 +338,7 @@ static void AKECS_SetYPR(
 	}
 	
 	if (ready & MAG_DATA_READY) {
+		input_report_abs(akm->input, AKM_EVABS_MAG_X, 10000);
 		input_report_abs(akm->input, AKM_EVABS_MAG_X, rbuf[5]);
 		input_report_abs(akm->input, AKM_EVABS_MAG_Y, rbuf[6]);
 		input_report_abs(akm->input, AKM_EVABS_MAG_Z, rbuf[7]);
@@ -350,6 +352,7 @@ static void AKECS_SetYPR(
 		input_report_abs(akm->input, AKM_EVABS_GYR_Z, rbuf[11]);
 		input_report_abs(akm->input, AKM_EVABS_GYR_ST, rbuf[12]);
 		
+		input_report_abs(akm->input, AKM_EVABS_ORI_Y, 10000);
 		input_report_abs(akm->input, AKM_EVABS_ORI_Y, rbuf[13]);
 		input_report_abs(akm->input, AKM_EVABS_ORI_P, rbuf[14]);
 		input_report_abs(akm->input, AKM_EVABS_ORI_R, rbuf[15]);
@@ -363,6 +366,7 @@ static void AKECS_SetYPR(
 		input_report_abs(akm->input, AKM_EVABS_LAC_Y, rbuf[20]);
 		input_report_abs(akm->input, AKM_EVABS_LAC_Z, rbuf[21]);
 		
+		input_report_abs(akm->input, AKM_EVABS_GEORV_X, 10000);
 		input_report_abs(akm->input, AKM_EVABS_GEORV_X, rbuf[22]);
 		input_report_abs(akm->input, AKM_EVABS_GEORV_Y, rbuf[23]);
 		input_report_abs(akm->input, AKM_EVABS_GEORV_Z, rbuf[24]);
@@ -373,6 +377,7 @@ static void AKECS_SetYPR(
 
 	if (ready & MAGUC_DATA_READY) {
 		
+		input_report_abs(akm->input, AKM_EVABS_MUC_X, 10000);
 		input_report_abs(akm->input, AKM_EVABS_MUC_X, rbuf[27]);
 		input_report_abs(akm->input, AKM_EVABS_MUC_Y, rbuf[28]);
 		input_report_abs(akm->input, AKM_EVABS_MUC_Z, rbuf[29]);
@@ -492,12 +497,12 @@ AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct akm_compass_data *akm = file->private_data;
 
 	
-	uint8_t i2c_buf[AKM_RWBUF_SIZE];		
+	uint8_t i2c_buf[AKM_RWBUF_SIZE] = {0};		
 	uint8_t dat_buf[AKM_SENSOR_DATA_SIZE];
-	int32_t ypr_buf[AKM_YPR_DATA_SIZE];		
+	int32_t ypr_buf[AKM_YPR_DATA_SIZE] = {0};		
 	int64_t delay[AKM_NUM_SENSORS];	
 	int16_t acc_buf[3];	
-	uint8_t mode;			
+	uint8_t mode = 0;			
 	int status;			
 	int ret = 0;		
 

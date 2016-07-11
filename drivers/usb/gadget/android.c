@@ -35,6 +35,7 @@
 
 #include <linux/qcom/diag_dload.h>
 #include <htc/devices_cmdline.h>
+#include <htc/devices_dtb.h>
 #include "gadget_chips.h"
 
 
@@ -45,7 +46,6 @@ enum {
 	OS_WINDOWS,
 };
 
-static int mac_mtp_mode;
 static int os_type;
 static void setup_usb_denied(int htc_mode);
 int board_get_usb_ats(void);
@@ -54,6 +54,9 @@ int board_get_usb_ats(void);
 #include "f_fs.c"
 #ifdef CONFIG_SND_PCM
 #include "f_audio_source.c"
+#endif
+#ifdef CONFIG_SND_RAWMIDI
+#include "f_midi.c"
 #endif
 #include "f_mass_storage.c"
 #define USB_ETH_RNDIS y
@@ -113,6 +116,10 @@ static const char longname[] = "Gadget Android";
 static bool connect2pc;
 
 #define ANDROID_DEVICE_NODE_NAME_LENGTH 11
+#define MIDI_INPUT_PORTS    1
+#define MIDI_OUTPUT_PORTS   1
+#define MIDI_BUFFER_SIZE    1024
+#define MIDI_QUEUE_LENGTH   32
 
 struct android_usb_function {
 	char *name;
@@ -204,8 +211,10 @@ struct android_dev {
 	enum fserial_func_type serial_func_type[MAX_SERIAL_INSTANCES];
 
 	int autobot_mode;
-
+	atomic_t adb_ready;
+	atomic_t delay_enable_store;
 	wait_queue_head_t wait_q;
+	wait_queue_head_t wait_close_callback_q;
 };
 
 struct android_configuration {
@@ -386,6 +395,7 @@ enum android_device_state {
 	USB_RESUMED
 };
 
+extern int cable_get_connect_type(void);
 static void android_work(struct work_struct *data)
 {
 	struct android_dev *dev = container_of(data, struct android_dev, work);
@@ -401,8 +411,9 @@ static void android_work(struct work_struct *data)
 	unsigned long flags;
 	int pm_qos_vote = -1;
 
-	printk(KERN_INFO "[USB] android_work : sw_suspended %d  suspended %d config %d,connect2pc %d\n",dev->sw_suspended,dev->suspended,cdev->config?1:0,connect2pc);
-	printk(KERN_INFO "[USB] android_work : sw_connected %d  connected %d last_uevent %d\n",dev->sw_connected,dev->connected,last_uevent);
+	printk(KERN_INFO "[USB] android_work : sw_suspended %d suspended %d config %d,connect2pc %d\n",dev->sw_suspended,dev->suspended,cdev->config?1:0,connect2pc);
+	printk(KERN_INFO "[USB] android_work : sw_connected %d connected %d last_uevent %d\n",dev->sw_connected,dev->connected,last_uevent);
+
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (dev->suspended != dev->sw_suspended && cdev->config) {
 		if (strncmp(dev->pm_qos, "low", 3))
@@ -445,10 +456,6 @@ static void android_work(struct work_struct *data)
 			kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE,
 								disconnected);
 			msleep(20);
-			pr_info("%s: sent CONNECT event\n", __func__);
-			kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE,
-					connected);
-			msleep(20);
 		}
 		if (uevent_envp == configured)
 			msleep(50);
@@ -467,16 +474,20 @@ static void android_work(struct work_struct *data)
 		switch_set_state(&cdev->sw_connect2pc, connect2pc ? 1 : 0);
 		printk(KERN_WARNING "set usb_connect2pc = %d\n", connect2pc);
 		if (!connect2pc) {
-			printk(KERN_WARNING "%s: OS_NOT_YET\n", __func__);
-			os_type = OS_NOT_YET;
-			mtp_update_mode(0);
-			fsg_update_mode(0);
+			if (!cable_get_connect_type()) {
+				pr_info("%s: OS_NOT_YET\n", __func__);
+				os_type = OS_NOT_YET;
+			}
 		}
 	}
 	if (dev->connected == 0 && check_htc_mode_status() != NOT_ON_AUTOBOT) {
 		htc_mode_enable(0);
-		android_switch_default();
+		
 		setup_usb_denied(0);
+	}
+	if (next_state == USB_DISCONNECTED && switch_get_state(&ml_switch)) {
+		switch_set_state(&ml_switch, 0);
+		printk("[MIRROR_LINK]%s : Out of order, ml_switch set 0\n", __func__);
 	}
 }
 
@@ -531,6 +542,24 @@ static void android_disable(struct android_dev *dev)
 	mutex_unlock(&android_enable_sem);
 }
 
+void usb_android_force_reset(struct usb_composite_dev *cdev)
+{
+	struct android_dev *dev = cdev_to_android_dev(cdev);
+
+	mutex_lock(&dev->mutex);
+	
+	if (cdev && cdev->gadget && cdev->gadget->speed != USB_SPEED_UNKNOWN) {
+		android_disable(dev);
+
+		msleep(100);
+
+		android_enable(dev);
+		mutex_unlock(&dev->mutex);
+	} else {
+		mutex_unlock(&dev->mutex);
+	}
+}
+
 
 static ssize_t func_en_show(struct device *pdev, struct device_attribute *attr,
 		char *buf)
@@ -553,51 +582,37 @@ static ssize_t func_en_show(struct device *pdev, struct device_attribute *attr,
 	return sprintf(buf, "%d", ebl);
 }
 
-static ssize_t func_en_store(
-		struct device *pdev, struct device_attribute *attr,
+static ssize_t func_en_store(struct device *pdev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
 	struct android_dev *dev = _android_dev;
+	struct usb_composite_dev *cdev = dev->cdev;
 	struct android_usb_function *func = dev_get_drvdata(pdev);
-
-	struct android_usb_function_holder *f_holder;
-	struct android_configuration *conf;
-	int ebl = 0;
+	char state_buf[60];
+	char name_buf[60];
+	char *function[3];
 	int value;
-	int acm_off = 0;
-
 	sscanf(buf, "%d", &value);
-	mutex_lock(&function_bind_sem);
-	list_for_each_entry(conf, &dev->configs, list_item)
-		list_for_each_entry(f_holder, &conf->enabled_functions, enabled_list) {
-			if (!strcmp(func->name, f_holder->f->name)) {
-				ebl = 1;
-				break;
-			}
-		}
-
-	list_for_each_entry(conf, &dev->configs, list_item)
-		list_for_each_entry(f_holder, &conf->enabled_functions, enabled_list) {
-			if (!strcmp(func->name, "modem")||!strcmp(func->name, "diag")||!strcmp(func->name, "diag_mdm")
-				||!strcmp(func->name, "modem_mdm")||!strcmp(func->name, "serial")) {
-				acm_off = 1;
-				break;
-			}
-		}
-
-	mutex_unlock(&function_bind_sem);
-	if (!!value == ebl) {
-		pr_info("%s function is already %s\n", func->name
-			, ebl ? "enable" : "disable");
-		return size;
-	}
-	if (acm_off)
-		htc_usb_enable_function("acm", 0);
-
-	if (value)
-		htc_usb_enable_function(func->name, 1);
+	if (!strcmp(func->name, "ffs"))
+		snprintf(state_buf, sizeof(state_buf), "SWITCH_STATE=%s", "adb");
 	else
-		htc_usb_enable_function(func->name, 0);
+		snprintf(state_buf, sizeof(state_buf), "SWITCH_STATE=%s", func->name);
+	function[0] = state_buf;
+	function[2] = NULL;
+
+	if (value) {
+		snprintf(name_buf, sizeof(name_buf),
+				"SWITCH_NAME=%s", "function_switch_on");
+		function[1] = name_buf;
+		kobject_uevent_env(&cdev->sw_function_switch_on.dev->kobj, KOBJ_CHANGE,
+				function);
+	} else {
+		snprintf(name_buf, sizeof(name_buf),
+				"SWITCH_NAME=%s", "function_switch_off");
+		function[1] = name_buf;
+		kobject_uevent_env(&cdev->sw_function_switch_off.dev->kobj, KOBJ_CHANGE,
+				function);
+	}
 	return size;
 }
 static DEVICE_ATTR(on, S_IRUGO | S_IWUSR | S_IWGRP, func_en_show, func_en_store);
@@ -746,6 +761,19 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 		android_enable(dev);
 	}
 
+	atomic_set(&dev->adb_ready, 1);
+	while (atomic_read(&dev->delay_enable_store) != 0) {
+		ret = android_enable(dev);
+		if (ret < 0) {
+			pr_err("%s: android_enable failed\n", __func__);
+			dev->connected = 0;
+			dev->enabled = false;
+		} else {
+			dev->enabled = true;
+		}
+		atomic_sub(1, &dev->delay_enable_store);
+	}
+
 	mutex_unlock(&dev->mutex);
 
 	return 0;
@@ -771,14 +799,18 @@ static void functionfs_closed_callback(struct ffs_data *ffs)
 		android_disable(dev);
 	}
 
+	pr_info("%s: wait ffs_function_enable complete\n", __func__);
 #define FFS_ENABLED_TIMEOUT_MS 100
 	if (0 == wait_event_interruptible_timeout(dev->wait_q,
 				config->enabled, msecs_to_jiffies(FFS_ENABLED_TIMEOUT_MS))) {
 		pr_info("wait for ffs enable ready timeout (%d) ms", FFS_ENABLED_TIMEOUT_MS);
 	}
+	else
+		pr_info("%s: ffs_function_enable complete\n", __func__);
 
 	config->dev = NULL;
 
+	pr_info("%s:set config open as false \n", __func__);
 	config->opened = false;
 	config->data = NULL;
 
@@ -987,9 +1019,14 @@ static int rmnet_function_bind_config(struct android_usb_function *f,
 	char buf[MAX_XPORT_STR_LEN], *b;
 	char xport_name_buf[MAX_XPORT_STR_LEN], *tb;
 	static int rmnet_initialized, ports;
+	struct android_dev *dev = cdev_to_android_dev(c->cdev);
 
 	if (!rmnet_initialized) {
 		rmnet_initialized = 1;
+		if (dev->pdata->rmnet_transports_interface)
+			strcpy(rmnet_transports, dev->pdata->rmnet_transports_interface);
+		else
+			strcpy(rmnet_transports, "qti,bam");
 		strlcpy(buf, rmnet_transports, sizeof(buf));
 		b = strim(buf);
 
@@ -1512,6 +1549,10 @@ static int diag_function_bind_config(struct android_usb_function *f,
 	int (*notify)(uint32_t, const char *);
 	struct android_dev *dev = cdev_to_android_dev(c->cdev);
 
+	if (dev->pdata->diag_client_interface)
+		strcpy(diag_clients, dev->pdata->diag_client_interface);
+	else
+		strcpy(diag_clients, "diag");
 	strlcpy(buf, diag_clients, sizeof(buf));
 	b = strim(buf);
 
@@ -2627,6 +2668,7 @@ static int mass_storage_function_init(struct android_usb_function *f,
 				config->fsg.luns[i].ro = 0;
 			}
 			snprintf(name[i], MAX_LUN_NAME, "lun%d", i);
+			pr_info("%s: lun%d attr: ro:%d cdrom:%d\n", __func__, i, config->fsg.luns[i].ro, config->fsg.luns[i].cdrom);
 		}
 	} else {
 		config->fsg.nluns = 1;
@@ -2713,6 +2755,10 @@ static int mass_storage_lun_init(struct android_usb_function *f,
 
 static void mass_storage_function_cleanup(struct android_usb_function *f)
 {
+	struct mass_storage_function_config *config;
+
+	config = f->config;
+	fsg_common_put(config->common);
 	kfree(f->config);
 	f->config = NULL;
 }
@@ -2919,7 +2965,8 @@ static ssize_t audio_source_pcm_show(struct device *dev,
 	struct audio_source_config *config = f->config;
 
 	
-	return sprintf(buf, "%d %d\n", config->card, config->device);
+	return snprintf(buf, PAGE_SIZE,
+			"%d %d\n", config->card, config->device);
 }
 
 static DEVICE_ATTR(pcm, S_IRUGO, audio_source_pcm_show, NULL);
@@ -2969,7 +3016,6 @@ static struct android_usb_function uasp_function = {
 	.cleanup	= uasp_function_cleanup,
 	.bind_config	= uasp_function_bind_config,
 };
-
 
 static int projector_function_init(struct android_usb_function *f,
 		struct usb_composite_dev *cdev)
@@ -3249,6 +3295,61 @@ struct android_usb_function projector2_function = {
 	.attributes = projector2_function_attributes
 };
 
+#ifdef CONFIG_SND_RAWMIDI
+static int midi_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	struct midi_alsa_config *config;
+
+	config = kzalloc(sizeof(struct midi_alsa_config), GFP_KERNEL);
+	f->config = config;
+	if (!config)
+		return -ENOMEM;
+	config->card = -1;
+	config->device = -1;
+	return 0;
+}
+
+static void midi_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int midi_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct midi_alsa_config *config = f->config;
+
+	return f_midi_bind_config(c, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,
+			MIDI_INPUT_PORTS, MIDI_OUTPUT_PORTS, MIDI_BUFFER_SIZE,
+			MIDI_QUEUE_LENGTH, config);
+}
+
+static ssize_t midi_alsa_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct midi_alsa_config *config = f->config;
+
+	
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(alsa, S_IRUGO, midi_alsa_show, NULL);
+
+static struct device_attribute *midi_function_attributes[] = {
+	&dev_attr_alsa,
+	NULL
+};
+
+static struct android_usb_function midi_function = {
+	.name		= "midi",
+	.init		= midi_function_init,
+	.cleanup	= midi_function_cleanup,
+	.bind_config	= midi_function_bind_config,
+	.attributes	= midi_function_attributes,
+};
+#endif
 
 static struct android_usb_function *supported_functions[] = {
 	&rndis_function,
@@ -3281,6 +3382,9 @@ static struct android_usb_function *supported_functions[] = {
 	&ccid_function,
 	&uasp_function,
 	&charger_function,
+#ifdef CONFIG_SND_RAWMIDI
+	&midi_function,
+#endif
 	NULL
 };
 
@@ -3474,6 +3578,7 @@ static int android_enable_function(struct android_dev *dev,
 	return -EINVAL;
 }
 
+#include "htc_attr.c"
 
 static ssize_t remote_wakeup_show(struct device *pdev,
 		struct device_attribute *attr, char *buf)
@@ -3514,7 +3619,6 @@ static ssize_t remote_wakeup_store(struct device *pdev,
 
 	return size;
 }
-
 static ssize_t
 functions_show(struct device *pdev, struct device_attribute *attr, char *buf)
 {
@@ -3565,7 +3669,6 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 	int ffs_enabled = 0;
 
 	printk(KERN_WARNING "[USB]%s %s ffs_aliases %s\n",__func__,buff, dev->ffs_aliases);
-	return size;
 
 	mutex_lock(&dev->mutex);
 
@@ -3588,9 +3691,21 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 		INIT_LIST_HEAD(&conf->enabled_functions);
 	}
 
+	if (get_radio_flag() & 0x20000 || (get_debug_flag() & 0x101)) {
+		buff = change_charging_to_ums(buff);
+		size = strlen(buff);
+	}
+
+	if (get_radio_flag() & 0x20000) {
+		buff = add_usb_radio_debug_function(buff);
+		size = strlen(buff);
+	}
+
+	USB_INFO("switch function to : %s\n", buff);
 	strlcpy(buf, buff, sizeof(buf));
 	b = strim(buf);
 
+	dev->cdev->gadget->streaming_enabled = false;
 	while (b) {
 		conf_str = strsep(&b, ":");
 		if (!conf_str)
@@ -3671,11 +3786,9 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	struct android_configuration *conf;
 	int enabled = 0;
 	bool audio_enabled = false;
+	bool ffs_enabled = false;
 	static DEFINE_RATELIMIT_STATE(rl, 10*HZ, 1);
 	int err = 0;
-
-	printk(KERN_WARNING "[USB]%s\n",__func__);
-	return size;
 
 	if (!cdev)
 		return -ENODEV;
@@ -3684,13 +3797,22 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 
 	sscanf(buff, "%d", &enabled);
 	printk(KERN_WARNING "[USB] %s  %d\n",__func__,enabled);
+
 	if (enabled && !dev->enabled) {
 		cdev->desc.idVendor = device_desc.idVendor;
 		cdev->desc.idProduct = device_desc.idProduct;
-		cdev->desc.bcdDevice = device_desc.bcdDevice;
+		if (device_desc.bcdDevice)
+			cdev->desc.bcdDevice = device_desc.bcdDevice;
 		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
 		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
+
+		if (get_radio_flag() & 0x20000 || get_debug_flag() & 0x101){
+			change_charging_pid_to_ums(cdev);
+		}
+		if (get_radio_flag() & 0x20000)
+			check_usb_vid_pid(cdev);
+		check_usb_project_pid(cdev);
 
 		list_for_each_entry(conf, &dev->configs, list_item)
 			list_for_each_entry(f_holder, &conf->enabled_functions,
@@ -3700,19 +3822,38 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 				if (!strncmp(f_holder->f->name,
 						"audio_source", 12))
 					audio_enabled = true;
+				if (!strncmp(f_holder->f->name,
+						"ffs", 3))
+					ffs_enabled = true;
 			}
 		if (audio_enabled)
 			msleep(100);
-		pr_info("%s:%d android_enable()\n", __func__, __LINE__);
-		err = android_enable(dev);
-		if (err < 0) {
-			pr_err("%s: android_enable failed\n", __func__);
-			dev->connected = 0;
-			dev->enabled = false;
-			mutex_unlock(&dev->mutex);
-			return size;
+		if ((ffs_enabled && atomic_read(&dev->adb_ready)) || !ffs_enabled) {
+			err = android_enable(dev);
+			if (err < 0) {
+				pr_err("%s: android_enable failed\n", __func__);
+				dev->connected = 0;
+				dev->enabled = false;
+				mutex_unlock(&dev->mutex);
+				return size;
+			}
+			dev->enabled = true;
+
+			while (atomic_read(&dev->delay_enable_store) != 0) {
+				err = android_enable(dev);
+				if (err < 0) {
+					pr_err("%s: android_enable failed\n", __func__);
+					dev->connected = 0;
+					dev->enabled = false;
+					mutex_unlock(&dev->mutex);
+					return size;
+				}
+				dev->enabled = true;
+				atomic_sub(1, &dev->delay_enable_store);
+			}
+		} else {
+			atomic_add(1, &dev->delay_enable_store);
 		}
-		dev->enabled = true;
 	} else if (!enabled && dev->enabled) {
 		pr_info("%s:%d android_disable()\n", __func__, __LINE__);
 		android_disable(dev);
@@ -3723,6 +3864,8 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 					f_holder->f->disable(f_holder->f);
 			}
 		dev->enabled = false;
+		atomic_set(&dev->delay_enable_store, 0);
+		atomic_set(&dev->adb_ready, 0);
 	} else if (__ratelimit(&rl)) {
 		pr_err("android_usb: already %s\n",
 				dev->enabled ? "enabled" : "disabled");
@@ -3898,8 +4041,6 @@ static struct device_attribute *android_usb_attributes[] = {
 	NULL
 };
 
-#include "htc_attr.c"
-
 
 static int android_bind_config(struct usb_configuration *c)
 {
@@ -3917,10 +4058,6 @@ static void android_unbind_config(struct usb_configuration *c)
 {
 	struct android_dev *dev = cdev_to_android_dev(c->cdev);
 
-	if (c->cdev->gadget->streaming_enabled) {
-		c->cdev->gadget->streaming_enabled = false;
-		pr_debug("setting streaming_enabled to false.\n");
-	}
 	android_unbind_enabled_functions(dev, c);
 }
 
@@ -3961,6 +4098,12 @@ static int android_bind(struct usb_composite_dev *cdev)
 	device_desc.iProduct = id;
 
 	
+
+	strlcpy(manufacturer_string, "HTC",
+		sizeof(manufacturer_string) - 1);
+	strlcpy(product_string, "Android Phone", sizeof(product_string) - 1);
+	strlcpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
+
 	id = usb_string_id(cdev);
 	if (id < 0)
 		return id;
@@ -3975,6 +4118,10 @@ static int android_bind(struct usb_composite_dev *cdev)
 	ret = switch_dev_register(&cdev->sw_connect2pc);
 	if (ret < 0)
 		pr_err("switch_dev_register fail:usb_connect2pc\n");
+	cdev->sw_function_switch_on.name = "function_switch_on";
+	ret = switch_dev_register(&cdev->sw_function_switch_on);
+	cdev->sw_function_switch_off.name = "function_switch_off";
+	ret = switch_dev_register(&cdev->sw_function_switch_off);
 
 	return 0;
 }
@@ -3990,6 +4137,8 @@ static int android_usb_unbind(struct usb_composite_dev *cdev)
 	cancel_delayed_work_sync(&dev->pm_qos_work);
 	android_cleanup_functions(dev->functions);
 	switch_dev_unregister(&cdev->sw_connect2pc);
+	switch_dev_unregister(&cdev->sw_function_switch_on);
+	switch_dev_unregister(&cdev->sw_function_switch_off);
 	return 0;
 }
 
@@ -4038,6 +4187,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 
 	if (value < 0)
 		value = projector2_ctrlrequest(cdev, c);
+	if (value < 0)
+		value = ums_ctrlrequest(cdev, c);
 
 	if (value < 0)
 		value = composite_setup_func(gadget, c);
@@ -4057,9 +4208,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	return value;
 }
 
-static void htc_and_mute_disconnect(struct usb_gadget *gadget)
-{
-	composite_disconnect(gadget);
+static void htc_and_mute_disconnect(struct usb_gadget *gadget){
+	composite_mute_disconnect(gadget);
 }
 
 static void htc_and_disconnect(struct usb_gadget *gadget)
@@ -4277,8 +4427,6 @@ static int android_probe(struct platform_device *pdev)
 	int ret = 0, i, len = 0, prop_len = 0;
 	u32 usb_core_id = 0;
 
-	init_mfg_serialno();
-
 	if (pdev->dev.of_node) {
 		pr_info("%s(): device tree enabled\n", __func__);
 		pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
@@ -4390,7 +4538,7 @@ static int android_probe(struct platform_device *pdev)
 
 		customize_board_info(pdata);
 	} else {
-		pr_info("%s(): no device tree found\n", __func__);
+		printk(KERN_WARNING "[USB] %s: no device tree found\n", __func__);
 		pdata = pdev->dev.platform_data;
 	}
 
@@ -4418,7 +4566,7 @@ static int android_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&android_dev->pm_qos_work, android_pm_qos_work);
 	mutex_init(&android_dev->mutex);
 	init_waitqueue_head(&android_dev->wait_q);
-
+	init_waitqueue_head(&android_dev->wait_close_callback_q);
 	android_dev->pdata = pdata;
 
 	list_add_tail(&android_dev->list_item, &android_dev_list);
@@ -4477,6 +4625,7 @@ static int android_probe(struct platform_device *pdev)
 
 
 	setup_vendor_info(android_dev);
+	printk("[USB] %s: probe complete\n",__func__);
 
 	return ret;
 err_probe:

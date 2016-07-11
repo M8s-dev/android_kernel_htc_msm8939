@@ -15,11 +15,8 @@
 EXPORT_SYMBOL(block_signals);
 EXPORT_SYMBOL(unblock_signals);
 
-/*
- * OK, we're invoking a handler
- */
 static void handle_signal(struct pt_regs *regs, unsigned long signr,
-			 struct k_sigaction *ka, siginfo_t *info)
+			 struct k_sigaction *ka, struct siginfo *info)
 {
 	sigset_t *oldset = sigmask_to_save();
 	int singlestep = 0;
@@ -29,9 +26,9 @@ static void handle_signal(struct pt_regs *regs, unsigned long signr,
 	if ((current->ptrace & PT_DTRACE) && (current->ptrace & PT_PTRACED))
 		singlestep = 1;
 
-	/* Did we come from a system call? */
+	
 	if (PT_REGS_SYSCALL_NR(regs) >= 0) {
-		/* If so, check system call restarting.. */
+		
 		switch (PT_REGS_SYSCALL_RET(regs)) {
 		case -ERESTART_RESTARTBLOCK:
 		case -ERESTARTNOHAND:
@@ -43,7 +40,7 @@ static void handle_signal(struct pt_regs *regs, unsigned long signr,
 				PT_REGS_SYSCALL_RET(regs) = -EINTR;
 				break;
 			}
-		/* fallthrough */
+		
 		case -ERESTARTNOINTR:
 			PT_REGS_RESTART_SYSCALL(regs);
 			PT_REGS_ORIG_SYSCALL(regs) = PT_REGS_SYSCALL_NR(regs);
@@ -71,18 +68,18 @@ static void handle_signal(struct pt_regs *regs, unsigned long signr,
 static int kern_do_signal(struct pt_regs *regs)
 {
 	struct k_sigaction ka_copy;
-	siginfo_t info;
+	struct siginfo info;
 	int sig, handled_sig = 0;
 
 	while ((sig = get_signal_to_deliver(&info, &ka_copy, regs, NULL)) > 0) {
 		handled_sig = 1;
-		/* Whee!  Actually deliver the signal.  */
+		
 		handle_signal(regs, sig, &ka_copy, &info);
 	}
 
-	/* Did we come from a system call? */
+	
 	if (!handled_sig && (PT_REGS_SYSCALL_NR(regs) >= 0)) {
-		/* Restart the system call - no handlers present */
+		
 		switch (PT_REGS_SYSCALL_RET(regs)) {
 		case -ERESTARTNOHAND:
 		case -ERESTARTSYS:
@@ -97,22 +94,10 @@ static int kern_do_signal(struct pt_regs *regs)
 		}
 	}
 
-	/*
-	 * This closes a way to execute a system call on the host.  If
-	 * you set a breakpoint on a system call instruction and singlestep
-	 * from it, the tracing thread used to PTRACE_SINGLESTEP the process
-	 * rather than PTRACE_SYSCALL it, allowing the system call to execute
-	 * on the host.  The tracing thread will check this flag and
-	 * PTRACE_SYSCALL if necessary.
-	 */
 	if (current->ptrace & PT_DTRACE)
 		current->thread.singlestep_syscall =
 			is_syscall(PT_REGS_IP(&current->thread.regs));
 
-	/*
-	 * if there's no signal to deliver, we just put the saved sigmask
-	 * back
-	 */
 	if (!handled_sig)
 		restore_saved_sigmask();
 	return handled_sig;

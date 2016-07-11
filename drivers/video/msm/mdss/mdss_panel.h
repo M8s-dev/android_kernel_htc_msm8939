@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,6 +17,7 @@
 #include <linux/platform_device.h>
 #include <linux/stringify.h>
 #include <linux/types.h>
+#include <linux/debugfs.h>
 
 struct panel_id {
 	u16 id;
@@ -85,7 +86,8 @@ enum {
 enum {
 	MDSS_PANEL_POWER_OFF = 0,
 	MDSS_PANEL_POWER_ON,
-	MDSS_PANEL_POWER_DOZE,
+	MDSS_PANEL_POWER_LP1,
+	MDSS_PANEL_POWER_LP2,
 };
 
 enum {
@@ -98,6 +100,13 @@ enum {
 	MODE_GPIO_NOT_VALID = 0,
 	MODE_GPIO_HIGH,
 	MODE_GPIO_LOW,
+};
+enum dsi_lane_ids {
+	DSI_LANE_0,
+	DSI_LANE_1,
+	DSI_LANE_2,
+	DSI_LANE_3,
+	DSI_LANE_MAX,
 };
 
 struct mdss_rect {
@@ -134,6 +143,7 @@ enum mdss_intf_events {
 	MDSS_EVENT_LINK_READY,
 	MDSS_EVENT_UNBLANK,
 	MDSS_EVENT_PANEL_ON,
+	MDSS_EVENT_POST_PANEL_ON,
 	MDSS_EVENT_BLANK,
 	MDSS_EVENT_PANEL_OFF,
 	MDSS_EVENT_CLOSE,
@@ -150,7 +160,7 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_STREAM_SIZE,
 	MDSS_EVENT_DSI_DYNAMIC_SWITCH,
 	MDSS_EVENT_REGISTER_RECOVERY_HANDLER,
-	MDSS_EVENT_INTF_RESTORE,
+	MDSS_EVENT_DSI_PANEL_STATUS,
 };
 
 struct lcd_panel_info {
@@ -228,7 +238,9 @@ struct mipi_panel_info {
 	
 	char no_max_pkt_size;
 	
-	char force_clk_lane_hs;
+	bool force_clk_lane_hs;
+
+	bool always_on;
 
 	char vsync_enable;
 	char hw_vsync_mode;
@@ -236,6 +248,8 @@ struct mipi_panel_info {
 	char lp11_init;
 	u32  init_delay;
 	char dlnx_fifo_overflow;
+	u32  post_init_delay;
+	u32  phy_lane_clamp_mask;	
 };
 
 struct edp_panel_info {
@@ -311,6 +325,7 @@ struct mdss_panel_info {
 	u32 clk_rate;
 	u32 clk_min;
 	u32 clk_max;
+	u32 mdp_transfer_time_us;
 	u32 frame_count;
 	u32 is_3d_panel;
 	u32 out_format;
@@ -341,6 +356,7 @@ struct mdss_panel_info {
 	u32 max_fps;
 
 	u32 cont_splash_enabled;
+	bool esd_rdy;
 	u32 partial_update_enabled;
 	u32 dcs_cmd_by_left;
 	u32 partial_update_roi_merge;
@@ -364,6 +380,8 @@ struct mdss_panel_info {
 	struct mipi_panel_info mipi;
 	struct lvds_panel_info lvds;
 	struct edp_panel_info edp;
+	
+	struct mdss_panel_debugfs_info *debugfs_info;
 
 	int first_power_on;
 	int panel_id;
@@ -380,6 +398,16 @@ struct mdss_panel_data {
 	void (*display_on) (struct mdss_panel_data *pdata);
 
 	struct mdss_panel_data *next;
+};
+
+struct mdss_panel_debugfs_info {
+	struct dentry *root;
+	u32 xres;
+	u32 yres;
+	struct lcd_panel_info lcdc;
+	u32 override_flag;
+	char frame_rate;
+	struct mdss_panel_debugfs_info *next;
 };
 
 static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info)
@@ -470,9 +498,26 @@ static inline bool mdss_panel_is_power_on_lp(int panel_power_state)
 		!mdss_panel_is_power_on_interactive(panel_power_state);
 }
 
+static inline bool mdss_panel_is_power_on_ulp(int panel_power_state)
+{
+	return panel_power_state == MDSS_PANEL_POWER_LP2;
+}
+
 struct mdss_panel_cfg *mdss_panel_intf_type(int intf_val);
 
 int mdss_panel_get_boot_cfg(void);
 
 bool mdss_is_ready(void);
+#ifdef CONFIG_FB_MSM_MDSS
+int mdss_panel_debugfs_init(struct mdss_panel_info *panel_info);
+void mdss_panel_debugfs_cleanup(struct mdss_panel_info *panel_info);
+void mdss_panel_debugfsinfo_to_panelinfo(struct mdss_panel_info *panel_info);
+#else
+static inline int mdss_panel_debugfs_init(
+			struct mdss_panel_info *panel_info) { return 0; };
+static inline void mdss_panel_debugfs_cleanup(
+			struct mdss_panel_info *panel_info) { };
+static inline void mdss_panel_debugfsinfo_to_panelinfo(
+			struct mdss_panel_info *panel_info) { };
+#endif
 #endif 

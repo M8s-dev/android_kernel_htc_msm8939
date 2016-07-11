@@ -27,6 +27,9 @@
 #ifdef CONFIG_SMP
 static DEFINE_MUTEX(cpu_add_remove_lock);
 
+extern int have_cpu_mask;
+extern struct cpumask cpu_mask;
+
 void cpu_maps_update_begin(void)
 {
 	mutex_lock(&cpu_add_remove_lock);
@@ -375,6 +378,9 @@ int __cpuinit cpu_up(unsigned int cpu)
 	int nid;
 	pg_data_t	*pgdat;
 #endif
+
+	if(unlikely(have_cpu_mask) && cpumask_test_cpu(cpu, &cpu_mask))
+		return -EACCES;
 
 	if (!cpu_possible(cpu)) {
 		printk(KERN_ERR "can't online cpu %d because it is not "

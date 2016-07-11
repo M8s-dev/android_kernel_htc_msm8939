@@ -22,6 +22,7 @@
 
 static struct snd_soc_dai_ops msm_fe_dai_ops = {};
 
+/* Conventional and unconventional sample rate supported */
 static unsigned int supported_sample_rates[] = {
 	8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000,
 	88200, 96000, 176400, 192000
@@ -339,7 +340,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.name = "MultiMedia8",
 		.probe = fe_dai_probe,
 	},
-	
+	/* FE DAIs created for hostless operation purpose */
 	{
 		.playback = {
 			.stream_name = "SLIMBUS0_HOSTLESS Playback",
@@ -679,6 +680,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 			.rate_min =     8000,
 			.rate_max =    48000,
 		},
+//HTC_AUD_START
 		.capture = {
 			.stream_name = "Primary MI2S_RX Hostless Capture",
 			.aif_name = "PRI_MI2S_UL_HL2",
@@ -689,6 +691,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 			.rate_min = 8000,
 			.rate_max = 48000,
 		},
+//HTC_AUD_END
 		.ops = &msm_fe_dai_ops,
 		.name = "PRI_MI2S_RX_HOSTLESS",
 		.probe = fe_dai_probe,
@@ -738,6 +741,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.name = "QUAT_MI2S_TX_HOSTLESS",
 		.probe = fe_dai_probe,
 	},
+//HTC_AUD_START
 	{
 		.playback = {
 			.stream_name = "Quaternary MI2S_RX Hostless Playback",
@@ -763,6 +767,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.name = "QUAT_MI2S_RX_HOSTLESS",
 		.probe = fe_dai_probe,
 	},
+//HTC_AUD_END
 	{
 		.playback = {
 			.stream_name = "Quaternary MI2S_RX Hostless Playback",
@@ -1107,7 +1112,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.name = "VoWLAN",
 		.probe = fe_dai_probe,
 	},
-	
+	/* FE DAIs created for multiple instances of offload playback */
 	{
 		.playback = {
 			.stream_name = "MultiMedia10 Playback",
@@ -1234,6 +1239,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.name = "MultiMedia16",
 		.probe = fe_dai_probe,
 	},
+//htc audio ++
        {
 		.playback = {
 			.stream_name = "MM_STUB Playback",
@@ -1249,6 +1255,7 @@ static struct snd_soc_dai_driver msm_fe_dais[] = {
 		.name = "MM_STUB",
 		.probe = fe_dai_probe,
 	},
+//htc audio --
 };
 
 static int msm_fe_dai_dev_probe(struct platform_device *pdev)
@@ -1293,5 +1300,6 @@ static void __exit msm_fe_dai_exit(void)
 }
 module_exit(msm_fe_dai_exit);
 
+/* Module information */
 MODULE_DESCRIPTION("MSM Frontend DAI driver");
 MODULE_LICENSE("GPL v2");

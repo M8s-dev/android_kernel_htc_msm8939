@@ -41,7 +41,11 @@
 #include <linux/hall_sensor.h>
 
 
+/* ********************************************************* */
+/* customer config */
+/* ********************************************************* */
 #define DRIVER_NAME "HL"
+//#define M1120_DBG_ENABLE				// for debugging
 
 #define M1120_DETECTION_MODE				M1120_DETECTION_MODE_INTERRUPT
 #define M1120_INTERRUPT_TYPE				M1120_VAL_INTSRS_INTTYPE_BESIDE
@@ -49,30 +53,49 @@ static u8 M1120_SENSITIVITY_TYPE;
 #define M1120_PERSISTENCE_COUNT				M1120_VAL_PERSINT_COUNT(2)
 #define M1120_OPERATION_FREQUENCY			M1120_VAL_OPF_FREQ_20HZ
 #define M1120_OPERATION_RESOLUTION			M1120_VAL_OPF_BIT_10
-#define M1120_RESULT_STATUS_A				(0x00)	
-#define M1120_RESULT_STATUS_B				(0x01)	
+//#define M1120_DETECT_RANGE_HIGH			(250)
+//#define M1120_DETECT_RANGE_HIGH_L			(200)
+//#define M1120_DETECT_RANGE_LOW_H			(-200)
+//#define M1120_DETECT_RANGE_LOW			(-250)
+#define M1120_RESULT_STATUS_A				(0x00)	// result status A
+#define M1120_RESULT_STATUS_B				(0x01)	// result status B
 #define M1120_EVENT_DATA_CAPABILITY_MIN			(-32768)
 #define M1120_EVENT_DATA_CAPABILITY_MAX			(32767)
 
 
+/* ********************************************************* */
+/* debug macro */
+/* ********************************************************* */
 #ifdef M1120_DBG_ENABLE
 #define dbg(fmt, args...)	HL_LOG("(L%04d) : " fmt "\n", __LINE__, ##args)
 #define dbgn(fmt, args...)	printk(fmt, ##args)
 #else
 #define dbg(fmt, args...)
 #define dbgn(fmt, args...)
-#endif 
+#endif // M1120_DBG_ENABLE
+/* ********************************************************* */
 
 
+/* ********************************************************* */
+/* static variable */
+/* ********************************************************* */
 static m1120_data_t *p_m1120_data;
+/* ********************************************************* */
 
+/* ********************************************************* */
+/* function protyps */
+/* ********************************************************* */
+/* i2c interface */
 static int	m1120_i2c_read(struct i2c_client *client, u8 reg, u8* rdata, u8 len);
 static int	m1120_i2c_get_reg(struct i2c_client *client, u8 reg, u8* rdata);
 static int	m1120_i2c_write(struct i2c_client *client, u8 reg, u8* wdata, u8 len);
 static int	m1120_i2c_set_reg(struct i2c_client *client, u8 reg, u8 wdata);
 static void	report_cover_event(m1120_data_t* p_data);
+/* scheduled work */
 static void	m1120_work_func(struct work_struct *work);
+/* interrupt handler */
 static irqreturn_t m1120_irq_handler(int irq, void *dev_id);
+/* configuring or getting configured status */
 static void	m1120_get_reg(struct device *dev, int* regdata);
 static void	m1120_set_reg(struct device *dev, int* regdata);
 static int	m1120_get_enable(struct device *dev);
@@ -91,8 +114,12 @@ static int	m1120_set_calibration(struct device *dev);
 static int	m1120_get_calibrated_data(struct device *dev, int* data);
 static int	m1120_measure(m1120_data_t *p_data, short *raw);
 static int	m1120_get_result_status(m1120_data_t* p_data, int raw);
+/* ********************************************************* */
 
 
+/* ********************************************************* */
+/* functions for i2c interface */
+/* ********************************************************* */
 #define M1120_I2C_BUF_SIZE				(17)
 static int m1120_i2c_read(struct i2c_client* client, u8 reg, u8* rdata, u8 len)
 {
@@ -208,6 +235,7 @@ static int m1120_i2c_set_reg(struct i2c_client *client, u8 reg, u8 wdata)
 	return m1120_i2c_write(client, reg, &wdata, sizeof(wdata));
 }
 
+/* ********************************************************* */
 
 static ssize_t read_att(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -313,6 +341,9 @@ static void report_cover_event(m1120_data_t* p_data)
 	input_sync(p_data->input_dev);
 }
 
+/* ********************************************************* */
+/* functions for scheduling */
+/* ********************************************************* */
 static void m1120_work_func(struct work_struct *work)
 {
 	m1120_data_t* p_data = container_of((struct delayed_work *)work, m1120_data_t, work);
@@ -343,8 +374,12 @@ static void m1120_work_func(struct work_struct *work)
 		dbg("run schedule_delayed_work");
 	}
 }
+/* ********************************************************* */
 
 
+/* ********************************************************* */
+/* functions for interrupt handler */
+/* ********************************************************* */
 static irqreturn_t m1120_irq_handler(int irq, void *dev_id)
 {
 	m1120_data_t* p_data = dev_id;
@@ -378,8 +413,12 @@ static irqreturn_t m1120_irq_handler(int irq, void *dev_id)
 	}
 	return IRQ_HANDLED;
 }
+/* ********************************************************* */
 
 
+/* ********************************************************* */
+/* functions for configuring or getting configured status */
+/* ********************************************************* */
 
 static void m1120_get_reg(struct device *dev, int* regdata)
 {
@@ -426,7 +465,7 @@ static void m1120_set_enable(struct device *dev, int enable)
 	HL_LOG("enable=%d", enable);
 	mutex_lock(&p_data->mtx.enable);
 
-	if (enable) {                   
+	if (enable) {                   /* enable if state will be changed */
 		if (!atomic_cmpxchg(&p_data->atm.enable, 0, 1)) {
 			m1120_set_detection_mode(dev, p_data->reg.map.intsrs & M1120_DETECTION_MODE_INTERRUPT);
 			m1120_set_operation_mode(&p_m1120_data->client->dev, OPERATION_MODE_MEASUREMENT);
@@ -434,7 +473,7 @@ static void m1120_set_enable(struct device *dev, int enable)
 				schedule_delayed_work(&p_data->work, msecs_to_jiffies(delay));
 			}
 		}
-	} else {                        
+	} else {                        /* disable if state will be changed */
 		if (atomic_cmpxchg(&p_data->atm.enable, 1, 0)) {
 			cancel_delayed_work_sync(&p_data->work);
 			m1120_set_operation_mode(&p_m1120_data->client->dev, OPERATION_MODE_POWERDOWN);
@@ -507,7 +546,7 @@ static int m1120_clear_interrupt(struct device *dev)
 void m1120_convdata_short_to_2byte(u8 opf, short x, unsigned char *hbyte, unsigned char *lbyte)
 {
 	if( (opf & M1120_VAL_OPF_BIT_8) == M1120_VAL_OPF_BIT_8) {
-		
+		/* 8 bit resolution */
 		if(x<-128) x=-128;
 		else if(x>127) x=127;
 
@@ -518,7 +557,7 @@ void m1120_convdata_short_to_2byte(u8 opf, short x, unsigned char *hbyte, unsign
 		}
 		*hbyte = 0x00;
 	} else {
-		
+		/* 10 bit resolution */
 		if(x<-512) x=-512;
 		else if(x>511) x=511;
 
@@ -537,13 +576,13 @@ short m1120_convdata_2byte_to_short(u8 opf, unsigned char hbyte, unsigned char l
 	short x;
 
 	if( (opf & M1120_VAL_OPF_BIT_8) == M1120_VAL_OPF_BIT_8) {
-		
+		/* 8 bit resolution */
 		x = lbyte & 0x7F;
 		if(lbyte & 0x80) {
 			x -= 0x80;
 		}
 	} else {
-		
+		/* 10 bit resolution */
 		x = ( ( (hbyte & 0x40) >> 6) << 8 ) | lbyte;
 		if(hbyte&0x80) {
 			x -= 0x200;
@@ -606,7 +645,7 @@ static int m1120_set_operation_mode(struct device *dev, int mode)
 		case OPERATION_MODE_POWERDOWN:
 			if(p_data->irq_enabled) {
 
-				
+				/* disable irq */
 				disable_irq(p_data->irq);
 				free_irq(p_data->irq, NULL);
 				p_data->irq_enabled = 0;
@@ -621,7 +660,7 @@ static int m1120_set_operation_mode(struct device *dev, int mode)
 			err = m1120_i2c_set_reg(client, M1120_REG_OPF, opf);
 			if(p_data->reg.map.intsrs & M1120_DETECTION_MODE_INTERRUPT) {
 				if(!p_data->irq_enabled) {
-					
+					/* enable irq */
 					err = request_threaded_irq(p_data->irq,
 							NULL, m1120_irq_handler,
 							IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -632,7 +671,7 @@ static int m1120_set_operation_mode(struct device *dev, int mode)
 					}
 					enable_irq_wake(p_data->irq);
 					HL_LOG("request_threaded_irq was success");
-					
+					//enable_irq(p_data->irq);
 					p_data->irq_enabled = 1;
 				}
 			}
@@ -658,17 +697,17 @@ static int m1120_set_detection_mode(struct device *dev, u8 mode)
 
 	if(mode & M1120_DETECTION_MODE_INTERRUPT) {
 
-		
+		/* config threshold */
 		m1120_update_interrupt_threshold(dev, p_data->last_data);
 
-		
+		/* write intsrs */
 		data = p_data->reg.map.intsrs | M1120_DETECTION_MODE_INTERRUPT;
 		err = m1120_i2c_set_reg(p_data->client, M1120_REG_INTSRS, data);
 		if(err) return err;
 
 	} else {
 
-		
+		/* write intsrs */
 		data = p_data->reg.map.intsrs & (0xFF - M1120_DETECTION_MODE_INTERRUPT);
 		err = m1120_i2c_set_reg(p_data->client, M1120_REG_INTSRS, data);
 		if(err) return err;
@@ -684,7 +723,7 @@ static int m1120_init_device(struct device *dev)
 	m1120_data_t *p_data = i2c_get_clientdata(client);
 	int err = -1;
 
-	
+	/* (2) init variables */
 	atomic_set(&p_data->atm.enable, 0);
 	atomic_set(&p_data->atm.delay, M1120_DELAY_MIN);
 #ifdef M1120_DBG_ENABLE
@@ -704,7 +743,7 @@ static int m1120_init_device(struct device *dev)
 	m1120_set_delay(&client->dev, M1120_DELAY_MAX);
 	m1120_set_debug(&client->dev, 0);
 
-	
+	/* (3) reset registers */
 	err = m1120_reset_device(dev);
 	if(err) {
 		HL_ERR("m1120_reset_device was failed (%d)", err);
@@ -726,16 +765,16 @@ static int m1120_reset_device(struct device *dev)
 
 	if( (p_data == NULL) || (p_data->client == NULL) ) return -ENODEV;
 
-	
+	/* (1) sw reset */
 	err = m1120_i2c_set_reg(p_data->client, M1120_REG_SRST, M1120_VAL_SRST_RESET);
 	if(err) {
 		HL_ERR("sw-reset was failed(%d)", err);
 		return err;
 	}
-	msleep(5); 
+	msleep(5); // wait 5ms
 	dbg("wait 5ms after vdd power up");
 
-	
+	/* (2) check id */
 	err = m1120_i2c_get_reg(p_data->client, M1120_REG_DID, &id);
 	if (err < 0) return err;
 	if (id != M1120_VAL_DID) {
@@ -743,28 +782,28 @@ static int m1120_reset_device(struct device *dev)
 		return -ENXIO;
 	}
 
-	
-	
+	/* (3) init variables */
+	/* (3-1) persint */
 	data = M1120_PERSISTENCE_COUNT;
 	err = m1120_i2c_set_reg(p_data->client, M1120_REG_PERSINT, data);
-	
+	/* (3-2) intsrs */
 	data = M1120_DETECTION_MODE | M1120_SENSITIVITY_TYPE;
 	if(data & M1120_DETECTION_MODE_INTERRUPT) {
 		data |= M1120_INTERRUPT_TYPE;
 	}
 	err = m1120_i2c_set_reg(p_data->client, M1120_REG_INTSRS, data);
-	
+	/* (3-3) opf */
 	data = M1120_OPERATION_FREQUENCY | M1120_OPERATION_RESOLUTION;
 	err = m1120_i2c_set_reg(p_data->client, M1120_REG_OPF, data);
 
-	
+	/* (4) write variable to register */
 	err = m1120_set_detection_mode(dev, M1120_DETECTION_MODE);
 	if(err) {
 		HL_ERR("m1120_set_detection_mode was failed(%d)", err);
 		return err;
 	}
 
-	
+	/* (5) set power-down mode */
 	err = m1120_set_operation_mode(dev, OPERATION_MODE_POWERDOWN);
 	if(err) {
 		HL_ERR("m1120_set_detection_mode was failed(%d)", err);
@@ -818,18 +857,18 @@ static int m1120_measure(m1120_data_t *p_data, short *raw)
 	u8 buf[3];
 	int st1_is_ok = 0;
 
-	
+	// (1) read data
 	err = m1120_i2c_read(client, M1120_REG_ST1, buf, sizeof(buf));
 	if(err) return err;
 
-	
+	// (2) collect data
 	if(p_data->reg.map.intsrs & M1120_VAL_INTSRS_INT_ON) {
-		
+		// check st1 at interrupt mode
 		if( ! (buf[0] & 0x10) ) {
 			st1_is_ok = 1;
 		}
 	} else {
-		
+		// check st1 at polling mode
 		if(buf[0] & 0x01) {
 			st1_is_ok = 1;
 		}
@@ -842,9 +881,9 @@ static int m1120_measure(m1120_data_t *p_data, short *raw)
 		err = -1;
 	}
 
-	
+	//if(m1120_get_debug(&client->dev)) {
 		HL_LOG("raw data (%d)\n", *raw);
-	
+	//}
 
 	return err;
 }
@@ -883,6 +922,9 @@ static int m1120_get_result_status(m1120_data_t* p_data, int raw)
 	return status;
 }
 
+/* *************************************************
+   input device interface
+   ************************************************* */
 
 static int m1120_input_dev_init(m1120_data_t *p_data)
 {
@@ -896,6 +938,16 @@ static int m1120_input_dev_init(m1120_data_t *p_data)
 	dev->name = M1120_DRIVER_NAME;
 	dev->id.bustype = BUS_I2C;
 
+/*#if (M1120_EVENT_TYPE == EV_ABS)
+	input_set_drvdata(dev, p_data);
+	input_set_capability(dev, M1120_EVENT_TYPE, ABS_MISC);
+	input_set_abs_params(dev, M1120_EVENT_CODE, M1120_EVENT_DATA_CAPABILITY_MIN, M1120_EVENT_DATA_CAPABILITY_MAX, 0, 0);
+#elif (M1120_EVENT_TYPE == EV_KEY)
+	input_set_drvdata(dev, p_data);
+	input_set_capability(dev, M1120_EVENT_TYPE, M1120_EVENT_CODE);
+#else
+#error ("[ERR] M1120_EVENT_TYPE is not defined.")
+#endif*/
 	input_set_drvdata(dev, p_data);
 
 	set_bit(EV_SYN, dev->evbit);
@@ -927,6 +979,9 @@ static void m1120_input_dev_terminate(m1120_data_t *p_data)
 
 
 
+/* *************************************************
+   misc device interface
+   ************************************************* */
 
 static int m1120_misc_dev_open( struct inode*, struct file* );
 static int m1120_misc_dev_release( struct inode*, struct file* );
@@ -952,6 +1007,7 @@ static struct miscdevice m1120_misc_dev =
 	.name = M1120_DRIVER_NAME,
 	.fops = &m1120_misc_dev_fops,
 };
+/* m1120 misc device file operation */
 static int m1120_misc_dev_open( struct inode* inode, struct file* file)
 {
 	return 0;
@@ -1077,6 +1133,9 @@ static unsigned int m1120_misc_dev_poll( struct file *filp, struct poll_table_st
 
 
 
+/* *************************************************
+   sysfs attributes
+   ************************************************* */
 static ssize_t m1120_enable_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -1206,6 +1265,9 @@ parser_failed:
 }
 
 
+/* *************************************************
+   i2c client
+   ************************************************* */
 
 int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -1217,7 +1279,7 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	HL_LOG("+++");
 
-	
+	/* (1) allocation memory for p_m1120_data */
 	p_data = kzalloc(sizeof(m1120_data_t), GFP_KERNEL);
 	if (!p_data) {
 		HL_ERR("kernel memory alocation was failed");
@@ -1225,11 +1287,11 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 		goto error_0;
 	}
 
-	
+	/* (2) init mutex variable */
 	mutex_init(&p_data->mtx.enable);
 	mutex_init(&p_data->mtx.data);
 
-	
+	/* (3) config i2c client */
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		HL_ERR("i2c_check_functionality was failed");
 		err = -ENODEV;
@@ -1238,7 +1300,7 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 	i2c_set_clientdata(client, p_data);
 	p_data->client = client;
 
-	
+	/* (4) get platform data */
 	if (client->dev.of_node) {
 		p_platform = kzalloc(sizeof(*p_platform), GFP_KERNEL);
 		if (!p_data)
@@ -1288,7 +1350,7 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 	p_data->prev_val_s = 0;
 	p_data->first_boot = 1;
 
-	
+	/* (5) setup interrupt gpio */
 	if(p_data->igpio != -1) {
 		err = gpio_request(p_data->igpio, "hall_m1120_irq");
 		if (err){
@@ -1305,7 +1367,7 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 
-	
+	/* (6) reset and init device */
 	err = m1120_init_device(&p_data->client->dev);
 	if(err) {
 		HL_ERR("m1120_init_device was failed(%d)", err);
@@ -1313,10 +1375,10 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	HL_LOG("%s was found", id->name);
 
-	
+	/* (7) config work function */
 	INIT_DELAYED_WORK(&p_data->work, m1120_work_func);
 
-	
+	/* (8) init input device */
 	err = m1120_input_dev_init(p_data);
 	if(err) {
 		HL_ERR("m1120_input_dev_init was failed(%d)", err);
@@ -1324,21 +1386,21 @@ int m1120_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	HL_LOG("%s was initialized", M1120_DRIVER_NAME);
 
-	
+	/* (9) create sysfs group */
 	err = sysfs_create_group(&p_data->input_dev->dev.kobj, &m1120_attribute_group);
 	if(err) {
 		HL_ERR("sysfs_create_group was failed(%d)", err);
 		goto error_3;
 	}
 
-	
+	/* (10) register misc device */
 	err = misc_register(&m1120_misc_dev);
 	if(err) {
 		HL_ERR("misc_register was failed(%d)", err);
 		goto error_4;
 	}
 
-	
+	/* (11) imigrate p_data to p_m1120_data */
 	p_m1120_data = p_data;
 	err = hall_cover_sysfs_init(1);
 	if(err) {

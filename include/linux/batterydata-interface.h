@@ -13,3 +13,5 @@
 #include <uapi/linux/batterydata-interface.h>
 
 int config_battery_data(struct bms_battery_data *profile);
+int dump_battery_data(void);
+int pm8916_batterydata_ioctl_attr_text(char *buf, int size);

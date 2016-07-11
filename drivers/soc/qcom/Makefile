@@ -18,6 +18,7 @@ obj-$(CONFIG_MSM_MEMORY_DUMP_V2) += memory_dump_v2.o
 obj-$(CONFIG_MSM_DDR_HEALTH) += ddr-health.o
 obj-$(CONFIG_MSM_MPM_OF) += mpm-of.o
 obj-$(CONFIG_MSM_RPM_SMD) += rpm-smd.o
+obj-$(CONFIG_MSM_RPM_SMD) += rpm_htc_cmd.o
 ifdef CONFIG_DEBUG_FS
 obj-$(CONFIG_MSM_RPM_SMD) += rpm-smd-debug.o
 endif
@@ -56,6 +57,7 @@ obj-$(CONFIG_MSM_OCMEM) += ocmem.o ocmem_allocator.o ocmem_notifier.o
 obj-$(CONFIG_MSM_OCMEM) += ocmem_sched.o ocmem_api.o ocmem_rdm.o ocmem_core.o
 
 obj-$(CONFIG_MSM_PERFORMANCE) += msm_performance.o
+obj-$(CONFIG_MSM_CORE_CTL_HELPER) += core_ctl_helper.o
 
 ifdef CONFIG_MSM_SUBSYSTEM_RESTART
        obj-y += subsystem_notif.o

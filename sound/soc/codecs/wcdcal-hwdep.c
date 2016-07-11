@@ -147,7 +147,7 @@ static int wcdcal_hwdep_release(struct snd_hwdep *hw, struct file *file)
 {
 	struct fw_info *fw_data = hw->private_data;
 	mutex_lock(&fw_data->lock);
-	
+	/* clear all the calibrations */
 	memset(fw_data->wcdcal_state, 0,
 		sizeof(fw_data->wcdcal_state));
 	mutex_unlock(&fw_data->lock);

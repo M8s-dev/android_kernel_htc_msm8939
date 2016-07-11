@@ -26,8 +26,10 @@
 #include <linux/cpufreq.h>
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
+//#include <mach/msm_iomap.h>
 #include <linux/fcntl.h>
 
+//#include "acpuclock.h"
 
 #define RADIO_FEEDBACK_IOCTL_MAGIC	'p'
 #define RADIO_FEEDBACK_GET_CDLOG_INFO	_IOW(RADIO_FEEDBACK_IOCTL_MAGIC, 89, unsigned)
@@ -52,6 +54,7 @@ typedef struct {
 } htc_modem_request_type;
 
 typedef struct {
+/* ========= belows are App write ==================== */
 	uint32_t      	version;
 	uint32_t      	struct_size;
 
@@ -63,17 +66,20 @@ typedef struct {
 	uint8_t			reserve1[4];
 
 
+/* ========= belows are modem write ==================== */
 	uint32_t      	version_R;
 	uint32_t      	struct_size_R;
 
 	uint32_t      	htc_smem_erase_efs_flag;
 	uint32_t    		htc_smem_flight_mode_flag;
-	uint8_t      		htc_radio_version_addr[16];	
-	uint8_t      		htc_protocol_version_addr[16]; 
+	uint8_t      		htc_radio_version_addr[16];	//modem fill it
+	uint8_t      		htc_protocol_version_addr[16]; // modem fill it
 	uint8_t      		reserve2[16];
 
-	htc_modem_request_type		htc_modem_request;		
+/* ========= belows are shared ==================== */
+	htc_modem_request_type		htc_modem_request;		// for error handling only
 
+/* for eMMC feature */
 	uint32_t      	htc_emmc_magic_flag;
 	uint32_t      	htc_emmc_buff_addr;
 	uint32_t      	htc_emmc_buff_size;
@@ -85,6 +91,8 @@ typedef struct {
 	uint32_t      	htc_smem_user_time_offset;
 
 
+/* radio debug */
+// Use 32 bytes to record the TCXO shutdown time statistics
 	uint32_t      	htc_tcxo_off_time_total;
 	uint32_t      	htc_tcxo_off_cnt_total;
 	uint32_t      	htc_tcxo_off_time_pwrc_suspend;
@@ -99,9 +107,14 @@ typedef struct {
 } htc_smem_type;
 
 
+// for 8916
 #define HTC_SMEM_PARAM_BASE_ADDR 0x8CBF0000
 
+// for 8930
+// #define HTC_SMEM_PARAM_BASE_ADDR 0x801F0000
 
+// for old projects
+// #define HTC_SMEM_PARAM_BASE_ADDR	0x400F0000
 
 htc_smem_type *htc_smem_ram_addr;
 #else
@@ -142,9 +155,9 @@ static long radio_feedback_ioctl(struct file *file, unsigned int cmd,
 		config.max_size = htc_smem_ram_addr->htc_cdlog_max_size_for_apps;
 #else
 		radio_feedback_addr = (uint32_t)ioremap(HTC_SMEM_PARAM_BASE_ADDR, HTC_SMEM_PARAM_SIZE);
-		
+		/* start addr(4 bytes): HTC_SMEM_PARAM_BASE_ADDR + 0x304 */
 		memcpy(&config.start_addr, (void *)(radio_feedback_addr + 0x304), 4);
-		
+		/* max size(4 bytes): HTC_SMEM_PARAM_BASE_ADDR + 0x308 */
 		memcpy(&config.max_size, (void *)(radio_feedback_addr + 0x308), 4);
 #endif
 		printk("start addr: 0x%x, max_size: 0x%x\n", config.start_addr, config.max_size);

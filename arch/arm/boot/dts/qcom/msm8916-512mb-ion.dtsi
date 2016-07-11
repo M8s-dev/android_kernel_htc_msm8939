@@ -26,10 +26,12 @@
 			qcom,ion-heap-type = "SYSTEM_CONTIG";
 		};
 
+//In msm8916.dtsi, the venus usage label is from "venus_qseecom_mem" to "venus_mem", we change the label here from "venus_qseecom_mem" to "venus_mem" for unified.
+
 		qcom,ion-heap@27 { /* QSEECOM HEAP */
 			compatible = "qcom,msm-ion-reserve";
 			reg = <27>;
-			linux,contiguous-region = <&venus_qseecom_mem>;
+			linux,contiguous-region = <&venus_mem>;
 			qcom,ion-heap-type = "DMA";
 		};
 

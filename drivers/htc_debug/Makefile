@@ -3,6 +3,7 @@ ccflags-y := -Iinclude/htc
 obj-y += htc_sysinfo.o
 obj-y += devices_cmdline.o devices_dtb.o
 
+obj-$(CONFIG_HTC_REBOOT_BLOCK) += htc_reboot_block.o
 obj-$(CONFIG_HTC_DEBUG_RAMOOPS) += htc_ramoops.o
 
 ifdef CONFIG_HTC_DEBUG

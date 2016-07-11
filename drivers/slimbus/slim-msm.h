@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,7 +19,6 @@
 #include <soc/qcom/subsystem_notif.h>
 #include <linux/ipc_logging.h>
 
-/* Per spec.max 40 bytes per received message */
 #define SLIM_MSGQ_BUF_LEN	40
 
 #define MSM_TX_BUFS		32
@@ -44,14 +43,8 @@
 
 #define MSM_SLIM_AUTOSUSPEND		MSEC_PER_SEC
 
-/*
- * Messages that can be received simultaneously:
- * Client reads, LPASS master responses, announcement messages
- * Receive upto 10 messages simultaneously.
- */
 #define MSM_SLIM_DESC_NUM		32
 
-/* MSM Slimbus peripheral settings */
 #define MSM_SLIM_PERF_SUMM_THRESHOLD	0x8000
 #define MSM_SLIM_NPORTS			24
 #define MSM_SLIM_NCHANS			32
@@ -86,7 +79,6 @@
 #define MSM_MAX_NSATS	2
 #define MSM_MAX_SATCH	32
 
-/* Slimbus QMI service */
 #define SLIMBUS_QMI_SVC_ID 0x0301
 #define SLIMBUS_QMI_SVC_V1 1
 #define SLIMBUS_QMI_INS_ID 0
@@ -98,13 +90,11 @@
 #define PGD_THIS_EE_V2(r) (dev->base + (r ## _V2) + (dev->ee * 0x1000))
 #define PGD_PORT_V2(r, p) (dev->base + (r ## _V2) + ((p) * 0x1000))
 #define CFG_PORT_V2(r) ((r ## _V2))
-/* Component registers */
 enum comp_reg_v2 {
 	COMP_CFG_V2		= 4,
 	COMP_TRUST_CFG_V2	= 0x3000,
 };
 
-/* Manager PGD registers */
 enum pgd_reg_v2 {
 	PGD_CFG_V2		= 0x800,
 	PGD_STAT_V2		= 0x804,
@@ -134,13 +124,11 @@ enum pgd_reg_v2 {
 #define PGD_THIS_EE_V1(r) (dev->base + (r ## _V1) + (dev->ee * 16))
 #define PGD_PORT_V1(r, p) (dev->base + (r ## _V1) + ((p) * 32))
 #define CFG_PORT_V1(r) ((r ## _V1))
-/* Component registers */
 enum comp_reg_v1 {
 	COMP_CFG_V1		= 0,
 	COMP_TRUST_CFG_V1	= 0x14,
 };
 
-/* Manager PGD registers */
 enum pgd_reg_v1 {
 	PGD_CFG_V1		= 0x1000,
 	PGD_STAT_V1		= 0x1004,
@@ -215,7 +203,7 @@ struct msm_slim_qmi {
 	struct work_struct		ssr_up;
 };
 
-struct msm_slim_mdm {
+struct msm_slim_ss {
 	struct notifier_block nb;
 	void *ssr;
 	enum msm_ctrl_state state;
@@ -270,7 +258,8 @@ struct msm_slim_ctrl {
 	u32			ver;
 	struct msm_slim_qmi	qmi;
 	struct msm_slim_pdata	pdata;
-	struct msm_slim_mdm	mdm;
+	struct msm_slim_ss	ext_mdm;
+	struct msm_slim_ss	dsp;
 	int			default_ipc_log_mask;
 	int			ipc_log_mask;
 	bool			sysfs_created;
@@ -308,10 +297,8 @@ enum rsc_grp {
 };
 
 
-/* IPC logging stuff */
 #define IPC_SLIMBUS_LOG_PAGES 5
 
-/* Log levels */
 enum {
 	FATAL_LEV = 0U,
 	ERR_LEV = 1U,
@@ -320,7 +307,6 @@ enum {
 	DBG_LEV = 4U,
 };
 
-/* Default IPC log level INFO */
 #define SLIM_DBG(dev, x...) do { \
 	pr_debug(x); \
 	if (dev->ipc_slimbus_log && dev->ipc_log_mask >= DBG_LEV) { \
@@ -335,17 +321,12 @@ enum {
 	} \
 } while (0)
 
-/* warnings and errors show up on console always */
 #define SLIM_WARN(dev, x...) do { \
 	pr_warn(x); \
 	if (dev->ipc_slimbus_log && dev->ipc_log_mask >= WARN_LEV) \
 		ipc_log_string(dev->ipc_slimbus_log, x); \
 } while (0)
 
-/* ERROR condition in the driver sets the hs_serial_debug_mask
- * to ERR_FATAL level, so that this message can be seen
- * in IPC logging. Further errors continue to log on the console
- */
 #define SLIM_ERR(dev, x...) do { \
 	pr_err(x); \
 	if (dev->ipc_slimbus_log && dev->ipc_log_mask >= ERR_LEV) { \
@@ -378,7 +359,7 @@ int msm_send_msg_buf(struct msm_slim_ctrl *dev, u32 *buf, u8 len, u32 tx_reg);
 u32 *msm_get_msg_buf(struct msm_slim_ctrl *dev, int len,
 			struct completion *comp);
 u32 *msm_slim_manage_tx_msgq(struct msm_slim_ctrl *dev, bool getbuf,
-			struct completion *comp);
+			struct completion *comp, int err);
 int msm_slim_rx_msgq_get(struct msm_slim_ctrl *dev, u32 *data, int offset);
 int msm_slim_sps_init(struct msm_slim_ctrl *dev, struct resource *bam_mem,
 			u32 pipe_reg, bool remote);

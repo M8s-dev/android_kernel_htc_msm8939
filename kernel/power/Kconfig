@@ -294,3 +294,8 @@ config HTC_PNPMGR
     depends on PM
     ---help---
       Collect the sysfs files nodes for pnpmgr usage.
+
+config SUSPEND_ONLY_ALLOW_WFI
+       bool "Only allow wfi when entering suspend"
+       def_bool y
+       depends on SUSPEND

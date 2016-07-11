@@ -29,6 +29,10 @@ struct device_info {
 	unsigned sku_id;
 };
 #define AVCS_CMD_ADSP_CRASH                      0x0001FFFF
+#define AVCS_CMD_ADSP_OEM                      0x0001FFF0
+
+
+
 #define D(fmt, args...) printk(KERN_INFO "[AUD] htc-acoustic: "fmt, ##args)
 #define E(fmt, args...) printk(KERN_ERR "[AUD] htc-acoustic: "fmt, ##args)
 
@@ -110,6 +114,10 @@ struct hw_component HTC_AUD_HW_LIST[AUD_HW_NUM] = {
 	{
 		.name = "TFA9887L",
 		.id = HTC_AUDIO_TFA9887L,
+	},
+	{
+		.name = "TPA6130",
+		.id = HTC_AUDIO_TPA6130,
 	},
 };
 EXPORT_SYMBOL(HTC_AUD_HW_LIST);
@@ -245,6 +253,10 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	unsigned int us32_size = 0;
 	int s32_value = 0;
 	void __user *argp = (void __user *)arg;
+#ifdef CONFIG_HTC_DEBUG_DSP
+	unsigned int mode = 0;
+	int modem_state = 0;
+#endif
 
 	if (_IOC_TYPE(cmd) != ACOUSTIC_IOCTL_MAGIC)
 		return -ENOTTY;
@@ -442,16 +454,21 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	}
 	case _IOC_NR(ACOUSTIC_RAMDUMP):
-#if 0
+#ifdef CONFIG_HTC_DEBUG_DSP
 		pr_err("trigger ramdump by user space\n");
 		if (copy_from_user(&mode, (void *)arg, sizeof(mode))) {
 			rc = -EFAULT;
 			break;
 		}
 
-		if (mode >= 4100 && mode <= 4800) {
+		if (mode == 5000) {
+			modem_state = apr_get_modem_state();
+			if (modem_state != APR_SUBSYS_LOADED) {
+				pr_err("Modem is not loaded yet %d\n",
+						modem_state);
+			}
 			dump_stack();
-			pr_err("msgid = %d\n", mode);
+			pr_err("msgid = %d, force ramdump due to sound card is not probed in time ?\n", mode);
 			BUG();
 		}
 #endif
@@ -565,6 +582,56 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 		}
 		break;
+
+	case  _IOC_NR(ACOUSTIC_ADSP_OEM_CMD): {
+		struct avcs_htc_adsp_oem_packet config;
+		memset((void *)&config, 0x0, sizeof(struct avcs_htc_adsp_oem_packet));
+			config.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+							APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
+			config.hdr.pkt_size = sizeof(struct avcs_htc_adsp_oem_packet); 
+			config.hdr.src_port = 0;
+			config.hdr.dest_port = 0;
+			config.hdr.token = 0;
+			config.hdr.opcode = AVCS_CMD_ADSP_OEM;
+			config.payload.version = 0;
+			config.payload.oem_cmd = 0;
+			config.payload.param1 = 1;
+			config.payload.param2 = 2;
+			config.payload.param3 = 3;
+			config.payload.param4 = 4;
+
+			
+			rc = copy_from_user((void *)&(config.payload), argp, sizeof(avcs_htc_adsp_oem_payload_t));
+			pr_info("config.payload() = (%d, %d, %d, %d, %d, %d)\n", config.payload.version, config.payload.oem_cmd,
+				config.payload.param1, config.payload.param2, config.payload.param3, config.payload.param4);
+
+			if(rc < 0) {
+				pr_err("%s %d: copy to user failed\n", __func__, __LINE__);
+				break;
+			}
+
+			if ((atomic_read(&this_avcs.ref_cnt) == 0) ||
+				(this_avcs.apr == NULL)) {
+					this_avcs.apr = apr_register("ADSP", "CORE", avcs_callback,
+						0xFFFFFFFF, NULL);
+					if (this_avcs.apr == NULL) {
+						pr_err("%s: Unable to register apr\n", __func__);
+						rc = -ENODEV;
+						break;
+					}
+					atomic_inc(&this_avcs.ref_cnt);
+				}
+
+				rc = apr_send_pkt(this_avcs.apr, (uint32_t *)(&config));
+				if (rc < 0) {
+					pr_err("%s: send ACOUSTIC_ADSP_OEM_CMD failed, %d.\n", __func__, rc);
+				} else {
+					pr_info("%s: send ACOUSTIC_ADSP_OEM_CMD success.\n", __func__);
+					rc = 0;
+				}
+		}
+		break;
+
 	case _IOC_NR(ACOUSTIC_NOTIFIY_FM_SSR): {
 			int new_state = -1;
 
@@ -687,6 +754,7 @@ void htc_amp_power_enable(bool enable)
 		the_amp_power_ops->set_amp_power_enable(enable);
 }
 
+#ifdef CONFIG_HTC_HEADSET_MGR
 static int htc_acoustic_hsnotify(int on)
 {
 	int i = 0;
@@ -699,6 +767,7 @@ static int htc_acoustic_hsnotify(int on)
 
 	return 0;
 }
+#endif
 
 static struct file_operations acoustic_fops = {
 	.owner = THIS_MODULE,
@@ -717,8 +786,9 @@ static struct miscdevice acoustic_misc = {
 static int __init acoustic_init(void)
 {
 	int ret = 0;
+#ifdef CONFIG_HTC_HEADSET_MGR
 	struct headset_notifier notifier;
-
+#endif
 	ret = misc_register(&acoustic_misc);
 	wake_lock_init(&htc_acoustic_wakelock, WAKE_LOCK_SUSPEND, "htc_acoustic");
 	wake_lock_init(&htc_acoustic_wakelock_timeout, WAKE_LOCK_SUSPEND, "htc_acoustic_timeout");
@@ -771,10 +841,11 @@ static int __init acoustic_init(void)
 		return ret;
 	}
 
+#ifdef CONFIG_HTC_HEADSET_MGR
 	notifier.id = HEADSET_REG_HS_INSERT;
 	notifier.func = htc_acoustic_hsnotify;
 	headset_notifier_register(&notifier);
-
+#endif
 	return 0;
 }
 

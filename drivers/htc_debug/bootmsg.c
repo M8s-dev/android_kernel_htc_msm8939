@@ -13,11 +13,22 @@
 #define BOOTMSG_BUFFER_SZ (256 << 10)
 #define RELEASE_RETRY_DELAY (msecs_to_jiffies(60 * MSEC_PER_SEC))
 
+#define MEM_BSP_REBOOT_DEBUG_PHYS 0x8CB39000
+#define MEM_BSP_REBOOT_DEBUG_MAGIC "EARLY_432156780"
+#define MEM_BSP_REBOOT_DEBUG_TIME 2.5
+
 static long  bootmsg_buffer_phys = 0x0;
 static char* bootmsg_buffer = NULL;
 static int   bootmsg_len    = 0;
 
 static bool should_release_console = false;
+
+struct delayed_work reboot_debug_delay_work_struct;
+struct msm_bsp_reboot_debug {
+	char magic[15];
+	char count;
+};
+
 
 static void
 bootmsg_console_write(struct console *console, const char *s, unsigned int count)
@@ -60,6 +71,17 @@ static int __init bootmsg_release_console_work_init(void)
 }
 late_initcall(bootmsg_release_console_work_init);
 
+static void erase_reboot_debug_flag (struct work_struct *work)
+{
+	struct msm_bsp_reboot_debug *mem_reboot_debug;
+	mem_reboot_debug = (struct msm_bsp_reboot_debug *) ioremap(MEM_BSP_REBOOT_DEBUG_PHYS, sizeof(struct msm_bsp_reboot_debug));
+
+	if (mem_reboot_debug && !strncmp(mem_reboot_debug->magic, MEM_BSP_REBOOT_DEBUG_MAGIC, strlen(MEM_BSP_REBOOT_DEBUG_MAGIC))){
+		pr_info("%s Compare MAGIC OK, erase the reboot debug flag\n", __func__);
+		memset(mem_reboot_debug, 0, sizeof(struct msm_bsp_reboot_debug));
+	}
+}
+
 static int __init bootmsg_console_init(void)
 {
 	WARN_ON(BOOTMSG_BUFFER_SZ % PAGE_SIZE);
@@ -70,6 +92,9 @@ static int __init bootmsg_console_init(void)
 		register_console(&bootmsg_console);
 	} else
 		pr_err("%s: fail to alloc buffer\n", __func__);
+
+	INIT_DELAYED_WORK(&reboot_debug_delay_work_struct, erase_reboot_debug_flag);
+	schedule_delayed_work(&reboot_debug_delay_work_struct, MEM_BSP_REBOOT_DEBUG_TIME*HZ);
 
 	return 0;
 }

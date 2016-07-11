@@ -481,8 +481,9 @@ static void projector2_send_fb2(struct projector2_dev *dev)
 	}
 
 unlock:
-	if (!dev->hsml_proto->debug_mode)
+	if (!dev->hsml_proto->debug_mode) {
 		minifb_unlockbuf();
+	}
 }
 
 void projector2_send_fb_do_work(struct work_struct *work)
@@ -764,6 +765,7 @@ static void projector2_function_disable(struct usb_function *f)
 
 	if (atomic_read(&dev->prj2_enable_HSML) != 0) {
 		atomic_set(&dev->prj2_enable_HSML, 0);
+		printk(KERN_INFO "[MIRROR_LINK]%s, set state: 0\n",__func__);
 		schedule_work(&dev->notifier_setting_work);
 	}
 
@@ -789,17 +791,6 @@ projector2_function_unbind(struct usb_configuration *c, struct usb_function *f)
 	dev->online = 0;
 	dev->error = 1;
 	dev->is_htcmode = 0;
-
-	if (atomic_read(&dev->prj2_status) != PRJ2_OFFLINE) {
-		atomic_set(&dev->prj2_status, PRJ2_OFFLINE);
-		schedule_work(&dev->notifier_display_work);
-	}
-
-	if (atomic_read(&dev->prj2_enable_HSML) != 0) {
-		atomic_set(&dev->prj2_enable_HSML, 0);
-		schedule_work(&dev->notifier_setting_work);
-	}
-
 }
 
 static void projector2_complete_req(struct usb_ep *ep, struct usb_request *req)
@@ -1135,7 +1126,7 @@ static ssize_t context_info_store(struct device *dev,
 {
 	struct projector2_dev *projector2_dev = prj2_dev;
 	if (size % CONTEXT_INFO_SIZE) {
-		printk(KERN_ERR "%s: Array size invalid, array size should be N*28, size=%zd\n",__func__,size);
+		printk(KERN_ERR "%s: Array size invalid, array size should be N*28, size=%zu\n",__func__,size);
 			return -EINVAL;
 	} else {
 			if ((size / CONTEXT_INFO_SIZE) <= MAX_NUM_CONTEXT_INFO) {
@@ -1145,7 +1136,7 @@ static ssize_t context_info_store(struct device *dev,
 			projector2_dev->header.num_context_info = htons(size / CONTEXT_INFO_SIZE);
 			mutex_unlock(&hsml_header_lock);
 		} else {
-			printk(KERN_ERR "%s: N is invalid value, N=%zd\n",__func__,
+			printk(KERN_ERR "%s: N is invalid value, N=%zu\n",__func__,
 					size / CONTEXT_INFO_SIZE);
 			return -EINVAL;
 		}

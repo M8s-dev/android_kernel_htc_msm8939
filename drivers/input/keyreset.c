@@ -233,8 +233,10 @@ static int keyreset_probe(struct platform_device *pdev)
 	}
 	if (pdev->dev.of_node) {
 		pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-		if (pdata == NULL)
+		if (pdata == NULL) {
 			pr_err("[KEYRESET] alloc memory fail");
+			return -ENOMEM;
+		}
 		if (keyreset_dt_parser(&pdev->dev)) {
 			while (reset_key_pdata.keys_down[idx] != 0)
 				idx++;
@@ -248,12 +250,12 @@ static int keyreset_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (!pdata)
-		return -EINVAL;
-
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
-		return -ENOMEM;
+	{
+		ret = -ENOMEM;
+		goto err_driver_state;
+	}
 
 	spin_lock_init(&state->lock);
 	keyp = pdata->keys_down;
@@ -284,7 +286,7 @@ static int keyreset_probe(struct platform_device *pdev)
 	ret = input_register_handler(&state->input_handler);
 	if (ret) {
 		kfree(state);
-		return ret;
+		goto err_driver_state;
 	}
 	platform_set_drvdata(pdev, state);
 	pr_info("[KEYRESET] --%s--", __func__);

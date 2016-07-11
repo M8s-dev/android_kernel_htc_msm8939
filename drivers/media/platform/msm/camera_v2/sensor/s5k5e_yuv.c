@@ -11,9 +11,11 @@
  *
  */
 #include "msm_sensor.h"
+/*HTC_START*/
 #ifdef CONFIG_CAMERA_AIT
 #include "AIT.h"
 #endif
+/*HTC_END*/
 #define S5K5E_SENSOR_NAME "s5k5e_yuv"
 #define PLATFORM_DRIVER_NAME "msm_camera_s5k5e_yuv"
 #define s5k5e_obj s5k5e_yuv_##obj
@@ -34,9 +36,11 @@ uint16_t front_fusedid[4] = {0,0,0,0};
 DEFINE_MSM_MUTEX(s5k5e_yuv_mut);
 
 
+/*********************for image adjust********************/
 #define SENSOR_SUCCESS 0
 static struct msm_camera_i2c_client s5k5e_sensor_i2c_client;
 
+/********************************************************/
 
 
 static struct msm_sensor_ctrl_t s5k5e_s_ctrl;
@@ -108,12 +112,12 @@ static int32_t s5k5e_platform_probe(struct platform_device *pdev)
 	int32_t rc = 0;
 	const struct of_device_id *match;
 	match = of_match_device(s5k5e_dt_match, &pdev->dev);
-	
+	/* HTC_START */
 	if (!match) {
 		pr_err("%s:%d match is NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
-	
+	/* HTC_END */
 	rc = msm_sensor_platform_probe(pdev, match->data);
 	return rc;
 }
@@ -201,8 +205,8 @@ int32_t s5k5e_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 	long rc = 0;
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	
-	
+	//CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
+	//	s_ctrl->sensordata->sensor_name, cdata->cfgtype);
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
 		memcpy(cdata->cfg.sensor_info.sensor_name,
@@ -336,7 +340,7 @@ int32_t s5k5e_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		#ifdef CONFIG_CAMERA_AIT
-		rc = AIT_ISP_open_init(CAMERA_INDEX_FRONT_S5K5E); 
+		rc = AIT_ISP_open_init(CAMERA_INDEX_FRONT_S5K5E); //sub cam
 		#endif
 		if (s_ctrl->func_tbl->sensor_power_up)
 			rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
@@ -456,7 +460,7 @@ int32_t s5k5e_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		case CFG_SET_AUTOFOCUS: {
-		
+		/* TO-DO: set the Auto Focus */
 		pr_debug("%s: Setting Auto Focus", __func__);
 		break;
 		}
@@ -464,7 +468,7 @@ int32_t s5k5e_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		break;
 		}
 		case CFG_CANCEL_AUTOFOCUS: {
-		
+		/* TO-DO: Cancel the Auto Focus */
 		pr_debug("%s: Cancelling Auto Focus", __func__);
 		break;
 		}
@@ -507,7 +511,7 @@ int32_t s5k5e_yuv_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
     s_ctrl->power_setting_array.power_setting = s5k5e_power_down_setting;
     s_ctrl->power_setting_array.size = ARRAY_SIZE(s5k5e_power_down_setting);
 
-    
+    //When release regulator, need the same data pointer from power up sequence.
     for(i = 0; i < s_ctrl->power_setting_array.size;  i++)
     {
         data_size = sizeof(s5k5e_power_setting[i].data)/sizeof(void *);
@@ -527,8 +531,8 @@ int32_t s5k5e_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 	long rc = 0;
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	
-	
+	//CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
+	//	s_ctrl->sensordata->sensor_name, cdata->cfgtype);
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
 		CDBG("%s:%d %s cfgtype = %d, CFG_GET_SENSOR_INFO+\n", __func__, __LINE__,
@@ -658,8 +662,8 @@ int32_t s5k5e_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 
 		conf_array.reg_setting = reg_setting;
-		
-		
+		//rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write_table(
+		//	s_ctrl->sensor_i2c_client, &conf_array);
 		kfree(reg_setting);
 		CDBG("%s:%d %s cfgtype = %d, CFG_WRITE_I2C_ARRAY -\n", __func__, __LINE__,
 		s_ctrl->sensordata->sensor_name, cdata->cfgtype);
@@ -676,7 +680,7 @@ int32_t s5k5e_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		#ifdef CONFIG_CAMERA_AIT
-		rc = AIT_ISP_open_init(CAMERA_INDEX_FRONT_S5K5E); 
+		rc = AIT_ISP_open_init(CAMERA_INDEX_FRONT_S5K5E); //sub cam
 		#endif
 		if (s_ctrl->func_tbl->sensor_power_up)
 			rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
@@ -775,7 +779,7 @@ int32_t s5k5e_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 		case CFG_SET_AUTOFOCUS: {
-		
+		/* TO-DO: set the Auto Focus */
 		pr_debug("%s: Setting Auto Focus", __func__);
 		break;
 		}
@@ -784,7 +788,7 @@ int32_t s5k5e_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		break;
 		}
 		case CFG_CANCEL_AUTOFOCUS: {
-		
+		/* TO-DO: Cancel the Auto Focus */
 		pr_debug("%s: Cancelling Auto Focus", __func__);
 		break;
 		}
@@ -855,6 +859,7 @@ static int s5k5e_yuv_read_fuseid32(struct sensorb_cfg_data32 *cdata,
 
 	return rc;
 }
+//HTC_START , move read OTP to sensor probe
 int32_t s5k5e_yuv_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
@@ -874,6 +879,7 @@ int32_t s5k5e_yuv_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 #endif
 	return rc;
 }
+//HTC_END
 static struct msm_sensor_fn_t sensor_func_tbl = {
 	.sensor_config = s5k5e_sensor_config,
 #ifdef CONFIG_COMPAT
@@ -881,7 +887,7 @@ static struct msm_sensor_fn_t sensor_func_tbl = {
 #endif
 	.sensor_power_up = s5k5e_yuv_sensor_power_up,
 	.sensor_power_down = s5k5e_yuv_sensor_power_down,
-	.sensor_match_id = s5k5e_yuv_sensor_match_id,
+	.sensor_match_id = s5k5e_yuv_sensor_match_id,//msm_sensor_match_id,
 	.sensor_i2c_read_fuseid = s5k5e_yuv_read_fuseid,
 	.sensor_i2c_read_fuseid32 = s5k5e_yuv_read_fuseid32,
 };

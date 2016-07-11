@@ -247,6 +247,12 @@ int board_is_super_cid(void)
                 return 0;
 }
 EXPORT_SYMBOL(board_is_super_cid);
+
+char *board_cid(void)
+{
+	return cid_tag;
+}
+EXPORT_SYMBOL(board_cid);
 #endif
 
 static int atoi(const char *name)

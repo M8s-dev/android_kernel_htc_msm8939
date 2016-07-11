@@ -19,15 +19,6 @@
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
-static DEFINE_MUTEX(afsync_lock);
-static LIST_HEAD(afsync_list);
-static struct workqueue_struct *fsync_workqueue = NULL;
-struct fsync_work {
-        struct work_struct work;
-        char pathname[256];
-        struct list_head list;
-};
-
 static int __sync_filesystem(struct super_block *sb, int wait)
 {
 	if (wait)
@@ -138,6 +129,15 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	return ret;
 }
 
+extern int cancel_fsync;
+static int async_fsync(struct file *file)
+{
+	struct inode *inode = file->f_mapping->host;
+	struct super_block *sb = inode->i_sb;
+
+	return (sb->fsync_flags & FLAG_ASYNC_FSYNC) && cancel_fsync;
+}
+
 /**
  * vfs_fsync_range - helper to sync a range of data & metadata to disk
  * @file:		file to sync
@@ -155,6 +155,10 @@ int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 
 	if (!file->f_op || !file->f_op->fsync)
 		return -EINVAL;
+
+	if (async_fsync(file))
+		return 0;
+
 	trace_vfs_fsync(file);
 	err = file->f_op->fsync(file, start, end, datasync);
 	trace_vfs_fsync_done(file);
@@ -176,115 +180,14 @@ int vfs_fsync(struct file *file, int datasync)
 }
 EXPORT_SYMBOL(vfs_fsync);
 
-static int async_fsync(struct file *file)
-{
-        struct inode *inode = file->f_mapping->host;
-        struct super_block *sb = inode->i_sb;
-        if ((sb->fsync_flags & FLAG_ASYNC_FSYNC) == 0)
-                return 0;
-
-        if (file->f_path.dentry->d_parent &&
-                !strcmp(file->f_path.dentry->d_parent->d_name.name, "htclog"))
-                return 1;
-
-        return 0;
-}
-
-static int do_async_fsync(char *pathname)
-{
-        struct file *file;
-        int ret;
-        file = filp_open(pathname, O_RDWR, 0);
-        if (IS_ERR(file)) {
-                pr_debug("%s: can't open %s\n", __func__, pathname);
-                return -EBADF;
-        }
-        ret = vfs_fsync(file, 0);
-
-        filp_close(file, NULL);
-        return ret;
-}
-
-static void do_afsync_work(struct work_struct *work)
-{
-        struct fsync_work *fwork =
-                container_of(work, struct fsync_work, work);
-        int ret = -EBADF;
-        pr_debug("afsync: %s\n", fwork->pathname);
-        mutex_lock(&afsync_lock);
-        list_del(&fwork->list);
-        mutex_unlock(&afsync_lock);
-        ret = do_async_fsync(fwork->pathname);
-        if (ret != 0 && ret != -EBADF)
-                pr_info("afsync return %d\n", ret);
-        else
-                pr_debug("afsync: %s done\n", fwork->pathname);
-        kfree(fwork);
-}
-
 static int do_fsync(unsigned int fd, int datasync)
 {
 	struct fd f = fdget(fd);
 	int ret = -EBADF;
-	ktime_t fsync_t, fsync_diff;
-        struct fsync_work *fwork, *tmp;
-        char pathname[256], *path;
 
 	if (f.file) {
-                path = d_path(&(f.file->f_path), pathname, sizeof(pathname));
-                if (IS_ERR(path))
-                        path = "(unknown)";
-                else if (async_fsync(f.file)) {
-                        if (!fsync_workqueue)
-                                fsync_workqueue = create_singlethread_workqueue("fsync");
-                        if (!fsync_workqueue)
-                                goto no_async;
-
-                        if (IS_ERR(path))
-                                goto no_async;
-
-                        mutex_lock(&afsync_lock);
-                        list_for_each_entry_safe(fwork, tmp, &afsync_list, list) {
-                                if (!strcmp(fwork->pathname, path)) {
-                                        if (list_empty(&fwork->work.entry)) {
-                                                pr_debug("fsync(%s): work(%s) not in workqueue\n",
-                                                                current->comm, path);
-                                                list_del_init(&fwork->list);
-                                                break;
-                                        }
-                                        
-                                        mutex_unlock(&afsync_lock);
-                                        fdput(f);
-                                        return 0;
-                                }
-                        }
-                        mutex_unlock(&afsync_lock);
-
-                        fwork = kmalloc(sizeof(*fwork), GFP_KERNEL);
-                        if (fwork) {
-                                strncpy(fwork->pathname, path, sizeof(fwork->pathname) - 1);
-                                pr_debug("fsync(%s): %s, fsize %llu Bytes\n", current->comm,
-                                        fwork->pathname, f.file->f_path.dentry->d_inode->i_size);
-                                INIT_WORK(&fwork->work, do_afsync_work);
-                                mutex_lock(&afsync_lock);
-                                list_add_tail(&fwork->list, &afsync_list);
-                                mutex_unlock(&afsync_lock);
-                                queue_work(fsync_workqueue, &fwork->work);
-                                fdput(f);
-                                return 0;
-                        }
-                }
-no_async:
-                fsync_t = ktime_get();
 		ret = vfs_fsync(f.file, datasync);
 		fdput(f);
-
-                fsync_diff = ktime_sub(ktime_get(), fsync_t);
-                if (ktime_to_ms(fsync_diff) >= 5000) {
-                        pr_info("VFS: %s pid:%d(%s)(parent:%d/%s) takes %lld ms to fsync %s.\n", __func__,
-                                current->pid, current->comm, current->parent->pid, current->parent->comm,
-                                ktime_to_ms(fsync_diff), path);
-                }
 	}
 	return ret;
 }

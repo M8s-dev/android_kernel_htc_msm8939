@@ -48,10 +48,6 @@ static int msm_iommu_parse_bfb_settings(struct platform_device *pdev,
 	u32 nreg, nval;
 	int ret;
 
-	/*
-	 * It is not valid for a device to have the BFB_REG_NODE_NAME
-	 * property but not the BFB_DATA_NODE_NAME property, and vice versa.
-	 */
 	if (!of_get_property(pdev->dev.of_node, BFB_REG_NODE_NAME, &nreg)) {
 		if (of_get_property(pdev->dev.of_node, BFB_DATA_NODE_NAME,
 				    &nval))
@@ -103,7 +99,7 @@ static int __get_bus_vote_client(struct platform_device *pdev,
 	struct msm_bus_scale_pdata *bs_table;
 	const char *dummy;
 
-	/* Check whether bus scaling has been specified for this node */
+	
 	ret = of_property_read_string(pdev->dev.of_node, "qcom,msm-bus,name",
 				      &dummy);
 	if (ret)
@@ -127,11 +123,6 @@ static void __put_bus_vote_client(struct msm_iommu_drvdata *drvdata)
 	drvdata->bus_client = 0;
 }
 
-/*
- * CONFIG_IOMMU_NON_SECURE allows us to override the secure
- * designation of SMMUs in device tree. With this config enabled
- * all SMMUs will be programmed by this driver.
- */
 #ifdef CONFIG_IOMMU_NON_SECURE
 static inline void get_secure_id(struct device_node *node,
 			  struct msm_iommu_drvdata *drvdata)
@@ -223,14 +214,6 @@ static int msm_iommu_parse_dt(struct platform_device *pdev,
 	drvdata->halt_enabled = of_property_read_bool(pdev->dev.of_node,
 						      "qcom,iommu-enable-halt");
 
-	ret = of_platform_populate(pdev->dev.of_node,
-				   msm_iommu_ctx_match_table,
-				   NULL, &pdev->dev);
-	if (ret) {
-		pr_err("Failed to create iommu context device\n");
-		goto fail;
-	}
-
 	msm_iommu_add_drv(drvdata);
 	return 0;
 
@@ -321,6 +304,13 @@ static int msm_iommu_probe(struct platform_device *pdev)
 
 	drvdata->phys_base = r->start;
 
+	if (IS_ENABLED(CONFIG_MSM_IOMMU_VBIF_CHECK)) {
+		drvdata->vbif_base =
+			ioremap(drvdata->phys_base - (phys_addr_t) 0x4000,
+				0x1000);
+		WARN_ON_ONCE(!drvdata->vbif_base);
+	}
+
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 					"smmu_local_base");
 	if (r) {
@@ -350,27 +340,55 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	}
 
 	drvdata->pclk = devm_clk_get(&pdev->dev, "iface_clk");
-	if (IS_ERR(drvdata->pclk))
-		return PTR_ERR(drvdata->pclk);
+	if (IS_ERR(drvdata->pclk)) {
+		ret = PTR_ERR(drvdata->pclk);
+		drvdata->pclk = NULL;
+		goto fail;
+	}
+
+	ret = clk_prepare(drvdata->pclk);
+	if (ret)
+		return ret;
 
 	drvdata->clk = devm_clk_get(&pdev->dev, "core_clk");
-	if (IS_ERR(drvdata->clk))
-		return PTR_ERR(drvdata->clk);
+	if (IS_ERR(drvdata->clk)) {
+		ret = PTR_ERR(drvdata->clk);
+		drvdata->clk = NULL;
+		goto fail;
+	}
+
+	ret = clk_prepare(drvdata->clk);
+	if (ret)
+		goto fail;
 
 	needs_alt_core_clk = of_property_read_bool(pdev->dev.of_node,
 						   "qcom,needs-alt-core-clk");
 	if (needs_alt_core_clk) {
 		drvdata->aclk = devm_clk_get(&pdev->dev, "alt_core_clk");
-		if (IS_ERR(drvdata->aclk))
-			return PTR_ERR(drvdata->aclk);
+		if (IS_ERR(drvdata->aclk)) {
+			ret =  PTR_ERR(drvdata->aclk);
+			drvdata->aclk = NULL;
+			goto fail;
+		}
+
+		ret =  clk_prepare(drvdata->aclk);
+		if (ret)
+			goto fail;
 	}
 
 	needs_alt_iface_clk = of_property_read_bool(pdev->dev.of_node,
 						   "qcom,needs-alt-iface-clk");
 	if (needs_alt_iface_clk) {
 		drvdata->aiclk = devm_clk_get(&pdev->dev, "alt_iface_clk");
-		if (IS_ERR(drvdata->aiclk))
-			return PTR_ERR(drvdata->aiclk);
+		if (IS_ERR(drvdata->aiclk)) {
+			ret = PTR_ERR(drvdata->aiclk);
+			drvdata->aiclk = NULL;
+			goto fail;
+		}
+
+		ret =  clk_prepare(drvdata->aiclk);
+		if (ret)
+			goto fail;
 	}
 
 	if (!of_property_read_u32(pdev->dev.of_node,
@@ -456,7 +474,18 @@ static int msm_iommu_probe(struct platform_device *pdev)
 					global_client_irq, ret);
 	}
 
-	return 0;
+	ret = of_platform_populate(pdev->dev.of_node, msm_iommu_ctx_match_table,
+				   NULL, &pdev->dev);
+fail:
+	if (ret) {
+		clk_unprepare(drvdata->clk);
+		clk_unprepare(drvdata->pclk);
+		clk_unprepare(drvdata->aclk);
+		clk_unprepare(drvdata->aiclk);
+		pr_err("Failed to create iommu context device\n");
+	}
+
+	return ret;
 }
 
 static int msm_iommu_remove(struct platform_device *pdev)
@@ -469,6 +498,10 @@ static int msm_iommu_remove(struct platform_device *pdev)
 	drv = platform_get_drvdata(pdev);
 	if (drv) {
 		__put_bus_vote_client(drv);
+		clk_unprepare(drv->clk);
+		clk_unprepare(drv->pclk);
+		clk_unprepare(drv->aclk);
+		clk_unprepare(drv->aiclk);
 		msm_iommu_remove_drv(drv);
 		platform_set_drvdata(pdev, NULL);
 	}
@@ -527,11 +560,6 @@ static int msm_iommu_ctx_parse_dt(struct platform_device *pdev,
 	if (ret)
 		goto out;
 
-	/* Calculate the context bank number using the base addresses.
-	 * Typically CB0 base address is 0x8000 pages away if the number
-	 * of CBs are <=8. So, assume the offset 0x8000 until mentioned
-	 * explicitely.
-	 */
 	cb_offset = drvdata->cb_base - drvdata->base;
 	ctx_drvdata->num = ((r->start - rp.start - cb_offset)
 					>> CTX_SHIFT);
@@ -539,6 +567,10 @@ static int msm_iommu_ctx_parse_dt(struct platform_device *pdev,
 	if (of_property_read_string(pdev->dev.of_node, "label",
 					&ctx_drvdata->name))
 		ctx_drvdata->name = dev_name(&pdev->dev);
+
+	ctx_drvdata->report_error_on_fault =
+		of_property_read_bool(pdev->dev.of_node,
+				"qcom,report-error-on-fault");
 
 	if (!of_get_property(pdev->dev.of_node, "qcom,iommu-ctx-sids", &nsid)) {
 		ret = -EINVAL;

@@ -45,6 +45,8 @@
 
 #ifdef CONFIG_SMB1360_CHARGER_FG
 #include <linux/power/smb1360-charger-fg.h>
+#elif defined(CONFIG_QPNP_LINEAR_CHARGER)
+#include <linux/qpnp/qpnp-linear-charger.h>
 #endif
 
 int vbus;
@@ -71,6 +73,7 @@ struct cable_detect_info {
 	__u8 accessory_type;
 	int idpin_irq;
 	int id_irq_trigger_type;
+	bool ishost;
 	u8 mfg_usb_carkit_enable;
 	u8 mhl_reset_gpio;
 	bool mhl_version_ctrl_flag;
@@ -472,10 +475,19 @@ static void cable_detect_handler(struct work_struct *w)
 		break;
 #endif
 	case DOCK_STATE_USB_HOST:
+#ifdef CONFIG_QPNP_LINEAR_CHARGER
+		CABLE_INFO("Host mode is not support\n");
+		break;
+#endif
 		CABLE_INFO("USB Host inserted\n");
-		send_usb_host_connect_notify(1);
-		pInfo->accessory_type = DOCK_STATE_USB_HOST;
-		switch_set_state(&dock_switch, DOCK_STATE_USB_HOST);
+		if(!pInfo->ishost) {
+			pInfo->ishost = true;
+			send_usb_host_connect_notify(1);
+			pInfo->accessory_type = DOCK_STATE_USB_HOST;
+			switch_set_state(&dock_switch, DOCK_STATE_USB_HOST);
+		} else {
+			CABLE_INFO("USB Host already inserted\n");
+		}
 		break;
 	case DOCK_STATE_DMB:
 		CABLE_INFO("DMB inserted\n");
@@ -533,6 +545,7 @@ static void cable_detect_handler(struct work_struct *w)
 #endif
 		case DOCK_STATE_USB_HOST:
 			CABLE_INFO("USB host cable removed\n");
+			pInfo->ishost = false;
 			pInfo->accessory_type = DOCK_STATE_UNDOCKED;
 			send_usb_host_connect_notify(0);
 			switch_set_state(&dock_switch, DOCK_STATE_UNDOCKED);
@@ -704,12 +717,16 @@ static irqreturn_t usbid_interrupt(int irq, void *data)
 	struct cable_detect_info *pInfo = (struct cable_detect_info *)data;
 	int irq_trigger_type;
 	disable_irq_nosync(pInfo->idpin_irq);
+
+	CABLE_INFO("usb: id interrupt\n");
+
 	irq_trigger_type = gpio_get_value(pInfo->usb_id_pin_gpio);
 	if (irq_trigger_type == 0)
 		pInfo->id_irq_trigger_type = 0;
 	else
 		pInfo->id_irq_trigger_type = 1;
 	CABLE_INFO("usb: id interrupt,trigger_type=%d\n", pInfo->id_irq_trigger_type);
+
 	pInfo->cable_redetect = 0;
 	queue_delayed_work(pInfo->cable_detect_wq,
 		&pInfo->cable_detect_work, ADC_DELAY);
@@ -1058,6 +1075,8 @@ static int cable_detect_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_SMB1360_CHARGER_FG
                 pdata->is_pwr_src_plugged_in = smb1360_is_pwr_src_plugged_in;
+#elif defined(CONFIG_QPNP_LINEAR_CHARGER)
+		pdata->is_pwr_src_plugged_in = pm8916_is_pwr_src_plugged_in;
 #endif
 
 		if (pdata->is_wireless_charger)
@@ -1107,6 +1126,8 @@ static int cable_detect_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_SMB1360_CHARGER_FG
 		pInfo->is_pwr_src_plugged_in = smb1360_is_pwr_src_plugged_in;
+#elif defined(CONFIG_QPNP_LINEAR_CHARGER)
+		pInfo->is_pwr_src_plugged_in = pm8916_is_pwr_src_plugged_in;
 #endif
 
 #ifdef CONFIG_CABLE_DETECT_ACCESSORY

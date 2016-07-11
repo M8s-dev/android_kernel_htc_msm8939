@@ -19,6 +19,8 @@
 
 #define ATAG_BT_DEBUG
 
+/* configuration tags specific to Bluetooth*/
+//#define ATAG_BLUETOOTH 0x43294329
 #define MAX_BT_SIZE 0x8U
 
 #define CALIBRATION_DATA_PATH "/calibration_data"
@@ -39,7 +41,7 @@ static unsigned char *get_bt_bd_ram(void)
      p_size = 0;
      p_data = NULL;
      if (offset) {
-          
+          /* of_get_property 會回傳property的address，並把長度填入*p_size */
           p_data = (unsigned char*) of_get_property(offset, BT_FLASH_DATA, &p_size);
 #ifdef ATAG_BT_DEBUG
           if (p_data) {
@@ -55,7 +57,7 @@ static unsigned char *get_bt_bd_ram(void)
 	return (bt_bd_ram);
 }
 
-#if 0 
+#if 0 //remove this for hboot3
 static int __init parse_tag_bt(const struct tag *tag)
 {
 	unsigned char *dptr = (unsigned char *)(&tag->u);

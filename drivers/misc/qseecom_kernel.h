@@ -20,10 +20,16 @@
 #define QSEECOM_ALIGN(x)	\
 	((x + QSEECOM_ALIGN_SIZE) & (~QSEECOM_ALIGN_MASK))
 
+/*
+ * struct qseecom_handle -
+ *      Handle to the qseecom device for kernel clients
+ * @sbuf - shared buffer pointer
+ * @sbbuf_len - shared buffer size
+ */
 struct qseecom_handle {
-	void *dev; 
-	unsigned char *sbuf; 
-	uint32_t sbuf_len; 
+	void *dev; /* in/out */
+	unsigned char *sbuf; /* in/out */
+	uint32_t sbuf_len; /* in/out */
 };
 
 int qseecom_start_app(struct qseecom_handle **handle,
@@ -34,4 +40,4 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 int qseecom_set_bandwidth(struct qseecom_handle *handle, bool high);
 int qseecom_crypto_clk_control(bool enable);
 
-#endif 
+#endif /* __QSEECOM_KERNEL_H_ */

@@ -17,6 +17,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/miscdevice.h>
+//#include <linux/earlysuspend.h>
 #include <linux/wakelock.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
@@ -40,12 +41,14 @@
 #define CAMERA_INDEX_FRONT_S5K5E 1
 
 
+//HTC_START
 struct ISP_roi_local{
 	uint16_t width;
 	uint16_t height;
 	uint16_t offsetx;
 	uint16_t offsety;
 };
+//HTC_END
 struct AIT_ISP_ctrl {
 	struct msm_camera_AIT_info *pdata;
 	struct cdev   cdev;
@@ -62,6 +65,8 @@ int AIT_ISP_probe_init(struct device *dev, int cam_index);
 void AIT_ISP_release(void);
 void AIT_ISP_probe_deinit(void);
 int AIT_ISP_open_init(int cam_index);
+//void sensor_power_on(void);
+//void sensor_power_off(void);
 void AIT_ISP_sensor_init(void);
 void AIT_ISP_sensor_set_resolution(int width, int height);
 void AIT_ISP_sensor_start_stream(void);

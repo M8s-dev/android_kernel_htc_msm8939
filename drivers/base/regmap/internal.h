@@ -54,11 +54,11 @@ struct regmap {
 	spinlock_t spinlock;
 	regmap_lock lock;
 	regmap_unlock unlock;
-	void *lock_arg; /* This is passed to lock/unlock functions */
+	void *lock_arg; 
 
-	struct device *dev; /* Device we do I/O on */
-	void *work_buf;     /* Scratch buffer used to format I/O */
-	struct regmap_format format;  /* Buffer format */
+	struct device *dev; 
+	void *work_buf;     
+	struct regmap_format format;  
 	const struct regmap_bus *bus;
 	void *bus_context;
 	const char *name;
@@ -98,28 +98,28 @@ struct regmap {
 	u8 read_flag_mask;
 	u8 write_flag_mask;
 
-	/* number of bits to (left) shift the reg value when formatting*/
+	
 	int reg_shift;
 	int reg_stride;
 
-	/* regcache specific members */
+	
 	const struct regcache_ops *cache_ops;
 	enum regcache_type cache_type;
 
-	/* number of bytes in reg_defaults_raw */
+	
 	unsigned int cache_size_raw;
-	/* number of bytes per word in reg_defaults_raw */
+	
 	unsigned int cache_word_size;
-	/* number of entries in reg_defaults */
+	
 	unsigned int num_reg_defaults;
-	/* number of entries in reg_defaults_raw */
+	
 	unsigned int num_reg_defaults_raw;
 
-	/* if set, only the cache is modified not the HW */
+	
 	u32 cache_only;
-	/* if set, only the HW is modified not the cache */
+	
 	u32 cache_bypass;
-	/* if set, remember to free reg_defaults_raw */
+	
 	bool cache_free;
 
 	struct reg_default *reg_defaults;
@@ -133,11 +133,12 @@ struct regmap {
 	struct reg_default *patch;
 	int patch_regs;
 
-	/* if set, converts bulk rw to single rw */
+	
 	bool use_single_rw;
-
+	
+	bool can_multi_write;
 	struct rb_root range_tree;
-	void *selector_work_buf;	/* Scratch buffer used for selector */
+	void *selector_work_buf;	
 };
 
 struct regcache_ops {
@@ -184,7 +185,6 @@ static inline void regmap_debugfs_init(struct regmap *map, const char *name) { }
 static inline void regmap_debugfs_exit(struct regmap *map) { }
 #endif
 
-/* regcache core declarations */
 int regcache_init(struct regmap *map, const struct regmap_config *config);
 void regcache_exit(struct regmap *map);
 int regcache_read(struct regmap *map,
@@ -221,6 +221,10 @@ static inline bool regcache_reg_present(struct regmap *map, unsigned int reg)
 
 int _regmap_raw_write(struct regmap *map, unsigned int reg,
 		      const void *val, size_t val_len, bool async);
+
+int _regmap_raw_multi_reg_write(struct regmap *map,
+				const struct reg_default *regs,
+				size_t num_regs);
 
 void regmap_async_complete_cb(struct regmap_async *async, int ret);
 

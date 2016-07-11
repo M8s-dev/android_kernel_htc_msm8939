@@ -43,4 +43,4 @@
 #define NCP6951_ID_LDO5			5
 #define NCP6951_ID_DCDC			1
 
-#endif 
+#endif /* _NCP6951_REGULATOR_H_ */

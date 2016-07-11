@@ -3,6 +3,7 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 
+// #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 static struct ramoops_platform_data ramoops_data = {0};
 
@@ -35,7 +36,7 @@ static int __init htc_ramoops_init(void)
 		return -1;
 	}
 
-	
+	/* Get ramoops region start addr and size.  */
 	pnode = of_parse_phandle(node, "linux,contiguous-region", 0);
 	if (pnode != NULL) {
 		const u32 *addr;
@@ -56,7 +57,7 @@ static int __init htc_ramoops_init(void)
 		goto out;
 	}
 
-	
+	/* Get ramoops properties  */
 	ret = of_property_read_u32(node, "record-size", &val);
 	if (ret)
 	{
@@ -82,6 +83,14 @@ static int __init htc_ramoops_init(void)
 	ramoops_data.ftrace_size = val;
 
 	ramoops_data.dump_oops = 1;
+/*
+	if ((ramoops_data.console_size + ramoops_data.ftrace_size) > ramoops_data.mem_size)
+	{
+		pr_err("Ramoops memory region out of size.\n");
+		ret =  -1;
+		goto out;
+	}
+*/
 
 	ret = platform_device_register(&ramoops_dev);
 	if (ret)

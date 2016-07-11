@@ -15,6 +15,7 @@
 
 #include <linux/module.h>
 #include <linux/spi/spi.h>
+//#include <linux/spi/spidev.h>
 
 #define TRUE								1
 #define SUCCESS								1

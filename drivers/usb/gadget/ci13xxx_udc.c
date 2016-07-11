@@ -19,6 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -32,7 +33,9 @@
 
 #include "ci13xxx_udc.h"
 #include <htc/devices_cmdline.h>
+#ifdef CONFIG_HTC_BATT_8960
 #include <linux/power/htc_battery_common.h>
+#endif
 
 #define USB_MAX_TIMEOUT		25 
 #define EP_PRIME_CHECK_DELAY	(jiffies + msecs_to_jiffies(1000))
@@ -261,6 +264,7 @@ static int hw_device_state(u32 dma)
 {
 	struct ci13xxx *udc = _udc;
 	struct usb_gadget *gadget = &udc->gadget;
+	int ret;
 
 	if (dma) {
 		if (gadget->streaming_enabled || !(udc->udc_driver->flags &
@@ -268,12 +272,30 @@ static int hw_device_state(u32 dma)
 			hw_cwrite(CAP_USBMODE, USBMODE_SDIS, 0);
 			pr_debug("%s(): streaming mode is enabled. USBMODE:%x\n",
 				 __func__, hw_cread(CAP_USBMODE, ~0));
+
+			if (udc->system_clk) {
+				ret = clk_set_rate(udc->system_clk, 100000000);
+				if (ret)
+					pr_err("fail to set system_clk: %d\n",
+						ret);
+			}
 		} else {
 			hw_cwrite(CAP_USBMODE, USBMODE_SDIS, USBMODE_SDIS);
 			pr_debug("%s(): streaming mode is disabled. USBMODE:%x\n",
 				__func__, hw_cread(CAP_USBMODE, ~0));
 
+			if (udc->system_clk) {
+				ret = clk_set_rate(udc->system_clk, 80000000);
+				if (ret)
+					pr_err("fail to set system_clk: %d\n",
+						ret);
+			}
+
 		}
+
+		
+		mb();
+
 		hw_cwrite(CAP_ENDPTLISTADDR, ~0, dma);
 
 
@@ -296,6 +318,15 @@ static int hw_device_state(u32 dma)
 			hw_awrite(ABS_AHBMODE, AHB2AHB_BYPASS, 0);
 			pr_debug("%s(): ByPass Mode is disabled. AHBMODE:%x\n",
 					__func__, hw_aread(ABS_AHBMODE, ~0));
+
+		if (udc->system_clk) {
+			ret = clk_set_rate(udc->system_clk, 80000000);
+			if (ret)
+				pr_err("fail to set system_clk ret:%d\n", ret);
+		}
+
+		
+		mb();
 		}
 	}
 	return 0;
@@ -346,6 +377,10 @@ static int hw_ep_flush(int num, int dir)
 					dir ? "IN" : "OUT");
 				debug_ept_flush_info(num, dir);
 				_udc->skip_flush = true;
+				
+				if (_udc->udc_driver->notify_event)
+					_udc->udc_driver->notify_event(_udc,
+						CI13XXX_CONTROLLER_ERROR_EVENT);
 				return 0;
 			}
 		}
@@ -1524,8 +1559,12 @@ out:
 
 static void usb_chg_stop(struct work_struct *w)
 {
+#ifdef CONFIG_HTC_BATT_8960
 	USB_INFO("disable charger\n");
 	htc_battery_pwrsrc_disable();
+#else
+	USB_INFO("no battery api for disable charger\n");
+#endif
 }
 
 static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
@@ -2901,7 +2940,10 @@ static void ep_nuke(struct usb_ep *ep)
 	unsigned long flags;
 
 	spin_lock_irqsave(udc->lock, flags);
-	_ep_nuke(mEp);
+	
+	if ((udc->udc_driver->in_lpm != NULL) && !(udc->udc_driver->in_lpm(udc)))
+		_ep_nuke(mEp);
+	
 	spin_unlock_irqrestore(udc->lock, flags);
 }
 
@@ -2955,9 +2997,25 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 	return 0;
 }
 
+#define VBUS_DRAW_BUF_LEN 10
+#define MAX_OVERRIDE_VBUS_ALLOWED 900	
+static char vbus_draw_mA[VBUS_DRAW_BUF_LEN];
+module_param_string(vbus_draw_mA, vbus_draw_mA, VBUS_DRAW_BUF_LEN,
+			S_IRUGO | S_IWUSR);
+
 static int ci13xxx_vbus_draw(struct usb_gadget *_gadget, unsigned mA)
 {
 	struct ci13xxx *udc = container_of(_gadget, struct ci13xxx, gadget);
+	unsigned int override_mA = 0;
+
+	
+	if ((mA == CONFIG_USB_GADGET_VBUS_DRAW) &&
+		(vbus_draw_mA[0] != '\0')) {
+		if ((!kstrtoint(vbus_draw_mA, 10, &override_mA)) &&
+				(override_mA <= MAX_OVERRIDE_VBUS_ALLOWED)) {
+			mA = override_mA;
+		}
+	}
 
 	if (udc->transceiver)
 		return usb_phy_set_power(udc->transceiver, mA);
@@ -3152,8 +3210,7 @@ static irqreturn_t udc_irq(void)
 
 	spin_lock(udc->lock);
 
-	if ((udc->udc_driver->flags & CI13XXX_PULLUP_ON_VBUS) &&
-				!udc->vbus_active) {
+	if (udc->udc_driver->in_lpm && udc->udc_driver->in_lpm(udc)) {
 		spin_unlock(udc->lock);
 		return IRQ_NONE;
 	}
@@ -3173,7 +3230,7 @@ static irqreturn_t udc_irq(void)
 
 		
 		if (USBi_URI & intr) {
-			USB_INFO("reset\n");
+			USB_INFO("%s : reset\n",__func__);
 			isr_statistics.uri++;
 			if (!hw_cread(CAP_PORTSC, PORTSC_PR))
 				pr_info("%s: USB reset interrupt is delayed\n",
@@ -3327,8 +3384,10 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 	udc->gadget.ep0 = &udc->ep0in.ep;
 
 	pdata = dev->platform_data;
-	if (pdata)
+	if (pdata) {
 		udc->gadget.usb_core_id = pdata->usb_core_id;
+		udc->system_clk = pdata->system_clk;
+	}
 
 	if (udc->udc_driver->flags & CI13XXX_REQUIRE_TRANSCEIVER) {
 		udc->transceiver = usb_get_phy(USB_PHY_TYPE_USB2);

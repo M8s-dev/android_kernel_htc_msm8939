@@ -23,6 +23,7 @@
 #include <linux/vmalloc.h>
 #include <linux/mm.h>
 #include <linux/types.h>
+#include <linux/compat.h>
 
 #include <soc/qcom/scm.h>
 #include <soc/qcom/smd.h>
@@ -70,6 +71,15 @@ typedef struct _htc_sdservice_msg_s{
 	unsigned char *resp_buf;
 	int resp_len;
 } htc_sdservice_msg_s;
+
+typedef struct _compat_htc_sdservice_msg_s{
+	compat_int_t func;
+	compat_int_t offset;
+	compat_uptr_t req_buf;
+	compat_int_t req_len;
+	compat_uptr_t resp_buf;
+	compat_int_t resp_len;
+} compat_htc_sdservice_msg_t;
 
 typedef struct {
 	struct {
@@ -185,19 +195,130 @@ static long htc_sdservice_ioctl(struct file *file, unsigned int command, unsigne
 	return ret;
 }
 
+static int compat_get_htc_sdservice_msg (
+		compat_htc_sdservice_msg_t __user *data32,
+		htc_sdservice_msg_s __user *data)
+{
+	compat_int_t func;
+	compat_int_t offset;
+	compat_uptr_t req_buf;
+	compat_int_t req_len;
+	compat_uptr_t resp_buf;
+	compat_int_t resp_len;
+	int err = 0;
+
+	PDEBUG("Entry");
+	err |= get_user(func, &data32->func);
+	err |= put_user(func, &data->func);
+
+	err |= get_user(offset, &data32->offset);
+	err |= put_user(offset, &data->offset);
+
+	err |= get_user(req_buf, &data32->req_buf);
+	data->req_buf = 0;
+	err |= put_user(req_buf, (compat_uptr_t *)&data->req_buf);
+
+	err |= get_user(req_len, &data32->req_len);
+	err |= put_user(req_len, &data->req_len);
+
+	err |= get_user(resp_buf, &data32->resp_buf);
+	data->resp_buf = 0;
+	err |= put_user(resp_buf, (compat_uptr_t *)&data->resp_buf);
+
+	err |= get_user(resp_len, &data32->resp_len);
+	err |= put_user(resp_len, &data->resp_len);
+
+	PDEBUG("err: %d", err);
+	return err;
+}
+
+static int compat_put_htc_sdservice_msg (
+		compat_htc_sdservice_msg_t __user *data32,
+		htc_sdservice_msg_s __user *data)
+{
+	compat_int_t func;
+	compat_int_t offset;
+	compat_uptr_t req_buf;
+	compat_int_t req_len;
+	compat_uptr_t resp_buf;
+	compat_int_t resp_len;
+	int err = 0;
+
+	PDEBUG("Entry");
+	err |= get_user(func, &data->func);
+	err |= put_user(func, &data32->func);
+
+	err |= get_user(offset, &data->offset);
+	err |= put_user(offset, &data32->offset);
+
+	err |= get_user(req_buf, (compat_uptr_t *)&data->req_buf);
+	data32->req_buf = 0;
+	err |= put_user(req_buf, &data32->req_buf);
+
+	err |= get_user(req_len, &data->req_len);
+	err |= put_user(req_len, &data32->req_len);
+
+	err |= get_user(resp_buf, (compat_uptr_t *)&data->resp_buf);
+	data32->resp_buf = 0;
+	err |= put_user(resp_buf, &data32->resp_buf);
+
+	err |= get_user(resp_len, &data->resp_len);
+	err |= put_user(resp_len, &data32->resp_len);
+
+	PDEBUG("err: %d", err);
+	return err;
+}
+
+static long compat_htc_sdservice_ioctl(struct file *file, unsigned int command, unsigned long arg)
+{
+	compat_htc_sdservice_msg_t __user *compat_hmsg_32;
+	htc_sdservice_msg_s __user *hmsg;
+	int ret = 0;
+	int err = 0;
+
+	PDEBUG("command = %x", command);
+	switch (command) {
+	case HTC_IOCTL_SDSERVICE:
+		compat_hmsg_32 = compat_ptr(arg);
+		hmsg = compat_alloc_user_space(sizeof(*hmsg));
+
+		
+		err = compat_get_htc_sdservice_msg(compat_hmsg_32, hmsg);
+		if (err)
+			return err;
+
+		ret = htc_sdservice_ioctl(file, command, (unsigned long)hmsg);
+
+		
+		err = compat_put_htc_sdservice_msg(compat_hmsg_32, hmsg);
+
+		return ret ? ret : err;
+
+	default:
+		break;
+
+	}
+
+	return ret ? ret : err;
+}
 
 static int htc_sdservice_open(struct inode *inode, struct file *filp)
 {
+	PDEBUG("Open htc_sdservice success");
 	return 0;
 }
 
 static int htc_sdservice_release(struct inode *inode, struct file *filp)
 {
+	PDEBUG("Release htc_sdservice success");
 	return 0;
 }
 
 static const struct file_operations htc_sdservice_fops = {
 	.unlocked_ioctl = htc_sdservice_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = compat_htc_sdservice_ioctl,
+#endif
 	.open = htc_sdservice_open,
 	.release = htc_sdservice_release,
 	.owner = THIS_MODULE,

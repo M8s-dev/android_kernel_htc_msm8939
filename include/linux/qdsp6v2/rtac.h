@@ -14,7 +14,6 @@
 #ifndef __RTAC_H__
 #define __RTAC_H__
 
-/* Voice Modes */
 #define RTAC_CVP		0
 #define RTAC_CVS		1
 #define RTAC_VOICE_MODES	2
@@ -45,7 +44,8 @@ struct rtac_cal_block_data {
 	struct rtac_cal_data		cal_data;
 };
 
-void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id);
+void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id,
+			u32 app_type, u32 acdb_dev_id);
 void rtac_remove_adm_device(u32 port_id, u32 copp_id);
 void rtac_remove_popp_from_adm_devices(u32 popp_id);
 void rtac_add_voice(u32 cvs_handle, u32 cvp_handle, u32 rx_afe_port,

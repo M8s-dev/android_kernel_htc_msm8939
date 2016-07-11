@@ -303,8 +303,6 @@ void htc_m8ql_panel_reset(struct mdss_panel_data *pdata, int enable)
 	PR_DISP_INFO("%s: enable = %d done\n", __func__, enable);
 }
 
-extern void set_screen_status(bool onoff);
-
 static int htc_m8ql_panel_power_on(struct mdss_panel_data *pdata, int enable)
 {
 	int ret;
@@ -346,7 +344,6 @@ static int htc_m8ql_panel_power_on(struct mdss_panel_data *pdata, int enable)
 			return ret;
 		}
 		gpio_set_value(pwrdata->lcm_bl_en, 1);
-		set_screen_status(true);
 	} else {
 		gpio_set_value(pwrdata->lcm_bl_en, 0);
 		
@@ -362,11 +359,9 @@ static int htc_m8ql_panel_power_on(struct mdss_panel_data *pdata, int enable)
 				__func__);
 			return ret;
 		}
-		set_screen_status(false);
 
 	}
 	PR_DISP_INFO("%s: en=%d done\n", __func__, enable);
-
 
 	return 0;
 }

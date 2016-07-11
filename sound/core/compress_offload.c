@@ -379,7 +379,7 @@ static unsigned int snd_compr_poll(struct file *f, poll_table *wait)
 	case SNDRV_PCM_STATE_RUNNING:
 	case SNDRV_PCM_STATE_PREPARED:
 	case SNDRV_PCM_STATE_PAUSED:
-		if (avail >= stream->runtime->fragment_size && (avail % stream->runtime->fragment_size == 0))
+		if (avail >= stream->runtime->fragment_size)
 			retval = snd_compr_get_poll(stream);
 		break;
 	default:
@@ -713,6 +713,27 @@ static int snd_compr_partial_drain(struct snd_compr_stream *stream)
 	return retval;
 }
 
+static int snd_compr_set_next_track_param(struct snd_compr_stream *stream,
+		unsigned long arg)
+{
+	union snd_codec_options codec_options;
+	int retval;
+
+	
+	if (stream->runtime->state != SNDRV_PCM_STATE_SETUP &&
+			stream->runtime->state != SNDRV_PCM_STATE_RUNNING)
+		return -EPERM;
+
+	if (copy_from_user(&codec_options, (void __user *)arg,
+				sizeof(codec_options)))
+		return -EFAULT;
+
+	retval = stream->ops->set_next_track_param(stream, &codec_options);
+	if (retval != 0)
+		return retval;
+	return 0;
+}
+
 static int snd_compress_simple_ioctls(struct file *file,
 				struct snd_compr_stream *stream,
 				unsigned int cmd, unsigned long arg)
@@ -851,6 +872,10 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	case _IOC_NR(SNDRV_COMPRESS_NEXT_TRACK):
 		retval = snd_compr_next_track(stream);
 		break;
+
+	case _IOC_NR(SNDRV_COMPRESS_SET_NEXT_TRACK_PARAM):
+		retval = snd_compr_set_next_track_param(stream, arg);
+		break;
 	case _IOC_NR(SNDRV_COMPRESS_ENABLE_EFFECT):
 		retval = snd_compr_effect(stream, arg);
 		break;
@@ -886,7 +911,7 @@ static int snd_compress_dev_register(struct snd_device *device)
 		return -EBADFD;
 	compr = device->device_data;
 
-	snprintf(str, 16, "comprC%iD%i", compr->card->number, compr->device);
+	snprintf(str, sizeof(str), "comprC%iD%i", compr->card->number, compr->device); 
 	pr_debug("reg %s for device %s, direction %d\n", str, compr->name,
 			compr->direction);
 	

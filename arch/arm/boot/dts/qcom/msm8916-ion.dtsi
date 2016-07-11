@@ -37,7 +37,7 @@
 		qcom,ion-heap@27 { /* QSEECOM HEAP */
 			compatible = "qcom,msm-ion-reserve";
 			reg = <27>;
-			linux,contiguous-region = <&venus_qseecom_mem>;
+			linux,contiguous-region = <&qseecom_mem>;
 			qcom,ion-heap-type = "DMA";
 		};
 
@@ -61,5 +61,13 @@
 			linux,contiguous-region = <&modem_adsp_mem>;
 			qcom,ion-heap-type = "DMA";
 		};
+ 
+        qcom,ion-heap@13 { /* FBMEM HEAP */
+            compatible = "qcom,msm-ion-reserve";
+            reg = <13>;
+            qcom,heap-align = <0x1000>;
+            /*qcom,memory-fixed = <0x8d800000 0x1000000>;*/
+            qcom,ion-heap-type = "CARVEOUT";
+        };
 	};
 };

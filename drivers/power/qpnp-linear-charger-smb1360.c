@@ -29,12 +29,14 @@
 #define LBC_MASK(MSB_BIT, LSB_BIT) \
 	CREATE_MASK(MSB_BIT - LSB_BIT + 1, LSB_BIT)
 
+/* Interrupt offsets */
 #define INT_RT_STS_REG				0x10
 #define FAST_CHG_ON_IRQ                         BIT(5)
 #define OVERTEMP_ON_IRQ				BIT(4)
 #define BAT_TEMP_OK_IRQ                         BIT(1)
 #define BATT_PRES_IRQ                           BIT(0)
 
+/* USB CHARGER PATH peripheral register offsets */
 #define USB_PTH_STS_REG				0x09
 #define USB_IN_VALID_MASK			LBC_MASK(7, 6)
 #define USB_INT_RT_STS				0x10
@@ -44,6 +46,7 @@
 #define USB_ENUM_TIMER_STOP_REG		0x4E
 #define USB_ENUM_TIMER_REG			0x4F
 
+/* CHARGER peripheral register offset */
 #define CHG_OPTION_REG				0x08
 #define CHG_OPTION_MASK				BIT(7)
 #define CHG_STATUS_REG				0x09
@@ -76,6 +79,7 @@
 #define OVERRIDE_0				0x2
 #define OVERRIDE_NONE				0x0
 
+/* BATTIF peripheral register offset */
 #define BAT_IF_PRES_STATUS_REG			0x08
 #define BATT_PRES_MASK				BIT(7)
 #define BAT_IF_TEMP_STATUS_REG			0x09
@@ -96,6 +100,7 @@
 #define BTC_COLD_MASK				BIT(1)
 #define BTC_HOT_MASK				BIT(0)
 
+/* MISC peripheral register offset */
 #define MISC_REV2_REG				0x01
 #define MISC_BOOT_DONE_REG			0x42
 #define MISC_BOOT_DONE				BIT(7)
@@ -107,6 +112,7 @@
 #define PERP_SUBTYPE_REG			0x05
 #define SEC_ACCESS                              0xD0
 
+/* Linear peripheral subtype values */
 #define LBC_CHGR_SUBTYPE			0x15
 #define LBC_BAT_IF_SUBTYPE			0x16
 #define LBC_USB_PTH_SUBTYPE			0x17
@@ -114,10 +120,12 @@
 
 #define QPNP_CHG_I_MAX_MIN_90                   90
 
+/* Feature flags */
 #define VDD_TRIM_SUPPORTED			BIT(0)
 
 #define QPNP_CHARGER_DEV_NAME	"qcom,qpnp-linear-charger"
 
+/* usb_interrupts */
 
 struct qpnp_lbc_irq {
 	int		irq;
@@ -209,6 +217,11 @@ struct vddtrim_map {
 	int			trim_val;
 };
 
+/*
+ * VDDTRIM is a 3 bit value which is split across two
+ * register TRIM3(bit 5:4)	-> VDDTRIM bit(2:1)
+ * register TRIM4(bit 4)	-> VDDTRIM bit(0)
+ */
 #define TRIM_CENTER			4
 #define MAX_VDD_EA_TRIM_CFG		8
 #define VDD_TRIM3_MASK			LBC_MASK(2, 1)
@@ -217,6 +230,10 @@ struct vddtrim_map {
 #define VDD_TRIM4_SHIFT			4
 #define AVG(VAL1, VAL2)			((VAL1 + VAL2) / 2)
 
+/*
+ * VDDTRIM table containing map of trim voltage and
+ * corresponding trim value.
+ */
 struct vddtrim_map vddtrim_map[] = {
 	{36700,		0x00},
 	{28000,		0x01},
@@ -228,6 +245,73 @@ struct vddtrim_map vddtrim_map[] = {
 	{-25440,	0x07},
 };
 
+/*
+ * struct qpnp_lbc_chip - device information
+ * @dev:			device pointer to access the parent
+ * @spmi:			spmi pointer to access spmi information
+ * @chgr_base:			charger peripheral base address
+ * @bat_if_base:		battery interface  peripheral base address
+ * @usb_chgpth_base:		USB charge path peripheral base address
+ * @misc_base:			misc peripheral base address
+ * @bat_is_cool:		indicates that battery is cool
+ * @bat_is_warm:		indicates that battery is warm
+ * @chg_done:			indicates that charging is completed
+ * @usb_present:		present status of USB
+ * @batt_present:		present status of battery
+ * @cfg_charging_disabled:	disable drawing current from USB.
+ * @cfg_use_fake_battery:	flag to report default battery properties
+ * @fastchg_on:			indicate charger in fast charge mode
+ * @cfg_btc_disabled:		flag to disable btc (disables hot and cold
+ *				irqs)
+ * @cfg_max_voltage_mv:		the max volts the batt should be charged up to
+ * @cfg_min_voltage_mv:		VIN_MIN configuration
+ * @cfg_batt_weak_voltage_uv:	weak battery voltage threshold
+ * @cfg_warm_bat_chg_ma:	warm battery maximum charge current in mA
+ * @cfg_cool_bat_chg_ma:	cool battery maximum charge current in mA
+ * @cfg_safe_voltage_mv:	safe voltage to which battery can charge
+ * @cfg_warm_bat_mv:		warm temperature battery target voltage
+ * @cfg_warm_bat_mv:		warm temperature battery target voltage
+ * @cfg_cool_bat_mv:		cool temperature battery target voltage
+ * @cfg_soc_resume_limit:	SOC at which battery resumes charging
+ * @cfg_float_charge:		enable float charging
+ * @charger_disabled:		maintain USB path state.
+ * @cfg_charger_detect_eoc:	charger can detect end of charging
+ * @cfg_disable_vbatdet_based_recharge:	keep VBATDET comparator overriden to
+ *				low and VBATDET irq disabled.
+ * @cfg_safe_current:		battery safety current setting
+ * @cfg_hot_batt_p:		hot battery threshold setting
+ * @cfg_cold_batt_p:		eold battery threshold setting
+ * @cfg_warm_bat_decidegc:	warm battery temperature in degree Celsius
+ * @cfg_cool_bat_decidegc:	cool battery temperature in degree Celsius
+ * @fake_battery_soc:		SOC value to be reported to userspace
+ * @cfg_tchg_mins:		maximum allowed software initiated charge time
+ * @chg_failed_count:		counter to maintained number of times charging
+ *				failed
+ * @cfg_disable_follow_on_reset	charger ignore PMIC reset signal
+ * @cfg_bpd_detection:		battery present detection mechanism selection
+ * @cfg_thermal_levels:		amount of thermal mitigation levels
+ * @cfg_thermal_mitigation:	thermal mitigation level values
+ * @therm_lvl_sel:		thermal mitigation level selection
+ * @jeita_configure_lock:	lock to serialize jeita configuration request
+ * @hw_access_lock:		lock to serialize access to charger registers
+ * @ibat_change_lock:		lock to serialize ibat change requests from
+ *				USB and thermal.
+ * @irq_lock			lock to serialize enabling/disabling of irq
+ * @supported_feature_flag	bitmask for all supported features
+ * @vddtrim_alarm		alarm to schedule trim work at regular
+ *				interval
+ * @vddtrim_work		work to perform actual vddmax trimming
+ * @init_trim_uv		initial trim voltage at bootup
+ * @delta_vddmax_uv		current vddmax trim voltage
+ * @chg_enable_lock:		lock to serialize charging enable/disable for
+ *				SOC based resume charging
+ * @usb_psy:			power supply to export information to
+ *				userspace
+ * @bms_psy:			power supply to export information to
+ *				userspace
+ * @batt_psy:			power supply to export information to
+ *				userspace
+ */
 struct qpnp_lbc_chip {
 	struct device			*dev;
 	struct spmi_device		*spmi;
@@ -603,7 +687,7 @@ static int qpnp_lbc_bat_if_configure_btc(struct qpnp_lbc_chip *chip)
 {
 	u8 btc_cfg = 0, mask = 0, rc;
 
-	
+	/* Do nothing if battery peripheral not present */
 	if (!chip->bat_if_base)
 		return 0;
 
@@ -625,9 +709,9 @@ static int qpnp_lbc_bat_if_configure_btc(struct qpnp_lbc_chip *chip)
 		btc_cfg |= BTC_COMP_EN_MASK;
 	}
 #else
-	
+	/* Diable or enable temperature protection by kernel flag */
 	if (chip->cfg_btc_disabled) {
-		
+		/* Disable temp protect */
 		mask |= BTC_COMP_EN_MASK;
 	} else {
 		mask |= BTC_COMP_EN_MASK;
@@ -716,7 +800,7 @@ static int qpnp_lbc_vddmax_set(struct qpnp_lbc_chip *chip, int voltage)
 		goto out;
 	}
 
-	
+	/* Update trim value */
 	if (chip->supported_feature_flag & VDD_TRIM_SUPPORTED) {
 		trim_val = qpnp_lbc_get_trim_val(chip);
 		reg_val = (trim_val & VDD_TRIM3_MASK) << VDD_TRIM3_SHIFT;
@@ -779,6 +863,10 @@ static void qpnp_lbc_adjust_vddmax(struct qpnp_lbc_chip *chip, int vbat_uv)
 	prev_delta_uv =  chip->delta_vddmax_uv;
 	delta_uv = (int)(chip->cfg_max_voltage_mv * 1000) - vbat_uv;
 
+	/*
+	 * If delta_uv is positive, apply trim if delta_uv > 13mv
+	 * If delta_uv is negative always apply trim.
+	 */
 	if (delta_uv > 0 && delta_uv < QPNP_LBC_MIN_DELTA_UV) {
 		pr_debug("vbat is not low enough to increase vdd\n");
 		return;
@@ -848,6 +936,10 @@ static int qpnp_lbc_ibatsafe_set(struct qpnp_lbc_chip *chip, int safe_current)
 
 #define QPNP_LBC_IBATMAX_MIN	90
 #define QPNP_LBC_IBATMAX_MAX	1440
+/*
+ * Set maximum current limit from charger
+ * ibat =  System current + charging current
+ */
 static int qpnp_lbc_ibatmax_set(struct qpnp_lbc_chip *chip, int chg_current)
 {
 	u8 reg_val;
@@ -886,7 +978,7 @@ static int qpnp_lbc_tchg_max_set(struct qpnp_lbc_chip *chip, int minutes)
 
 	minutes = clamp(minutes, QPNP_LBC_TCHG_MIN, QPNP_LBC_TCHG_MAX);
 
-	
+	/* Disable timer */
 	rc = qpnp_lbc_masked_write(chip, chip->chgr_base + CHG_TCHG_MAX_EN_REG,
 						CHG_TCHG_MAX_EN_BIT, 0);
 	if (rc) {
@@ -906,7 +998,7 @@ static int qpnp_lbc_tchg_max_set(struct qpnp_lbc_chip *chip, int minutes)
 		return rc;
 	}
 
-	
+	/* Enable timer */
 	rc = qpnp_lbc_masked_write(chip, chip->chgr_base + CHG_TCHG_MAX_EN_REG,
 				CHG_TCHG_MAX_EN_BIT, CHG_TCHG_MAX_EN_BIT);
 	if (rc) {
@@ -1088,7 +1180,7 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 		battery_status = get_prop_batt_status(chip);
 		charger_in = qpnp_lbc_is_usb_chg_plugged_in(chip);
 
-		
+		/* reset chg_done flag if capacity not 100% */
 		if (ret.intval < 100 && chip->chg_done) {
 			chip->chg_done = false;
 			power_supply_changed(&chip->batt_psy);
@@ -1118,6 +1210,10 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 							DEFAULT_CAPACITY);
 	}
 
+	/*
+	 * Return default capacity to avoid userspace
+	 * from shutting down unecessarily
+	 */
 	return DEFAULT_CAPACITY;
 }
 
@@ -1178,7 +1274,7 @@ static void qpnp_batt_external_power_changed(struct power_supply *psy)
 		if (current_ma == chip->prev_max_ma)
 			goto skip_current_config;
 
-		
+		/* Disable charger in case of reset or suspend event */
 		if (current_ma <= 2 && !chip->cfg_use_fake_battery
 				&& get_prop_batt_present(chip)) {
 			qpnp_lbc_charger_enable(chip, CURRENT, 0);
@@ -1227,7 +1323,7 @@ static int qpnp_lbc_system_temp_level_set(struct qpnp_lbc_chip *chip,
 	prev_therm_lvl = chip->therm_lvl_sel;
 	chip->therm_lvl_sel = lvl_sel;
 	if (chip->therm_lvl_sel == (chip->cfg_thermal_levels - 1)) {
-		
+		/* Disable charging if highest value selected by */
 		rc = qpnp_lbc_charger_enable(chip, THERMAL, 0);
 		if (rc < 0)
 			dev_err(chip->dev,
@@ -1238,6 +1334,10 @@ static int qpnp_lbc_system_temp_level_set(struct qpnp_lbc_chip *chip,
 	qpnp_lbc_set_appropriate_current(chip);
 
 	if (prev_therm_lvl == chip->cfg_thermal_levels - 1) {
+		/*
+		 * If previously highest value was selected charging must have
+		 * been disabed. Enable charging.
+		 */
 		rc = qpnp_lbc_charger_enable(chip, THERMAL, 1);
 		if (rc < 0) {
 			dev_err(chip->dev,
@@ -1333,6 +1433,29 @@ static int qpnp_batt_property_is_writeable(struct power_supply *psy,
 	return 0;
 }
 
+/*
+ * End of charge happens only when BMS reports the battery status as full. For
+ * charging to end the s/w must put the usb path in suspend. Note that there
+ * is no battery fet and usb path suspend is the only control to prevent any
+ * current going in to the battery (and the system)
+ * Charging can begin only when VBATDET comparator outputs 0. This indicates
+ * that the battery is a at a lower voltage than 4% of the vddmax value.
+ * S/W can override this comparator to output a favourable value - this is
+ * used while resuming charging when the battery hasnt fallen below 4% but
+ * the SOC has fallen below the resume threshold.
+ *
+ * In short, when SOC resume happens:
+ * a. overide the comparator to output 0
+ * b. enable charging
+ *
+ * When vbatdet based resume happens:
+ * a. enable charging
+ *
+ * When end of charge happens:
+ * a. disable the overrides in the comparator
+ *    (may be from a previous soc resume)
+ * b. disable charging
+ */
 static int qpnp_batt_power_set_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				const union power_supply_propval *val)
@@ -1347,7 +1470,7 @@ static int qpnp_batt_power_set_property(struct power_supply *psy,
 				!chip->cfg_float_charge) {
 			mutex_lock(&chip->chg_enable_lock);
 
-			
+			/* Disable charging */
 			rc = qpnp_lbc_charger_enable(chip, SOC, 0);
 			if (rc)
 				pr_err("Failed to disable charging rc=%d\n",
@@ -1355,8 +1478,13 @@ static int qpnp_batt_power_set_property(struct power_supply *psy,
 			else
 				chip->chg_done = true;
 
+			/*
+			 * Enable VBAT_DET based charging:
+			 * To enable charging when VBAT falls below VBAT_DET
+			 * and device stays suspended after EOC.
+			 */
 			if (!chip->cfg_disable_vbatdet_based_recharge) {
-				
+				/* No override for VBAT_DET_LO comp */
 				rc = qpnp_lbc_vbatdet_override(chip,
 							OVERRIDE_NONE);
 				if (rc)
@@ -1477,7 +1605,7 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 
 	if (state == ADC_TM_WARM_STATE) {
 		if (temp >= chip->cfg_warm_bat_decidegc) {
-			
+			/* Normal to warm */
 			bat_warm = true;
 			bat_cool = false;
 			chip->adc_param.low_temp =
@@ -1487,7 +1615,7 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 				ADC_TM_COOL_THR_ENABLE;
 		} else if (temp >=
 			chip->cfg_cool_bat_decidegc + HYSTERISIS_DECIDEGC) {
-			
+			/* Cool to normal */
 			bat_warm = false;
 			bat_cool = false;
 
@@ -1500,7 +1628,7 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 		}
 	} else {
 		if (temp <= chip->cfg_cool_bat_decidegc) {
-			
+			/* Normal to cool */
 			bat_warm = false;
 			bat_cool = true;
 			chip->adc_param.high_temp =
@@ -1510,7 +1638,7 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 					ADC_TM_WARM_THR_ENABLE;
 		} else if (temp <= (chip->cfg_warm_bat_decidegc -
 					HYSTERISIS_DECIDEGC)){
-			
+			/* Warm to normal */
 			bat_warm = false;
 			bat_cool = false;
 
@@ -1581,12 +1709,21 @@ static int qpnp_lbc_chg_init(struct qpnp_lbc_chip *chip)
 	}
 #endif
 
+	/*
+	 * Override VBAT_DET comparator to enable charging
+	 * irrespective of VBAT above VBAT_DET.
+	 */
 	rc = qpnp_lbc_vbatdet_override(chip, OVERRIDE_0);
 	if (rc) {
 		pr_err("Failed to override comp rc=%d\n", rc);
 		return rc;
 	}
 
+	/*
+	 * Disable iterm comparator of linear charger to disable charger
+	 * detecting end of charge condition based on DT configuration
+	 * and float charge configuration.
+	 */
 	if (!chip->cfg_charger_detect_eoc || chip->cfg_float_charge) {
 		rc = qpnp_lbc_masked_write(chip,
 				chip->chgr_base + CHG_IBATTERM_EN_REG,
@@ -1597,7 +1734,7 @@ static int qpnp_lbc_chg_init(struct qpnp_lbc_chip *chip)
 		}
 	}
 
-	
+	/* Disable charger watchdog */
 	reg_val = 0;
 	rc = qpnp_lbc_write(chip, chip->chgr_base + CHG_WDOG_EN_REG,
 				&reg_val, 1);
@@ -1611,7 +1748,7 @@ static int qpnp_lbc_bat_if_init(struct qpnp_lbc_chip *chip)
 	u8 reg_val;
 	int rc;
 
-	
+	/* Select battery presence detection */
 	switch (chip->cfg_bpd_detection) {
 	case BPD_TYPE_BAT_THM:
 		reg_val = BATT_THM_EN;
@@ -1635,7 +1772,7 @@ static int qpnp_lbc_bat_if_init(struct qpnp_lbc_chip *chip)
 		return rc;
 	}
 
-	
+	/* Force on VREF_BAT_THM */
 	reg_val = VREF_BATT_THERM_FORCE_ON;
 	rc = qpnp_lbc_write(chip,
 			chip->bat_if_base + BAT_IF_VREF_BAT_THM_CTRL_REG,
@@ -1669,6 +1806,10 @@ static int qpnp_lbc_usb_path_init(struct qpnp_lbc_chip *chip)
 		if (rc)
 			pr_err("Failed to disable charging rc=%d\n", rc);
 	} else {
+		/*
+		 * Enable charging explictly,
+		 * because not sure the default behavior.
+		 */
 		reg_val = CHG_ENABLE;
 		rc = qpnp_lbc_masked_write(chip, chip->chgr_base + CHG_CTRL_REG,
 					CHG_EN_MASK, reg_val);
@@ -1686,7 +1827,7 @@ static int qpnp_lbc_misc_init(struct qpnp_lbc_chip *chip)
 	int rc;
 	u8 reg_val, reg_val1, trim_center;
 
-	
+	/* Check if this LBC MISC version supports VDD trimming */
 	rc = qpnp_lbc_read(chip, chip->misc_base + MISC_REV2_REG,
 			&reg_val, 1);
 	if (rc) {
@@ -1696,7 +1837,7 @@ static int qpnp_lbc_misc_init(struct qpnp_lbc_chip *chip)
 
 	if (reg_val >= LBC_MISC_DIG_VERSION_1) {
 		chip->supported_feature_flag |= VDD_TRIM_SUPPORTED;
-		
+		/* Read initial VDD trim value */
 		rc = qpnp_lbc_read(chip, chip->misc_base + MISC_TRIM3_REG,
 				&reg_val, 1);
 		if (rc) {
@@ -1789,6 +1930,10 @@ chip->cfg_safe_current = 990;
 		}
 	}
 
+	/*
+	 * Look up JEITA compliance parameters if cool and warm temp
+	 * provided
+	 */
 	if (chip->cfg_cool_bat_decidegc || chip->cfg_warm_bat_decidegc) {
 		chip->adc_tm_dev = qpnp_get_adc_tm(chip->dev, "chg");
 		if (IS_ERR(chip->adc_tm_dev)) {
@@ -1810,43 +1955,44 @@ chip->cfg_safe_current = 990;
 		}
 	}
 
-	
+	/* Get the btc-disabled property */
 	chip->cfg_btc_disabled = of_property_read_bool(
 			chip->spmi->dev.of_node, "qcom,btc-disabled");
 
+// only for quick porting code
 chip->cfg_btc_disabled = true;
 
-	
+	/* Get the charging-disabled property */
 	chip->cfg_charging_disabled =
 		of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,charging-disabled");
 chip->cfg_charging_disabled = false;
 
-	
+	/* Get the fake-batt-values property */
 	chip->cfg_use_fake_battery =
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,use-default-batt-values");
 
-	
+	/* Get peripheral reset configuration property */
 	chip->cfg_disable_follow_on_reset =
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,disable-follow-on-reset");
 
-	
+	/* Get the float charging property */
 	chip->cfg_float_charge =
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,float-charge");
 
-	
+	/* Get the charger EOC detect property */
 	chip->cfg_charger_detect_eoc =
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,charger-detect-eoc");
 
-	
+	/* Get the vbatdet disable property */
 	chip->cfg_disable_vbatdet_based_recharge =
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,disable-vbatdet-based-recharge");
-	
+	/* Disable charging when faking battery values */
 	if (chip->cfg_use_fake_battery)
 		chip->cfg_charging_disabled = true;
 
@@ -1899,9 +2045,18 @@ static irqreturn_t qpnp_lbc_usbin_valid_irq_handler(int irq, void *_chip)
 			spin_unlock_irqrestore(&chip->ibat_change_lock,
 								flags);
 		} else {
+			/*
+			 * Override VBAT_DET comparator to start charging
+			 * even if VBAT > VBAT_DET.
+			 */
 			if (!chip->cfg_disable_vbatdet_based_recharge)
 				qpnp_lbc_vbatdet_override(chip, OVERRIDE_0);
 
+			/*
+			 * Enable SOC based charging to make sure
+			 * charging gets enabled on USB insertion
+			 * irrespective of battery SOC above resume_soc.
+			 */
 			qpnp_lbc_charger_enable(chip, SOC, 1);
 		}
 
@@ -2026,6 +2181,10 @@ static irqreturn_t qpnp_lbc_fastchg_irq_handler(int irq, void *_chip)
 			mutex_lock(&chip->chg_enable_lock);
 			chip->chg_done = false;
 			mutex_unlock(&chip->chg_enable_lock);
+			/*
+			 * Start alarm timer to periodically calculate
+			 * and update VDD_MAX trim value.
+			 */
 			if (chip->supported_feature_flag &
 						VDD_TRIM_SUPPORTED) {
 				kt = ns_to_ktime(TRIM_PERIOD_NS);
@@ -2063,10 +2222,22 @@ static irqreturn_t qpnp_lbc_vbatdet_lo_irq_handler(int irq, void *_chip)
 
 	pr_debug("vbatdet-lo triggered\n");
 
+	/*
+	 * Disable vbatdet irq to prevent interrupt storm when VBAT is
+	 * close to VBAT_DET.
+	 */
 	qpnp_lbc_disable_irq(chip, &chip->irqs[CHG_VBAT_DET_LO]);
 
+	/*
+	 * Override VBAT_DET comparator to 0 to fix comparator toggling
+	 * near VBAT_DET threshold.
+	 */
 	qpnp_lbc_vbatdet_override(chip, OVERRIDE_0);
 
+	/*
+	 * Battery has fallen below the vbatdet threshold and it is
+	 * time to resume charging.
+	 */
 	rc = qpnp_lbc_charger_enable(chip, SOC, 1);
 	if (rc)
 		pr_err("Failed to enable charging\n");
@@ -2110,10 +2281,10 @@ static int qpnp_disable_lbc_charger(struct qpnp_lbc_chip *chip)
 	reg = CHG_FORCE_BATT_ON;
 	rc = qpnp_lbc_masked_write(chip, chip->chgr_base + CHG_CTRL_REG,
 							CHG_EN_MASK, reg);
-	
+	/* disable BTC */
 	rc |= qpnp_lbc_masked_write(chip, chip->bat_if_base + BAT_IF_BTC_CTRL,
 							BTC_COMP_EN_MASK, 0);
-	
+	/* Enable BID and disable THM based BPD */
 	reg = BATT_ID_EN | BATT_BPD_OFFMODE_EN;
 	rc |= qpnp_lbc_write(chip, chip->bat_if_base + BAT_IF_BPD_CTRL_REG,
 								&reg, 1);
@@ -2233,6 +2404,7 @@ static int qpnp_lbc_get_irqs(struct qpnp_lbc_chip *chip, u8 subtype,
 }
 
 #ifndef CONFIG_QPNP_LINEAR_CHARGER_SMB1360
+/* Get/Set initial state of charger */
 static void determine_initial_status(struct qpnp_lbc_chip *chip)
 {
 	u8 reg_val;
@@ -2240,9 +2412,17 @@ static void determine_initial_status(struct qpnp_lbc_chip *chip)
 
 	chip->usb_present = qpnp_lbc_is_usb_chg_plugged_in(chip);
 	power_supply_set_present(chip->usb_psy, chip->usb_present);
+	/*
+	 * Set USB psy online to avoid userspace from shutting down if battery
+	 * capacity is at zero and no chargers online.
+	 */
 	if (chip->usb_present)
 		power_supply_set_online(chip->usb_psy, 1);
 
+	/*
+	 * Configure peripheral reset control
+	 * This is a workaround only for SLT testing.
+	 */
 	if (chip->cfg_disable_follow_on_reset) {
 		reg_val = 0x0;
 		rc = __qpnp_lbc_secure_write(chip->spmi, chip->chgr_base,
@@ -2268,6 +2448,11 @@ static void qpnp_lbc_vddtrim_work_fn(struct work_struct *work)
 	pr_debug("vbat %d ibat %d capacity %d\n",
 			vbat_now_uv, ibat_now, get_prop_capacity(chip));
 
+	/*
+	 * Stop trimming under following condition:
+	 * USB removed
+	 * Charging Stopped
+	 */
 	if (!qpnp_lbc_is_fastchg_on(chip) ||
 			!qpnp_lbc_is_usb_chg_plugged_in(chip)) {
 		pr_debug("stop trim charging stopped\n");
@@ -2280,6 +2465,12 @@ static void qpnp_lbc_vddtrim_work_fn(struct work_struct *work)
 			goto out;
 		}
 
+		/*
+		 * Update VDD trim voltage only if following conditions are
+		 * met:
+		 * If charger is in VDD loop AND
+		 * If ibat is between 0 ma and -300 ma
+		 */
 		if ((reg_val & CHG_VDD_LOOP_BIT) &&
 				((ibat_now < 0) && (ibat_now > IBAT_TRIM)))
 			qpnp_lbc_adjust_vddmax(chip, vbat_now_uv);
@@ -2338,7 +2529,7 @@ int pm8916_get_chgr_fsm_state(struct qpnp_lbc_chip *chip)
 	int rc;
 	u8 fsm, reg;
 
-	
+	/* Unsecure PMIC register for chgr peripheral*/
 	rc = qpnp_lbc_masked_write(chip,
 			chip->chgr_base + SEC_ACCESS,
 			0xFF,
@@ -2463,7 +2654,7 @@ static void dump_reg(void)
 	}
 
 	memset(batt_log_buf, 0, sizeof(BATT_LOG_BUF_LEN));
-	
+	/* SMBB_CHGR_SMBB_CHGR */
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "FSM_STATE=%d,",
 						pm8916_get_chgr_fsm_state(the_chip));
 	get_chgr_reg(CHG_VDD_MAX_REG, &val);
@@ -2493,7 +2684,7 @@ static void dump_reg(void)
 	get_chgr_reg(CHG_INT_RT_STS, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "CHG_INT_RT_STS=0x%llX,", val);
 
-	
+	/* SMBB_BAT_IF_SMBB_BAT_IF */
 	get_bat_if_reg(BAT_IF_PRES_STATUS_REG, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "PRES_STATUS=0x%llX,", val);
 	get_bat_if_reg(BAT_IF_TEMP_STATUS_REG, &val);
@@ -2505,7 +2696,7 @@ static void dump_reg(void)
 	get_bat_if_reg(BAT_IF_INT_RT_STS_REG, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "IF_INT_RT_STS=0x%llX,", val);
 
-	
+	/* SMBB_USB_CHGPTH_SMBB_USB */
 	get_usb_chgpth_reg(USB_PTH_STS_REG, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "USB_CHG_PTH_STS=0x%llX,", val);
 	get_usb_chgpth_reg(USB_OVP_CTL_REG, &val);
@@ -2519,7 +2710,7 @@ static void dump_reg(void)
 	get_usb_chgpth_reg(USB_INT_RT_STS, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "USB_INT_RT_STS=0x%llX,", val);
 
-	
+	/* SMBB_MISC_SMBB_MISC */
 	get_misc_reg(MISC_BOOT_DONE_REG, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "BOOT_DONE=0x%llX,", val);
 	get_misc_reg(MISC_TRIM3_REG, &val);
@@ -2527,6 +2718,7 @@ static void dump_reg(void)
 	get_misc_reg(MISC_TRIM4_REG, &val);
 	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "TRIM4_REG=0x%llX", val);
 
+/*Log len is larger than log buffer, please decrease log length*/
 	if(BATT_LOG_BUF_LEN - len <= 1)
 		pr_warn("batt log length maybe out of buffer range!!!");
 
@@ -2581,7 +2773,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 	alarm_init(&chip->vddtrim_alarm, ALARM_REALTIME, vddtrim_callback);
 #endif
 
-	
+	/* Get all device-tree properties */
 	rc = qpnp_charger_read_dt_props(chip);
 	if (rc) {
 		pr_err("Failed to read DT properties rc=%d\n", rc);
@@ -2615,7 +2807,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 		case LBC_CHGR_SUBTYPE:
 			chip->chgr_base = resource->start;
 
-			
+			/* Get Charger peripheral irq numbers */
 			rc = qpnp_lbc_get_irqs(chip, subtype, spmi_resource);
 			if (rc) {
 				pr_err("Failed to get CHGR irqs rc=%d\n", rc);
@@ -2641,7 +2833,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 							rc);
 				goto fail_chg_enable;
 			}
-			
+			/* Get Charger Batt-IF peripheral irq numbers */
 			rc = qpnp_lbc_get_irqs(chip, subtype, spmi_resource);
 			if (rc) {
 				pr_err("Failed to get BAT_IF irqs rc=%d\n", rc);
@@ -2665,7 +2857,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 		return -ENODEV;
 	}
 
-	
+	/* Initialize h/w */
 	rc = qpnp_lbc_misc_init(chip);
 	if (rc) {
 		pr_err("unable to initialize LBC MISC rc=%d\n", rc);
@@ -2740,7 +2932,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 	}
 
 #ifndef CONFIG_QPNP_LINEAR_CHARGER_SMB1360
-	
+	/* Get/Set charger's initial status */
 	determine_initial_status(chip);
 
 	rc = qpnp_lbc_request_irqs(chip);
@@ -2752,7 +2944,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 	if (chip->cfg_charging_disabled && !get_prop_batt_present(chip))
 		pr_info("Battery absent and charging disabled !!!\n");
 
-	
+	/* Configure initial alarm for VDD trim */
 	if ((chip->supported_feature_flag & VDD_TRIM_SUPPORTED) &&
 			qpnp_lbc_is_fastchg_on(chip)) {
 		kt = ns_to_ktime(TRIM_PERIOD_NS);
@@ -2812,6 +3004,9 @@ static struct spmi_driver qpnp_lbc_driver = {
 	},
 };
 
+/*
+ * qpnp_lbc_init() - register spmi driver for qpnp-chg
+ */
 static int __init qpnp_lbc_init(void)
 {
 	return spmi_driver_register(&qpnp_lbc_driver);

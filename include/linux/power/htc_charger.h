@@ -33,7 +33,8 @@ enum htc_charger_event {
 	HTC_CHARGER_EVENT_SRC_UNDER_RATING,
 	HTC_CHARGER_EVENT_SAFETY_TIMEOUT,
 	HTC_CHARGER_EVENT_BATT_UEVENT_CHANGE,
-    HTC_CHARGER_EVENT_SRC_CABLE_INSERT_NOTIFY,
+	HTC_CHARGER_EVENT_SRC_CABLE_INSERT_NOTIFY,
+	HTC_CHARGER_EVENT_BAD_CABLE,
 };
 
 enum htc_charging_cfg {
@@ -76,6 +77,8 @@ struct htc_charger {
 	int (*get_charging_enabled)(int *result);
 	int (*event_notify)(enum htc_extchg_event_type etype);
 	int (*set_charger_enable)(bool enable);
+	int (*set_charger_disable)(bool enable);
+	bool (*get_batt_sw_control)(void);
 	int (*set_pwrsrc_enable)(bool enable);
 	int (*set_pwrsrc_and_charger_enable)
 			(enum htc_power_source_type src,
@@ -108,6 +111,10 @@ struct htc_charger {
 	int (*get_chg_usb_iusbmax)(void);
 	int (*get_chg_vinmin)(void);
 	int (*get_input_voltage_regulation)(void);
+#ifdef CONFIG_QPNP_VM_BMS
+	int (*get_mfg_charging_state)(int *result);
+#endif
+	int (*is_bad_cable_used)(int *result);
 };
 
 int htc_charger_event_notify(enum htc_charger_event);

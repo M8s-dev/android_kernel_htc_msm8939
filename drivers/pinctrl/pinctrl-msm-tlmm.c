@@ -28,6 +28,7 @@
 #endif
 
 
+/* config translations */
 #define drv_str_to_rval(drv)	((drv >> 1) - 1)
 #define rval_to_drv_str(val)	((val + 1) << 1)
 #define dir_to_inout_val(dir)	(dir << 1)
@@ -36,6 +37,7 @@
 #define TLMM_NO_PULL			0
 #define TLMM_PULL_DOWN			1
 #define TLMM_PULL_UP			3
+/* GP PIN TYPE REG MASKS */
 #define TLMM_GP_DRV_SHFT		6
 #define TLMM_GP_DRV_MASK		0x7
 #define TLMM_GP_PULL_SHFT		0
@@ -47,6 +49,7 @@
 #define GPIO_OUT_BIT			1
 #define GPIO_IN_BIT			0
 #define GPIO_OE_BIT			9
+/* SDC1 PIN TYPE REG MASKS */
 #define TLMM_SDC1_CLK_DRV_SHFT		6
 #define TLMM_SDC1_CLK_DRV_MASK		0x7
 #define TLMM_SDC1_DATA_DRV_SHFT		0
@@ -61,6 +64,7 @@
 #define TLMM_SDC1_CMD_PULL_MASK		0x3
 #define TLMM_SDC1_RCLK_PULL_SHFT	15
 #define TLMM_SDC1_RCLK_PULL_MASK	0x3
+/* SDC2 PIN TYPE REG MASKS */
 #define TLMM_SDC2_CLK_DRV_SHFT		6
 #define TLMM_SDC2_CLK_DRV_MASK		0x7
 #define TLMM_SDC2_DATA_DRV_SHFT		0
@@ -73,6 +77,7 @@
 #define TLMM_SDC2_DATA_PULL_MASK	0x3
 #define TLMM_SDC2_CMD_PULL_SHFT		11
 #define TLMM_SDC2_CMD_PULL_MASK		0x3
+/* SDC 3 PIN TYPE REG MASKS */
 #define TLMMV3_SDC3_CLK_DRV_SHFT	6
 #define TLMMV3_SDC3_CLK_DRV_MASK	0x7
 #define TLMMV3_SDC3_DATA_DRV_SHFT	0
@@ -85,6 +90,7 @@
 #define TLMMV3_SDC3_DATA_PULL_MASK	0x3
 #define TLMMV3_SDC3_CMD_PULL_SHFT	11
 #define TLMMV3_SDC3_CMD_PULL_MASK	0x3
+/* EBI2 PIN TYPE REG MASKS */
 #define TLMM_EBI2_BOOT_SELECT_BIT	0
 #define TLMM_EMMC_BOOT_SELECT_BIT	1
 #define TLMM_EBI2_CS_PULL_SHFT		2
@@ -116,6 +122,7 @@
 #define TLMM_EBI2_DATA_DRV_SHFT		17
 #define TLMM_EBI2_DATA_DRV_MASK		0x7
 
+/* TLMM IRQ REG fields */
 #define INTR_ENABLE_BIT		0
 #define	INTR_POL_CTL_BIT	1
 #define	INTR_DECT_CTL_BIT	2
@@ -125,9 +132,11 @@
 #define INTR_STATUS_BIT		0
 #define DC_POLARITY_BIT		8
 
+/* Target processors for TLMM pin based interrupts */
 #define INTR_TARGET_PROC_APPS(core_id)	((core_id) << INTR_TARGET_PROC_BIT)
 #define TLMM_APPS_ID_DEFAULT	4
 #define INTR_TARGET_PROC_NONE	(7 << INTR_TARGET_PROC_BIT)
+/* Interrupt flag bits */
 #define DC_POLARITY_HI		BIT(DC_POLARITY_BIT)
 #define INTR_POL_CTL_HI		BIT(INTR_POL_CTL_BIT)
 #define INTR_DECT_CTL_LEVEL	(0 << INTR_DECT_CTL_BIT)
@@ -147,6 +156,7 @@
 #define pintype_get_gc(pinfo)	(&pinfo->gc)
 #define pintype_get_ic(pinfo)	(pinfo->irq_chip)
 
+/* GP pin type register offsets */
 #define TLMM_GP_CFG(pi, pin)	(pi->reg_base + 0x0 + \
 				 pi->pintype_data->gp_reg_size * (pin))
 #define TLMM_GP_INOUT(pi, pin)	(pi->reg_base + 0x4 + \
@@ -156,6 +166,7 @@
 #define TLMM_GP_INTR_STATUS(pi, pin)	(pi->reg_base + 0x0c + \
 					 pi->pintype_data->gp_reg_size * (pin))
 
+/* QDSD Pin type register offsets */
 #define TLMMV_QDSD_PULL_MASK			0x3
 #define TLMMV4_QDSD_PULL_OFFSET			0x3
 #define TLMMV4_QDSD_CONFIG_WIDTH		0x5
@@ -176,68 +187,68 @@ struct msm_ebi_regs {
 };
 
 static const struct msm_sdc_regs sdc_regs[MSM_PINTYPE_SDC_REGS_MAX] = {
-	
+	/* SDC1 CLK */
 	{
 		.pull_mask = TLMM_SDC1_CLK_PULL_MASK,
 		.pull_shft = TLMM_SDC1_CLK_PULL_SHFT,
 		.drv_mask = TLMM_SDC1_CLK_DRV_MASK,
 		.drv_shft = TLMM_SDC1_CLK_DRV_SHFT,
 	},
-	
+	/* SDC1 CMD */
 	{
 		.pull_mask = TLMM_SDC1_CMD_PULL_MASK,
 		.pull_shft = TLMM_SDC1_CMD_PULL_SHFT,
 		.drv_mask = TLMM_SDC1_CMD_DRV_MASK,
 		.drv_shft = TLMM_SDC1_CMD_DRV_SHFT,
 	},
-	
+	/* SDC1 DATA */
 	{
 		.pull_mask = TLMM_SDC1_DATA_PULL_MASK,
 		.pull_shft = TLMM_SDC1_DATA_PULL_SHFT,
 		.drv_mask = TLMM_SDC1_DATA_DRV_MASK,
 		.drv_shft = TLMM_SDC1_DATA_DRV_SHFT,
 	},
-	
+	/* SDC1 RCLK */
 	{
 		.pull_mask = TLMM_SDC1_RCLK_PULL_MASK,
 		.pull_shft = TLMM_SDC1_RCLK_PULL_SHFT,
 	},
-	
+	/* SDC2 CLK */
 	{
 		.pull_mask = TLMM_SDC2_CLK_PULL_MASK,
 		.pull_shft = TLMM_SDC2_CLK_PULL_SHFT,
 		.drv_mask = TLMM_SDC2_CLK_DRV_MASK,
 		.drv_shft = TLMM_SDC2_CLK_DRV_SHFT,
 	},
-	
+	/* SDC2 CMD */
 	{
 		.pull_mask = TLMM_SDC2_CMD_PULL_MASK,
 		.pull_shft = TLMM_SDC2_CMD_PULL_SHFT,
 		.drv_mask = TLMM_SDC2_CMD_DRV_MASK,
 		.drv_shft = TLMM_SDC2_CMD_DRV_SHFT,
 	},
-	
+	/* SDC2 DATA */
 	{
 		.pull_mask = TLMM_SDC2_DATA_PULL_MASK,
 		.pull_shft = TLMM_SDC2_DATA_PULL_SHFT,
 		.drv_mask = TLMM_SDC2_DATA_DRV_MASK,
 		.drv_shft = TLMM_SDC2_DATA_DRV_SHFT,
 	},
-	
+	/* SDC3 CLK */
 	{
 		.pull_mask = TLMMV3_SDC3_CLK_PULL_MASK,
 		.pull_shft = TLMMV3_SDC3_CLK_PULL_SHFT,
 		.drv_mask = TLMMV3_SDC3_CLK_DRV_MASK,
 		.drv_shft = TLMMV3_SDC3_CLK_DRV_SHFT,
 	},
-	
+	/* SDC3 CMD */
 	{
 		.pull_mask = TLMMV3_SDC3_CMD_PULL_MASK,
 		.pull_shft = TLMMV3_SDC3_CMD_PULL_SHFT,
 		.drv_mask = TLMMV3_SDC3_CMD_DRV_MASK,
 		.drv_shft = TLMMV3_SDC3_CMD_DRV_SHFT,
 	},
-	
+	/* SDC3 DATA */
 	{
 		.pull_mask = TLMMV3_SDC3_DATA_PULL_MASK,
 		.pull_shft = TLMMV3_SDC3_DATA_PULL_SHFT,
@@ -263,7 +274,7 @@ static int msm_tlmm_sdc_cfg(uint pin_no, unsigned long *config,
 	cfg_reg = reg_base + offset;
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
-	
+	/* Get mask and shft values for this config type */
 	switch (id) {
 	case PIN_CONFIG_BIAS_DISABLE:
 		mask = sdc_regs[pin_no].pull_mask;
@@ -330,7 +341,7 @@ static int msm_tlmm_qdsd_cfg(uint pin_no, unsigned long *config,
 	cfg_reg = pinfo->reg_base;
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
-	
+	/* Get mask and shft values for this config type */
 	switch (id) {
 	case PIN_CONFIG_BIAS_DISABLE:
 		mask = TLMMV_QDSD_PULL_MASK;
@@ -378,7 +389,7 @@ static int msm_tlmm_qdsd_cfg(uint pin_no, unsigned long *config,
 
 	if (write) {
 		val &= ~(mask << shft);
-		
+		/* QDSD software override bit */
 		val |= ((data << shft) | BIT(31));
 		writel_relaxed(val, cfg_reg);
 	} else {
@@ -397,7 +408,7 @@ static int msm_tlmm_gp_cfg(uint pin_no, unsigned long *config,
 
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
-	
+	/* Get mask and shft values for this config type */
 	switch (id) {
 	case PIN_CONFIG_BIAS_DISABLE:
 		mask = TLMM_GP_PULL_MASK;
@@ -460,7 +471,7 @@ static int msm_tlmm_gp_cfg(uint pin_no, unsigned long *config,
 		shft = TLMM_GP_DIR_SHFT;
 		inout_reg = TLMM_GP_INOUT(pinfo, pin_no);
 		if (write) {
-			
+			/* GPIO_IN (b0) of TLMM_GPIO_IN_OUT is read-only */
 			data = 0;
 		} else {
 			inout_val = readl_relaxed(inout_reg);
@@ -482,49 +493,49 @@ static int msm_tlmm_gp_cfg(uint pin_no, unsigned long *config,
 }
 
 static const struct msm_ebi_regs ebi_regs[MSM_PINTYPE_EBI_REGS_MAX] = {
-	
+	/* EBI2 CS*/
 	{
 		.pull_mask = TLMM_EBI2_CS_PULL_MASK,
 		.pull_shft = TLMM_EBI2_CS_PULL_SHFT,
 		.drv_mask = TLMM_EBI2_CS_DRV_MASK,
 		.drv_shft = TLMM_EBI2_CS_DRV_SHFT,
 	},
-	
+	/* EBI2 OE */
 	{
 		.pull_mask = TLMM_EBI2_OE_PULL_MASK,
 		.pull_shft = TLMM_EBI2_OE_PULL_SHFT,
 		.drv_mask = TLMM_EBI2_OE_DRV_MASK,
 		.drv_shft = TLMM_EBI2_OE_DRV_SHFT,
 	},
-	
+	/* EBI2 ALE*/
 	{
 		.pull_mask = TLMM_EBI2_ALE_PULL_MASK,
 		.pull_shft = TLMM_EBI2_ALE_PULL_SHFT,
 		.drv_mask = TLMM_EBI2_ALE_DRV_MASK,
 		.drv_shft = TLMM_EBI2_ALE_DRV_SHFT,
 	},
-	
+	/* EBI2 CLE */
 	{
 		.pull_mask = TLMM_EBI2_CLE_PULL_MASK,
 		.pull_shft = TLMM_EBI2_CLE_PULL_SHFT,
 		.drv_mask = TLMM_EBI2_CLE_DRV_MASK,
 		.drv_shft = TLMM_EBI2_CLE_DRV_SHFT,
 	},
-	
+	/* EBI2 WE*/
 	{
 		.pull_mask = TLMM_EBI2_WE_PULL_MASK,
 		.pull_shft = TLMM_EBI2_WE_PULL_SHFT,
 		.drv_mask = TLMM_EBI2_WE_DRV_MASK,
 		.drv_shft = TLMM_EBI2_WE_DRV_SHFT,
 	},
-	
+	/* EBI2 BUSY */
 	{
 		.pull_mask = TLMM_EBI2_BUSY_PULL_MASK,
 		.pull_shft = TLMM_EBI2_BUSY_PULL_SHFT,
 		.drv_mask = TLMM_EBI2_BUSY_DRV_MASK,
 		.drv_shft = TLMM_EBI2_BUSY_DRV_SHFT,
 	},
-	
+	/* EBI2 DATA */
 	{
 		.pull_mask = TLMM_EBI2_DATA_PULL_MASK,
 		.pull_shft = TLMM_EBI2_DATA_PULL_SHFT,
@@ -549,7 +560,7 @@ static int msm_tlmm_ebi_cfg(uint pin_no, unsigned long *config,
 	cfg_reg = reg_base + offset;
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
-	
+	/* Get mask and shft values for this config type */
 	switch (id) {
 	case PIN_CONFIG_BIAS_DISABLE:
 		mask = ebi_regs[pin_no].pull_mask;
@@ -624,6 +635,7 @@ static void msm_tlmm_gp_fn(uint pin_no, u32 func, bool enable,
 	writel_relaxed(val, cfg_reg);
 }
 
+/* GPIO CHIP */
 static int msm_tlmm_gp_get(struct gpio_chip *gc, unsigned offset)
 {
 	struct msm_pintype_info *pinfo = gc_to_pintype(gc);
@@ -671,6 +683,7 @@ static int msm_tlmm_gp_to_irq(struct gpio_chip *gc, unsigned offset)
 	return irq_create_mapping(ic->domain, offset);
 }
 
+/* Irq reg ops */
 static void msm_tlmm_set_intr_status(struct msm_tlmm_irq_chip *ic, unsigned pin)
 {
 	const struct msm_pintype_info *pinfo = ic->pinfo;
@@ -718,6 +731,11 @@ static void msm_tlmm_set_intr_cfg_type(struct msm_tlmm_irq_chip *ic,
 	const struct msm_pintype_info *pinfo = ic->pinfo;
 	void __iomem *cfg_reg = TLMM_GP_INTR_CFG(pinfo, (irqd_to_hwirq(d)));
 
+	/*
+	 * RAW_STATUS_EN is left on for all gpio irqs. Due to the
+	 * internal circuitry of TLMM, toggling the RAW_STATUS
+	 * could cause the INTR_STATUS to be set for EDGE interrupts.
+	 */
 	cfg = BIT(INTR_RAW_STATUS_EN_BIT) | INTR_TARGET_PROC_APPS(ic->apps_id);
 	writel_relaxed(cfg, cfg_reg);
 	cfg &= ~INTR_DECT_CTL_MASK;
@@ -736,6 +754,12 @@ static void msm_tlmm_set_intr_cfg_type(struct msm_tlmm_irq_chip *ic,
 		cfg |= INTR_POL_CTL_HI;
 
 	writel_relaxed(cfg, cfg_reg);
+	/*
+	 * Sometimes it might take a little while to update
+	 * the interrupt status after the RAW_STATUS is enabled
+	 * We clear the interrupt status before enabling the
+	 * interrupt in the unmask call-back.
+	 */
 	udelay(5);
 }
 
@@ -910,6 +934,9 @@ static int msm_tlmm_irq_map(struct irq_domain *h, unsigned int virq,
 	return 0;
 }
 
+/*
+ * irq domain callbacks for interrupt controller.
+ */
 static const struct irq_domain_ops msm_tlmm_gp_irqd_ops = {
 	.map	= msm_tlmm_irq_map,
 	.xlate	= irq_domain_xlate_twocell,
@@ -933,6 +960,7 @@ static struct msm_tlmm_irq_chip msm_tlmm_gp_irq = {
 	.handler = msm_tlmm_gp_handle_irq,
 };
 
+/* Power management core operations */
 
 static int msm_tlmm_gp_irq_suspend(void)
 {

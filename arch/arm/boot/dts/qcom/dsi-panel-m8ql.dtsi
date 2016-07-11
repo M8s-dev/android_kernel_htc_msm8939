@@ -48,15 +48,16 @@
 			"DTYPE_DCS_LWRITE", <0>, <2>, [3A 70],/* set_pixel_format */
 			"DTYPE_DCS_WRITE1", <0>, <2>, [51 FF],/* display_brightness */
 			"DTYPE_DCS_WRITE1", <0>, <2>, [53 2C],/* ctrl_display */
-			"DTYPE_DCS_WRITE1", <0>, <2>, [55 02],/* content adaptive_brightness_control */
+			"DTYPE_DCS_WRITE1", <0>, <2>, [55 42],/* content adaptive_brightness_control */
 			"DTYPE_GEN_LWRITE", <0>, <26>, [D3 1B 33 BB BB B3 33 33 33 00 01 00 A0 E8 A0 0D 46
 					46 33 3B 37 72 57 3D BF 33],/* internal_power_setting 1*/
-			"DTYPE_GEN_LWRITE", <0>, <33>, [CA 01 01 97 75 97 A8 BB A8 08 2F 05 78 0A 4A 37 A0
+			"DTYPE_GEN_LWRITE", <0>, <33>, [CA 01 01 90 70 50 A0 90 A0 08 2F 05 78 0A 4A 37 A0
 					01 A0 08 08 20 10 08 08 CB F2 10 10 3F 3F 3F 3F],/* CE setting */
-			"DTYPE_GEN_LWRITE", <0>, <07>, [B9 07 7A 45 20 13 4B],/* CABC still mode */
-			"DTYPE_GEN_LWRITE", <0>, <07>, [BA 07 7C 57 20 13 99],/* CABC movie mode */
-			"DTYPE_GEN_LWRITE", <0>, <24>, [CE 75 00 01 02 03 45 C5 DC E3 ED F4 F7 F9 FB FD FE
-					FF 01 5F 04 04 44 20],/* PWM freq=40kHz */
+			"DTYPE_GEN_LWRITE", <0>, <07>, [B9 07 71 41 20 10 66],/* CABC still mode */
+			"DTYPE_GEN_LWRITE", <0>, <07>, [BA 07 7E 30 10 20 66],/* CABC movie mode */
+			"DTYPE_GEN_LWRITE", <0>, <24>, [CE F5 43 47 4A 51 59 61 72 84 98 B2 C4 D5 E7 F7 FC
+					FF 01 5F 04 04 00 20],/* PWM freq=40kHz */
+			"DTYPE_GEN_LWRITE", <0>, <04>, [BB 01 01 08],/* SRE control */
 			"DTYPE_DCS_WRITE", <10>, <2>, [29 00],/* LCD Display on */
 			"DTYPE_DCS_WRITE", <128>, <2>, [11 00];/* exit sleep */
 		htc-fmt,mdss-dsi-off-command =
@@ -91,6 +92,6 @@
 		qcom,mdss-dsi-lp11-init;
 		htc,mdss-camera-blk = <189>;
 		htc,panel-id=<1>;
-		qcom,mdss-dsi-force-clk-lane-hs;
+		qcom,dlnx_fifo_overflow;
 	};
 };

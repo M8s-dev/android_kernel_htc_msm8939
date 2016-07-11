@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+//#include <mach/msm_iomap.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -63,7 +64,7 @@ static struct workqueue_struct *tps61310_work_queue;
 static struct mutex tps61310_mutex;
 
 static int switch_state = 1;
-static int support_dual_flashlight = 1; 
+static int support_dual_flashlight = 1; // 0:single flashlight, 1:dual flashlight
 static int retry = 0;
 static int reg_init_fail = 0;
 
@@ -196,12 +197,11 @@ static ssize_t switch_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	int switch_status;
-	switch_status = -1;
-	switch_status = simple_strtoul(buf, NULL, 10);
+	int input;
+	input = simple_strtoul(buf, NULL, 10);
 
-	if(switch_status >= 0 && switch_status < 2){
-		switch_state = switch_status;
+	if(input >= 0 && input < 2){
+		switch_state = input;
 		FLT_INFO_LOG("%s: %d\n",__func__,switch_state);
 	}else
 		FLT_INFO_LOG("%s: Input out of range\n",__func__);
@@ -218,22 +218,22 @@ static ssize_t max_current_show(struct device *dev, struct device_attribute *att
 	else
 		return snprintf(buf, 5, "750\n");
 }
-static DEVICE_ATTR(max_current, S_IRUGO | S_IWUSR, max_current_show, NULL);
+static DEVICE_ATTR(max_current, S_IRUGO, max_current_show, NULL);
 static ssize_t flash_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	int val;
-	val = simple_strtoul(buf, NULL, 10);
+	int input;
+	input = simple_strtoul(buf, NULL, 10);
 
-	if(val >= 0){
-		FLT_INFO_LOG("%s: %d\n",__func__,val);
-		tps61310_flashlight_mode(val);
+	if(input >= 0){
+		FLT_INFO_LOG("%s: %d\n",__func__,input);
+		tps61310_flashlight_mode(input);
 	}else
 		FLT_INFO_LOG("%s: Input out of range\n",__func__);
 	return size;
 }
-static DEVICE_ATTR(flash, S_IRUGO | S_IWUSR, NULL, flash_store);
+static DEVICE_ATTR(flash, S_IWUSR, NULL, flash_store);
 
 static int TPS61310_I2C_TxData(char *txData, int length)
 {
@@ -286,7 +286,7 @@ static int tps61310_i2c_command(uint8_t address, uint8_t data)
 					err |= tps61310_i2c_command(0x07, 0x46);
 					err |= tps61310_i2c_command(0x04, 0x10);
 				} else {
-					
+					/* voltage drop monitor*/
 					err |= tps61310_i2c_command(0x07, 0xF6);
 				}
 				if (err)
@@ -309,6 +309,9 @@ static int flashlight_turn_off(void)
 	tps61310_i2c_command(0x02, 0x08);
 	tps61310_i2c_command(0x01, 0x00);
 	FLT_INFO_LOG("%s %d\n", __func__,this_tps61310->mode_status);
+	/* Avoid current overflow consumption while flash with 1.5A,
+	 *  enable/disable moden function
+	 */
 	if (this_tps61310->power_save) {
 		status = this_tps61310->mode_status;
 		if (status == 2 || (status >= 10 && status <=16)) {
@@ -379,7 +382,7 @@ int tps61310_flashlight_mode(int mode)
 			err |= tps61310_i2c_command(0x07, 0x46);
 			err |= tps61310_i2c_command(0x04, 0x10);
 		} else {
-			
+			/* voltage drop monitor*/
 			err |= tps61310_i2c_command(0x07, 0xF6);
 		}
 	}
@@ -445,7 +448,7 @@ int tps61310_flashlight_mode2(int mode2, int mode13)
 			err |= tps61310_i2c_command(0x07, 0x46);
 			err |= tps61310_i2c_command(0x04, 0x10);
 		} else {
-			
+			/* voltage drop monitor*/
 			err |= tps61310_i2c_command(0x07, 0xF6);
 		}
 	}
@@ -473,7 +476,7 @@ int tps61310_flashlight_mode2(int mode2, int mode13)
 			current_hex = mode2 / 25;
 			current_hex += 0x80;
 			enled |= 0x02;
-			FLT_INFO_LOG("mode2 enled = 0x%x.\r\n", enled);
+			FLT_INFO_LOG("mode2 enled = 0x%x.\r\n", enled);//
 			tps61310_i2c_command(0x05, enled);
 			tps61310_i2c_command(0x00, 0x00);
 			tps61310_i2c_command(0x01, current_hex);
@@ -500,7 +503,7 @@ int tps61310_torch_mode2(int mode2, int mode13)
 			err |= tps61310_i2c_command(0x07, 0x46);
 			err |= tps61310_i2c_command(0x04, 0x10);
 		} else {
-			
+			/* voltage drop monitor*/
 			err |= tps61310_i2c_command(0x07, 0xF6);
 		}
 	}
@@ -520,10 +523,10 @@ int tps61310_torch_mode2(int mode2, int mode13)
 
 		tps61310_i2c_command(0x05, enled);
 		tps61310_i2c_command(0x00, current_hex);
-		tps61310_i2c_command(0x01, 0x40);
 
-		gpio_set_value_cansleep(this_tps61310->strb1, 0);
-		gpio_set_value_cansleep(this_tps61310->strb0, 1);
+		gpio_set_value_cansleep(this_tps61310->strb0, 0);
+		gpio_set_value_cansleep(this_tps61310->strb1, 1);
+		tps61310_i2c_command(0x01, 0x40);
 	}
 	mutex_unlock(&tps61310_mutex);
 	return 0;
@@ -545,7 +548,7 @@ int tps61310_flashlight_control(int mode)
 			err |= tps61310_i2c_command(0x07, 0x46);
 			err |= tps61310_i2c_command(0x04, 0x10);
 		} else {
-			
+			/* voltage drop monitor*/
 			err |= tps61310_i2c_command(0x07, 0xF6);
 		}
 	}
@@ -571,8 +574,8 @@ int tps61310_flashlight_control(int mode)
 				queue_delayed_work(tps61310_work_queue, &tps61310_delayed_work,
 						   msecs_to_jiffies(this_tps61310->flash_sw_timeout));
 			break;
-			
-			
+			/* note: dual flashlight seldom uses FL_MODE_FLASH_LEVELx */
+			/*       therefore, below are just copied from signal flash */
 			case FL_MODE_FLASH_LEVEL1:
 					tps61310_i2c_command(0x05, 0x6A);
 					tps61310_i2c_command(0x00, 0x00);
@@ -1199,25 +1202,25 @@ static void fl_lcdev_brightness_set(struct led_classdev *led_cdev,
 			mode = FL_MODE_TORCH;
 	} else if (brightness > LED_HALF && brightness <= LED_FULL) {
 		if (brightness == (LED_HALF + 1))
-			mode = FL_MODE_PRE_FLASH; 
+			mode = FL_MODE_PRE_FLASH; /* pre-flash mode */
 		else if (brightness == (LED_HALF + 3))
-			mode = FL_MODE_FLASH_LEVEL1; 
+			mode = FL_MODE_FLASH_LEVEL1; /* Flashlight mode LEVEL1*/
 		else if (brightness == (LED_HALF + 4))
-			mode = FL_MODE_FLASH_LEVEL2; 
+			mode = FL_MODE_FLASH_LEVEL2; /* Flashlight mode LEVEL2*/
 		else if (brightness == (LED_HALF + 5))
-			mode = FL_MODE_FLASH_LEVEL3; 
+			mode = FL_MODE_FLASH_LEVEL3; /* Flashlight mode LEVEL3*/
 		else if (brightness == (LED_HALF + 6))
-			mode = FL_MODE_FLASH_LEVEL4; 
+			mode = FL_MODE_FLASH_LEVEL4; /* Flashlight mode LEVEL4*/
 		else if (brightness == (LED_HALF + 7))
-			mode = FL_MODE_FLASH_LEVEL5; 
+			mode = FL_MODE_FLASH_LEVEL5; /* Flashlight mode LEVEL5*/
 		else if (brightness == (LED_HALF + 8))
-			mode = FL_MODE_FLASH_LEVEL6; 
+			mode = FL_MODE_FLASH_LEVEL6; /* Flashlight mode LEVEL6*/
 		else if (brightness == (LED_HALF + 9))
-			mode = FL_MODE_FLASH_LEVEL7; 
+			mode = FL_MODE_FLASH_LEVEL7; /* Flashlight mode LEVEL7*/
 		else
-			mode = FL_MODE_FLASH; 
+			mode = FL_MODE_FLASH; /* Flashlight mode */
 	} else
-		
+		/* off and else */
 		mode = FL_MODE_OFF;
 	if ((mode != FL_MODE_OFF) && switch_state == 0){
 		FLT_INFO_LOG("%s flashlight is disabled by switch, mode = %d\n",__func__, mode);
@@ -1352,7 +1355,7 @@ static int tps61310_error_recover(void)
 			err |= tps61310_i2c_command(0x07, 0x46);
 			err |= tps61310_i2c_command(0x04, 0x10);
 		} else {
-			
+			/* voltage drop monitor*/
 			err |= tps61310_i2c_command(0x07, 0xF6);
 		}
 	}
@@ -1380,6 +1383,11 @@ static void tps61310_torch_strb(void)
 	tps61310_i2c_command(0x01, 0x40);
 }
 
+//
+// tps61310_flash_set and tps61310_torch_set are basic function to access tps61310
+// only use tps61310_mutex on below two functions
+// TODO: a better naming so that tps61310 mutex are only avaiable on them
+//
 
 static int tps61310_flash_set(struct tps61310_led_data *led,
 				enum led_brightness value)
@@ -1537,44 +1545,49 @@ static int tps61310_probe(struct i2c_client *client,
 {
 	struct tps61310_data *tps61310;
 	struct TPS61310_flashlight_platform_data *pdata;
-	int i = 0, err = 0, ret = 0;
-
+	int i = 0, rc = 0;
 	struct tps61310_led_data *led, *led_array;
 	struct device_node *node, *temp;
 	int num_leds = 0, parsed_leds = 0;
 	const char *led_label;
-	int rc;
 
 	FLT_INFO_LOG("%s +\n", __func__);
+	/*pdata = client->dev.platform_data;
+	if (!pdata) {
+		FLT_ERR_LOG("%s: Assign platform_data error!!\n", __func__);
+		return -EINVAL;
+	}*/
 
+	/*if (pdata->gpio_init)
+		pdata->gpio_init();*/
 
-	
+	//if (client->dev->of_node) {
 		pdata =  kzalloc(sizeof(*pdata), GFP_KERNEL);
 		if (pdata == NULL){
-			err = -ENOMEM;
-			return err;
+			FLT_ERR_LOG("%s: kzalloc pdata fail !!!\n", __func__);
+			rc = -ENOMEM;
+			return rc;
 		}
-		err = tps61310_parse_dt(&client->dev, pdata);
+		rc = tps61310_parse_dt(&client->dev, pdata);
+	/*} else {
+		FLT_INFO_LOG("old style\n");
+		pdata = client->dev.platform_data;
+	}*/
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		err = -ENODEV;
+		rc = -ENODEV;
 		goto check_functionality_failed;
 	}
 
 	tps61310 = kzalloc(sizeof(struct tps61310_data), GFP_KERNEL);
 	if (!tps61310) {
-		FLT_ERR_LOG("%s: kzalloc fail !!!\n", __func__);
-		kfree(pdata);
-		return -ENOMEM;
+		FLT_ERR_LOG("%s: kzalloc tps61310 fail !!!\n", __func__);
+		rc = -ENOMEM;
+		goto err_kzalloc_tps61310;
 	}
 
 	i2c_set_clientdata(client, tps61310);
 	this_client = client;
-
-	INIT_DELAYED_WORK(&tps61310_delayed_work, flashlight_turn_off_work);
-	tps61310_work_queue = create_singlethread_workqueue("tps61310_wq");
-	if (!tps61310_work_queue)
-		goto err_create_tps61310_work_queue;
 
 	tps61310->fl_lcdev.name              = FLASHLIGHT_NAME;
 	tps61310->fl_lcdev.brightness_set    = fl_lcdev_brightness_set;
@@ -1590,31 +1603,31 @@ static int tps61310_probe(struct i2c_client *client,
 	tps61310->power_save_2               = pdata->power_save_2;
 
 	if (tps61310->strb0) {
-		ret = gpio_request(tps61310->strb0, "strb0");
-		if (ret) {
+		rc = gpio_request(tps61310->strb0, "strb0");
+		if (rc) {
 			FLT_ERR_LOG("%s: unable to request gpio %d (%d)\n",
-				__func__, tps61310->strb0, ret);
-			return ret;
+				__func__, tps61310->strb0, rc);
+			goto err_gpio_or_dev;
 		}
 
-		ret = gpio_direction_output(tps61310->strb0, 0);
-		if (ret) {
+		rc = gpio_direction_output(tps61310->strb0, 0);
+		if (rc) {
 			FLT_ERR_LOG("%s: Unable to set direction\n", __func__);
-			return ret;
+			goto err_gpio_or_dev;
 		}
 	}
 	if (tps61310->strb1) {
-		ret = gpio_request(tps61310->strb1, "strb1");
-		if (ret) {
+		rc = gpio_request(tps61310->strb1, "strb1");
+		if (rc) {
 			FLT_ERR_LOG("%s: unable to request gpio %d (%d)\n",
-				__func__, tps61310->strb1, ret);
-			return ret;
+				__func__, tps61310->strb1, rc);
+			goto err_gpio_or_dev;
 		}
 
-		ret = gpio_direction_output(tps61310->strb1, 1);
-		if (ret) {
+		rc = gpio_direction_output(tps61310->strb1, 1);
+		if (rc) {
 			FLT_ERR_LOG("%s: Unable to set direction\n", __func__);
-			return ret;
+			goto err_gpio_or_dev;
 		}
 	}
 	if (tps61310->flash_sw_timeout <= 0)
@@ -1623,23 +1636,43 @@ static int tps61310_probe(struct i2c_client *client,
 	node = client->dev.of_node;
 
 	if (node == NULL)
-		return -ENODEV;
+	{
+		rc = -ENODEV;
+		goto err_gpio_or_dev;
+	}
 
 	temp = NULL;
 	while ((temp = of_get_next_child(node, temp)))
 		num_leds++;
 
 	if (!num_leds)
-		return -ECHILD;
+	{
+		rc = -ECHILD;
+		goto err_gpio_or_dev;
+	}
 
 	led_array = devm_kzalloc(&client->dev,
 		(sizeof(struct tps61310_led_data) * num_leds), GFP_KERNEL);
 	if (!led_array) {
 		dev_err(&client->dev, "Unable to allocate memory\n");
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto err_gpio_or_dev;
 	}
 
 	tps61310->led_array = led_array;
+
+	mutex_init(&tps61310_mutex);
+
+	INIT_DELAYED_WORK(&tps61310_delayed_work, flashlight_turn_off_work);
+	tps61310_work_queue = create_singlethread_workqueue("tps61310_wq");
+	if (!tps61310_work_queue)
+	{
+		rc = -1;
+		goto err_create_tps61310_work_queue;
+	}
+
+	this_tps61310 = tps61310;
+
 	for_each_child_of_node(node, temp) {
 		led = &led_array[parsed_leds];
 		led->num_leds = num_leds;
@@ -1688,18 +1721,8 @@ static int tps61310_probe(struct i2c_client *client,
 
 		if (strncmp(led_label, "flash", sizeof("flash")) == 0) {
 			led->torch_mode = 0;
-			if (rc < 0) {
-				printk(KERN_ERR "[FLT] "
-					"Unable to read flash config data\n");
-				goto fail_id_check;
-			}
 		} else if (strncmp(led_label, "torch", sizeof("torch")) == 0) {
 			led->torch_mode = 1;
-			if (rc < 0) {
-				printk(KERN_ERR "[FLT] "
-					"Unable to read torch config data\n");
-				goto fail_id_check;
-			}
 		} else {
 			printk(KERN_ERR "[FLT] "
 				"No LED matching label\n");
@@ -1717,10 +1740,12 @@ static int tps61310_probe(struct i2c_client *client,
 			printk(KERN_ERR "[FLT] "
 					"unable to register led %d,rc=%d\n",
 					led->id, rc);
+			cancel_work_sync(&led->work);
+			mutex_destroy(&led->lock);
 			goto fail_id_check;
 		}
 
-		
+		/* configure default state */
 		switch (led->default_state) {
 			case LEDS_GPIO_DEFSTATE_OFF:
 				led->cdev.brightness = LED_OFF;
@@ -1738,24 +1763,21 @@ static int tps61310_probe(struct i2c_client *client,
 		parsed_leds++;
 	}
 
-	mutex_init(&tps61310_mutex);
-	err = led_classdev_register(&client->dev, &tps61310->fl_lcdev);
-	if (err < 0) {
+	rc = led_classdev_register(&client->dev, &tps61310->fl_lcdev);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s: failed on led_classdev_register\n", __func__);
-		goto platform_data_null;
+		goto fail_id_check;
 	}
-
-	this_tps61310 = tps61310;
 
 #if defined(CONFIG_HTC_FLASHLIGHT_COMMON)
 	htc_flash_main			= &tps61310_flt_flash_adapter;
 	htc_torch_main			= &tps61310_flt_torch_adapter;
 #endif
 
-	err = register_reboot_notifier(&reboot_notifier);
-	if (err < 0) {
-		FLT_ERR_LOG("%s: Register reboot notifier failed(err=%d)\n", __func__, err);
-		goto platform_data_null;
+	rc = register_reboot_notifier(&reboot_notifier);
+	if (rc < 0) {
+		FLT_ERR_LOG("%s: Register reboot notifier failed(err=%d)\n", __func__, rc);
+		goto err_reg_reboot_notifier;
 	}
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -1767,39 +1789,39 @@ static int tps61310_probe(struct i2c_client *client,
 	rc = of_property_read_u32(node, "htc,dualflash", &support_dual_flashlight);
 	if (rc < 0)
 		support_dual_flashlight = 0;
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_support_dual_flashlight);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_support_dual_flashlight);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create support_dual_flashlight sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_poweroff);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_poweroff);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create poweroff sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_sw_timeout);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_sw_timeout);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create sw_timeout sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_regaddr);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_regaddr);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create regaddr sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_regdata);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_regdata);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create regdata sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_function_switch);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_function_switch);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create function_switch sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_max_current);
-	if (err < 0) {
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_max_current);
+	if (rc < 0) {
 		FLT_ERR_LOG("%s, create max_current sysfs fail\n", __func__);
 	}
-	err = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_flash);
-	if (err < 0) {
-		FLT_ERR_LOG("%s, create max_current sysfs fail\n", __func__);
+	rc = device_create_file(tps61310->fl_lcdev.dev, &dev_attr_flash);
+	if (rc < 0) {
+		FLT_ERR_LOG("%s, create flash sysfs fail\n", __func__);
 	}
-	
+	/* initial register set as shutdown mode */
 	tps61310_i2c_command(0x01, 0x00);
 
 	if (this_tps61310->enable_FLT_1500mA) {
@@ -1807,10 +1829,10 @@ static int tps61310_probe(struct i2c_client *client,
 		tps61310_i2c_command(0x07, 0x46);
 		tps61310_i2c_command(0x04, 0x10);
 	} else {
-		
+		/* disable voltage drop monitor */
 		tps61310_i2c_command(0x07, 0x76);
 	}
-	
+	/* Disable Tx-mask for issue of can flash while using lower band radio */
 	if (this_tps61310->disable_tx_mask)
 		tps61310_i2c_command(0x03, 0xC0);
 	if (this_tps61310->reset)
@@ -1829,23 +1851,38 @@ static int tps61310_probe(struct i2c_client *client,
 	}
 	else
 		FLT_INFO_LOG("%s no power save pin_2\n", __func__);
+
+	kfree(pdata);
 	FLT_INFO_LOG("%s -\n", __func__);
 	return 0;
 
 
-platform_data_null:
-	destroy_workqueue(tps61310_work_queue);
-	mutex_destroy(&tps61310_mutex);
-err_create_tps61310_work_queue:
-	kfree(tps61310);
-check_functionality_failed:
-	return err;
+//reserve:
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&tps61310->fl_early_suspend);
+#endif
+	unregister_reboot_notifier(&reboot_notifier);
+err_reg_reboot_notifier:
+#if defined(CONFIG_HTC_FLASHLIGHT_COMMON)
+	htc_flash_main = NULL;
+	htc_torch_main = NULL;
+#endif
+	led_classdev_unregister(&tps61310->fl_lcdev);
 fail_id_check:
 	for (i = 0; i < parsed_leds; i++) {
-		mutex_destroy(&led_array[i].lock);
 		led_classdev_unregister(&led_array[i].cdev);
+		cancel_work_sync(&led_array[i].work);
+		mutex_destroy(&led_array[i].lock);
 	}
-
+	destroy_workqueue(tps61310_work_queue);
+err_create_tps61310_work_queue:
+	mutex_destroy(&tps61310_mutex);
+err_gpio_or_dev:
+	kfree(tps61310);
+err_kzalloc_tps61310:
+check_functionality_failed:
+	kfree(pdata);
+	FLT_INFO_LOG("%s - failed -\n", __func__);
 	return rc;
 }
 

@@ -43,7 +43,7 @@ static int security_level;
 module_param_named(simlock_code, simlock_code, charp, S_IRUGO | S_IWUSR | S_IWGRP);
 
 struct msg_s {
-	int size; 	
+	int size; 	/* msg size, return value */
 	unsigned int unlock;
 	char code[CODE_SIZE];
 };

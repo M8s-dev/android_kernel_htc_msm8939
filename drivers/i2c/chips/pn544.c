@@ -28,12 +28,17 @@
 #include "pn544_mfg.h"
 #include "pn544_htc.h"
 int mfc_nfc_cmd_result = 0;
+int i2c_error_retry = 0;
 
 static   unsigned long watchdog_counter;
 static   unsigned int watchdogEn;
 static   unsigned int watchdog_timeout;
 #define WATCHDOG_FTM_TIMEOUT_SEC 20
 #endif  
+
+#if defined(CONFIG_MACH_A32_UL_EMEA) || defined(CONFIG_MACH_DUMMY)
+#define  NFC_PWR_GPIO_CONTROL
+#endif
 
 #if defined(CONFIG_MACH_M8QL_UL)
 static  struct regulator *ncp6924_ldo3;
@@ -61,7 +66,8 @@ int is_uicc_swp = 1;
 #define PN544_RESET_CMD 	0
 #define PN544_DOWNLOAD_CMD	1
 
-#define I2C_RETRY_COUNT 10
+#define NFC_I2C_RETRY 3
+#define NFC_I2C_RETRY_ERROR_COUNT 5
 
 struct pn544_dev	{
 	struct class		*pn544_class;
@@ -78,6 +84,7 @@ struct pn544_dev	{
 	unsigned int 		ven_gpio;
 	unsigned int		ven_value;
 	unsigned int 		firm_gpio;
+	unsigned int		pwr_en;
 	void (*gpio_init) (void);
 	unsigned int 		ven_enable;
 	int boot_mode;
@@ -111,7 +118,7 @@ static int pn544_RxData(uint8_t *rxData, int length)
 
 	rxData[0] = 0;
 
-	for (loop_i = 0; loop_i < I2C_RETRY_COUNT; loop_i++) {
+	for (loop_i = 0; loop_i < NFC_I2C_RETRY; loop_i++) {
 		D("%s: retry %d ........\n", __func__, loop_i);
 		if (i2c_transfer(pni->client->adapter, msg, 1) > 0)
 			break;
@@ -119,15 +126,22 @@ static int pn544_RxData(uint8_t *rxData, int length)
 		mdelay(10);
 	}
 
-	if (loop_i >= I2C_RETRY_COUNT) {
-		E("%s Error: retry over %d\n", __func__,
-			I2C_RETRY_COUNT);
+	if (loop_i >= NFC_I2C_RETRY) {
+		E("%s Error in i2c read: retry over %d error_count = %d\n", __func__,
+			NFC_I2C_RETRY,i2c_error_retry);
 #if defined(CONFIG_MACH_M8QL_UL)
 		E("%s : ncp6924_ldo3 workaround regulator_is_enabled = %d\n", __func__, regulator_is_enabled(ncp6924_ldo3));
 #endif
+		if (i2c_error_retry > NFC_I2C_RETRY_ERROR_COUNT) {
+			E("%s Error: retry over %d\n", __func__,
+			NFC_I2C_RETRY_ERROR_COUNT);
+			i2c_error_retry = 0;
+			return -EIO;
+		}
+		i2c_error_retry++;
 		return -EIO;
 	}
-
+	i2c_error_retry = 0;
 	return 0;
 }
 
@@ -152,7 +166,7 @@ static int pn544_TxData(uint8_t *txData, int length)
 		return 0;
 	}
 
-	for (loop_i = 0; loop_i < I2C_RETRY_COUNT; loop_i++) {
+	for (loop_i = 0; loop_i < NFC_I2C_RETRY; loop_i++) {
 		D("%s: retry %d ........\n", __func__, loop_i);
 		if (i2c_transfer(pni->client->adapter, msg, 1) > 0)
 			break;
@@ -160,15 +174,22 @@ static int pn544_TxData(uint8_t *txData, int length)
 		msleep(10);
 	}
 
-	if (loop_i >= I2C_RETRY_COUNT) {
-		E("%s:  Error: retry over %d\n",
-			__func__, I2C_RETRY_COUNT);
+	if (loop_i >= NFC_I2C_RETRY) {
+		E("%s Error in i2c write: retry over %d error_count = %d\n", __func__,
+			NFC_I2C_RETRY,i2c_error_retry);
 #if defined(CONFIG_MACH_M8QL_UL)
 		E("%s : ncp6924_ldo3 workaround regulator_is_enabled = %d\n", __func__, regulator_is_enabled(ncp6924_ldo3));
 #endif
+		if (i2c_error_retry > NFC_I2C_RETRY_ERROR_COUNT) {
+			E("%s Error: retry over %d\n", __func__,
+			NFC_I2C_RETRY_ERROR_COUNT);
+			i2c_error_retry = 0;
+			return -EIO;
+		}
+		i2c_error_retry++;
 		return -EIO;
 	}
-
+	i2c_error_retry = 0;
 	return 0;
 }
 
@@ -388,6 +409,11 @@ static long pn544_dev_ioctl(struct file *filp,
 				E("%s, SW-Reset TxData error!\n", __func__);
 		} else if (arg == 2) {
 			I("%s power on with firmware\n", __func__);
+#ifdef NFC_PWR_GPIO_CONTROL
+			gpio_set_value(pni->pwr_en, 1);
+			I("%s nfc_pvdd_on\n", __func__);
+			msleep(1);
+#endif
 			pn544_Enable();
 			gpio_set_value(pni->firm_gpio, 1);
 			msleep(50);
@@ -398,6 +424,11 @@ static long pn544_dev_ioctl(struct file *filp,
 		} else if (arg == 1) {
 			
 			I("%s power on (delay50)\n", __func__);
+#ifdef NFC_PWR_GPIO_CONTROL
+			gpio_set_value(pni->pwr_en, 1);
+			I("%s nfc_pvdd_on\n", __func__);
+			msleep(1);
+#endif
 			gpio_set_value(pni->firm_gpio, 0);
 			pn544_Enable();
 			msleep(50);
@@ -410,6 +441,10 @@ static long pn544_dev_ioctl(struct file *filp,
 			gpio_set_value(pni->firm_gpio, 0);
 			pn544_Disable();
 			msleep(50);
+#ifdef NFC_PWR_GPIO_CONTROL
+			I("%s nfc_pvdd_off\n", __func__);
+			gpio_set_value(pni->pwr_en, 0);
+#endif
 			is_debug = 0;
 			I("%s pn544_Disable, set is_debug = %d, s_wdcmd_cnt = %d\n", __func__, is_debug, s_wdcmd_cnt);
 		} else {
@@ -476,7 +511,7 @@ static ssize_t pn_temp1_show(struct device *dev,
 	}
 #endif
 
-	ret = sprintf(buf, "GPIO INT = %d "
+	ret = snprintf(buf, MAX_BUFFER_SIZE*2 , "GPIO INT = %d "
 		"Rx:ret=%d [0x%x, 0x%x, 0x%x, 0x%x]\n", val, ret, buffer[0], buffer[1],
 		buffer[2], buffer[3]);
 
@@ -583,7 +618,7 @@ static ssize_t debug_enable_show(struct device *dev,
 	int ret = 0;
 	I("debug_enable_show\n");
 
-	ret = sprintf(buf, "is_debug=%d\n", is_debug);
+	ret = snprintf(buf, MAX_BUFFER_SIZE*2 , "is_debug=%d\n", is_debug);
 	return ret;
 }
 
@@ -602,7 +637,7 @@ static ssize_t nxp_chip_alive_show(struct device *dev,
 {
 	int ret = 0;
 	I("%s is %d\n", __func__, is_alive);
-	ret = sprintf(buf, "%d\n", is_alive);
+	ret = snprintf(buf, MAX_BUFFER_SIZE*2 , "%d\n", is_alive);
 	return ret;
 }
 
@@ -613,7 +648,7 @@ static ssize_t nxp_uicc_swp_show(struct device *dev,
 {
 	int ret = 0;
 	I("%s is %d\n", __func__, is_uicc_swp);
-	ret = sprintf(buf, "%d\n", is_uicc_swp);
+	ret = snprintf(buf, MAX_BUFFER_SIZE*2 , "%d\n", is_uicc_swp);
 	return ret;
 }
 
@@ -629,15 +664,28 @@ static DEVICE_ATTR(nxp_uicc_swp, 0664, nxp_uicc_swp_show, nxp_uicc_swp_store);
 
 #if FTM_MODE
 
-static void pn544_hw_reset(void)
+static void pn544_hw_reset_control(int en_num)
 {
-
-	pn544_Enable();
-	msleep(50);
-	pn544_Disable();
-	msleep(50);
-	pn544_Enable();
-	msleep(50);
+	switch(en_num){
+	case 0:
+		pn544_Enable();
+		msleep(50);
+		pn544_Disable();
+		msleep(50);
+		pn544_Enable();
+		msleep(50);
+		pn544_Disable();
+		msleep(50);
+		break;
+	case 1:
+	default:
+		pn544_Enable();
+		msleep(50);
+		pn544_Disable();
+		msleep(50);
+		pn544_Enable();
+		msleep(50);
+	}
 }
 
 void nfc_nci_dump_data(unsigned char *data, int len) {
@@ -645,7 +693,7 @@ void nfc_nci_dump_data(unsigned char *data, int len) {
 	char temp[len*7];
 	memset(temp, 0x00, len*7);
 	for (i = 0, j = 0; i < len; i++)
-		j += sprintf(temp + j, " 0x%02X", data[i]);
+		j += snprintf(temp + j, MAX_BUFFER_SIZE*2 , " 0x%02X", data[i]);
 	I("%s\r\n", temp);
 }
 
@@ -1116,13 +1164,19 @@ static ssize_t mfg_nfc_ctrl_show(struct device *dev,
 {
 	int ret = 0;
 	I("%s mfc_nfc_cmd_result is %d\n", __func__, mfc_nfc_cmd_result);
-	ret = sprintf(buf, "%d\n\n", mfc_nfc_cmd_result);
+	ret = snprintf(buf, MAX_BUFFER_SIZE*2 , "%d\n\n", mfc_nfc_cmd_result);
 	return ret;
 }
 
 
 static int mfg_nfc_test(int code)
 {
+#ifdef NFC_PWR_GPIO_CONTROL
+	struct pn544_dev *pni = pn_info;
+#endif
+#if defined(CONFIG_MACH_M8QL_UL)
+	int ret;
+#endif
 	gDevice_info.NTF_count = 0;
 	memset(gDevice_info.NTF_queue, 0x00, sizeof(gDevice_info.NTF_queue));
 	gDevice_info.protocol_set = 4;
@@ -1133,37 +1187,56 @@ static int mfg_nfc_test(int code)
 	watchdogEn = 1;
 	I("%s: store value = %d\n", __func__, code);
 
+#ifdef NFC_PWR_GPIO_CONTROL
+	gpio_set_value(pni->pwr_en, 1);
+	msleep(1);
+#endif
+
 	switch (code) {
 	case 0:  
 		I("%s: get nfcversion :\n", __func__);
-		pn544_hw_reset();
+		pn544_hw_reset_control(1);
 		if (script_processor(nfc_version_script, sizeof(nfc_version_script)) == 0) {
 			I("%s: store value = %d\n", __func__, code);
 		}
+		pn544_hw_reset_control(0);
 		break;
 	case 1:  
 		I("%s: nfcreader test :\n", __func__);
-		pn544_hw_reset();
+		pn544_hw_reset_control(1);
 		if (script_processor(nfc_reader_script, sizeof(nfc_reader_script)) == 0) {
 			I("%s: store value = %d\n", __func__, code);
 			mfc_nfc_cmd_result = 1;
 		}
+		pn544_hw_reset_control(0);
 		break;
 	case 2:  
 		I("%s: nfccard test :\n", __func__);
-		pn544_hw_reset();
+		pn544_hw_reset_control(1);
 		if (script_processor(nfc_card_script, sizeof(nfc_card_script)) == 0) {
 			I("%s: store value = %d\n", __func__, code);
 			mfc_nfc_cmd_result = 1;
 		}
+		pn544_hw_reset_control(0);
 		break;
 #if FTM_NFC_CPLC
 #endif  
+	case 99:
+		I("Turn off NFC_PVDD");
+#ifdef NFC_PWR_GPIO_CONTROL 
+		gpio_set_value(pni->pwr_en, 0);
+#endif
+#if defined(CONFIG_MACH_M8QL_UL)
+		ret = regulator_disable(ncp6924_ldo3);
+		if (ret < 0) {
+		E("%s : ncp6924_ldo3 workaround regulator_disable fail\n", __func__);
+		}
+#endif
+		break;
 	default:
 		E("%s: case default\n", __func__);
 		break;
 	}
-	pn544_hw_reset();
 	I("%s: END\n", __func__);
 	return 0;
 }
@@ -1299,6 +1372,11 @@ static int pn544_parse_dt(struct device *dev, struct pn544_i2c_platform_data *pd
 				0, &pdata->ven_gpio_flags);
 	pdata->firm_gpio = of_get_named_gpio_flags(dt, "nxp,fwdl-gpio",
 				0, &pdata->firm_gpio_flags);
+#ifdef NFC_PWR_GPIO_CONTROL
+	pdata->pwr_en = of_get_named_gpio_flags(dt, "nxp,pvdd-gpio",
+				0, &pdata->pwr_en_flags);
+	I("pwr_en:%d\r\n", pdata->pwr_en);
+#endif
 	I("%s: End, irq_gpio:%d, ven_gpio:%d, firm_gpio:%d\n", __func__, pdata->irq_gpio, pdata->ven_gpio,pdata->firm_gpio);
 
 	return 0;
@@ -1386,6 +1464,25 @@ static int pn544_probe(struct i2c_client *client,
 		ret = -ENODEV;
 		goto err_request_gpio_firm;
 	}
+#ifdef NFC_PWR_GPIO_CONTROL
+	if (platform_data->pwr_en) {
+		ret = gpio_request(platform_data->pwr_en, "pwr_en");
+		if (ret){
+			E("%s : request gpio %d fail\n",
+				__func__, platform_data->pwr_en);
+			ret = -ENODEV;
+			goto err_pwr_en;
+		}
+
+		ret = gpio_direction_output(platform_data->pwr_en, 1);
+		I("%s : pwr_en set 1 %d \n",__func__, ret);
+		ret = gpio_get_value(platform_data->pwr_en);
+		I("Before pwr_en value:%d \r\n", ret);
+		gpio_set_value(platform_data->pwr_en, 1);
+		ret = gpio_get_value(platform_data->pwr_en);
+		I("After pwr_en value:%d \r\n", ret);
+	}
+#endif
 
 	pni = kzalloc(sizeof(struct pn544_dev), GFP_KERNEL);
 	if (pni == NULL) {
@@ -1393,7 +1490,7 @@ static int pn544_probe(struct i2c_client *client,
 				"pn544_probe : failed to allocate \
 				memory for module data\n");
 		ret = -ENOMEM;
-		goto err_exit;
+		goto err_kzalloc;
 	}
 
 	pn_info = pni;
@@ -1406,6 +1503,10 @@ static int pn544_probe(struct i2c_client *client,
 	pni->irq_gpio = platform_data->irq_gpio;
 	pni->ven_gpio  = platform_data->ven_gpio;
 	pni->firm_gpio  = platform_data->firm_gpio;
+#ifdef NFC_PWR_GPIO_CONTROL
+	pni->pwr_en = platform_data->pwr_en;
+	I("pwr_en:%d\n", pni->pwr_en);
+#endif
 	pni->client   = client;
 	pni->gpio_init = platform_data->gpio_init;
 	pni->ven_enable = !platform_data->ven_isinvert;
@@ -1566,12 +1667,18 @@ err_misc_register:
 	wake_lock_destroy(&pni->io_wake_lock);
 	kfree(pni);
 	pn_info = NULL;
+err_kzalloc:
+#ifdef NFC_PWR_GPIO_CONTROL
+	gpio_free(platform_data->pwr_en);
+err_pwr_en:
+#endif
 	gpio_free(platform_data->firm_gpio);
 err_request_gpio_firm:
 	gpio_free(platform_data->ven_gpio);
 err_request_gpio_ven:
 	gpio_free(platform_data->irq_gpio);
 err_exit:
+	kfree(platform_data);
 	E("%s: prob fail\n", __func__);
 	return ret;
 }
@@ -1589,6 +1696,9 @@ static int pn544_remove(struct i2c_client *client)
 	gpio_free(pn544_dev->irq_gpio);
 	gpio_free(pn544_dev->ven_gpio);
 	gpio_free(pn544_dev->firm_gpio);
+#ifdef NFC_PWR_GPIO_CONTROL
+	 gpio_free(pn544_dev->pwr_en);
+#endif
 	kfree(pn544_dev);
 	pn_info = NULL;
 

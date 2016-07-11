@@ -37,4 +37,4 @@ void htc_debugfs_init(struct msm_fb_data_type *mfd);
 void htc_set_pp_pa(struct mdss_mdp_ctl *ctl);
 void htc_bkl_ctrl(struct msm_fb_data_type *mfd,int enable);
 
-#endif 
+#endif /* MDSS_FB_H */

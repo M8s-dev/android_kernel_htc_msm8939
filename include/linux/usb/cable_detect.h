@@ -23,14 +23,16 @@ __maybe_unused static int htc_cable_detect_retry_times = 3;
 #endif
 #define ADC_DELAY HZ/8
 
-#define PM8058ADC_15BIT(adc) ((adc * 2200) / 32767) 
+#define PM8058ADC_15BIT(adc) ((adc * 2200) / 32767) /* vref=2.2v, 15-bits resolution */
 
 #define CABLE_ERR(fmt, args...) \
 	printk(KERN_ERR "[CABLE:ERR] " fmt, ## args)
 #define CABLE_WARNING(fmt, args...) \
 	printk(KERN_WARNING "[CABLE] " fmt, ## args)
+/*++ 2014/04/18, USB Team, now uart log doesn't output INFO level log PCN00003 ++*/
 #define CABLE_INFO(fmt, args...) \
 	printk(KERN_WARNING "[CABLE] " fmt, ## args)
+/*-- 2014/04/18, USB Team,  PCN00003 --*/
 #define CABLE_DEBUG(fmt, args...) \
 	printk(KERN_DEBUG "[CABLE] " fmt, ## args)
 
@@ -67,18 +69,20 @@ struct cable_detect_platform_data {
 	int vbus_mpp_gpio;
 	int vbus_mpp_irq;
 	void (*vbus_mpp_config)(void);
-	
+	/* 1 : uart, 0 : usb */
 	void (*usb_uart_switch)(int);
 	void (*usb_dpdn_switch)(int);
 
 	int ad_en_active_state;
 	int ad_en_gpio;
 	int ad_en_irq;
-	
+	/* for accessory detection */
 	u8 accessory_type;
 	u8 mfg_usb_carkit_enable;
 	int usb_id_pin_type;
+/*++ 2014/06/05, USB Team, PCN00018 ++*/
 	int (*usb_id_pin_gpio)(void);
+/*-- 2014/06/05, USB Team, PCN00018 --*/
 	__u8 detect_type;
 
 #ifdef CONFIG_HTC_MHL_DETECTION
@@ -111,6 +115,9 @@ struct cable_detect_platform_data {
 	int vbus_debounce_retry;
 };
 
+/* -----------------------------------------------------------------------------
+»       »       »       External routine declaration
+-----------------------------------------------------------------------------*/
 #ifdef CONFIG_FB_MSM_MDSS_HDMI_MHL_SII9234
 extern void sii9234_mhl_device_wakeup(void);
 #endif

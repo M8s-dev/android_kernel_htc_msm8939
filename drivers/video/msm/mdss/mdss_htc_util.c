@@ -29,7 +29,9 @@ struct attribute_status htc_cabc_level[] = {
 };
 
 
-static struct delayed_work dimming_work;
+static void dimming_do_work(struct work_struct *work);
+static DECLARE_DELAYED_WORK(dimming_work, dimming_do_work);
+static DEFINE_MUTEX(dimming_wq_lock);
 
 struct msm_fb_data_type *mfd_instance;
 #define DEBUG_BUF   2048
@@ -40,6 +42,7 @@ static char debug_buf[DEBUG_BUF];
 struct mdss_dsi_ctrl_pdata *ctrl_instance = NULL;
 static char dcs_cmds[DCS_MAX_CNT];
 static char *tmp;
+
 static struct dsi_cmd_desc debug_cmd = {
 	{DTYPE_DCS_LWRITE, 1, 0, 0, 1, 1}, dcs_cmds
 };
@@ -356,7 +359,9 @@ void htc_reset_status(void)
 		htc_cabc_level[i].cur_value = htc_cabc_level[i].def_value;
 	}
 	
+	mutex_lock(&dimming_wq_lock);
 	cancel_delayed_work_sync(&dimming_work);
+	mutex_unlock(&dimming_wq_lock);
 
 	return;
 }
@@ -371,11 +376,13 @@ void htc_set_cabc(struct msm_fb_data_type *mfd)
 	struct mdss_panel_data *pdata;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct dcs_cmd_req cmdreq;
+	struct mdss_panel_info *pinfo;
 
 	pdata = dev_get_platdata(&mfd->pdev->dev);
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 					panel_data);
+	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	if ((htc_cabc_level[CABC_INDEX].req_value > 2) || (htc_cabc_level[CABC_INDEX].req_value < 0))
 		return;
@@ -409,6 +416,8 @@ void htc_set_cabc(struct msm_fb_data_type *mfd)
 	}
 
 	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
+	if (pinfo->mipi.dlnx_fifo_overflow)
+		cmdreq.flags  |= CMD_REQ_HS_MODE;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 
@@ -424,6 +433,7 @@ static void dimming_do_work(struct work_struct *work)
 	struct mdss_panel_data *pdata;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct dcs_cmd_req cmdreq;
+	struct mdss_panel_info *pinfo;
 
 	pdata = dev_get_platdata(&mfd_instance->pdev->dev);
 
@@ -434,7 +444,7 @@ static void dimming_do_work(struct work_struct *work)
 			mfd_instance->panel_info->bl_max, MDSS_MAX_BL_BRIGHTNESS);
 
 		pdata->set_backlight(pdata, mfd_instance->bl_level);
-		mfd_instance->bl_level_scaled = mfd_instance->bl_level;
+		mfd_instance->bl_level_old = mfd_instance->bl_level;
 		mfd_instance->bl_updated = 1;
 		mutex_unlock(&mfd_instance->bl_lock);
 		PR_DISP_INFO("%s set default backlight!\n", __func__);
@@ -442,12 +452,15 @@ static void dimming_do_work(struct work_struct *work)
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 					panel_data);
+	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
 
 	cmdreq.cmds = ctrl_pdata->dimming_on_cmds.cmds;
 	cmdreq.cmds_cnt = ctrl_pdata->dimming_on_cmds.cmd_cnt;
 	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
+	if (pinfo->mipi.dlnx_fifo_overflow)
+		cmdreq.flags  |= CMD_REQ_HS_MODE;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 
@@ -470,10 +483,10 @@ void htc_dimming_on(struct msm_fb_data_type *mfd)
 		return;
 
 	mfd_instance = mfd;
-
-	INIT_DELAYED_WORK(&dimming_work, dimming_do_work);
-
+	mutex_lock(&dimming_wq_lock);
 	schedule_delayed_work(&dimming_work, msecs_to_jiffies(1000));
+	mutex_unlock(&dimming_wq_lock);
+
 	return;
 }
 

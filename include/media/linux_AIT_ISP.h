@@ -186,5 +186,5 @@ struct msm_camera_AIT_info {
 	int isp_intr0;
 };
 
-#endif 
+#endif /* __LINUX_AIT_H */
 

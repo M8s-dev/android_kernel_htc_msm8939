@@ -35,6 +35,7 @@ unsigned int get_radio_flag(void)
 		config_data_init();
         return cfg_flag_index[RADIO_FLAG_INDEX];
 }
+EXPORT_SYMBOL(get_radio_flag);
 
 unsigned int get_radio_flag_ex1(void)
 {
@@ -48,6 +49,13 @@ unsigned int get_radio_flag_ex2(void)
 	if (!has_config_data)
 		config_data_init();
         return cfg_flag_index[RADIO_FLAG_EX2_INDEX];
+}
+
+unsigned int get_cpumask_flag(void)
+{
+        if (!has_config_data)
+                config_data_init();
+        return cfg_flag_index[CPUMASK_FLAG_INDEX];
 }
 
 static int config_data_init(void)

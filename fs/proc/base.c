@@ -956,9 +956,10 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 	task->signal->oom_score_adj = oom_adj;
 	trace_oom_score_adj_update(task);
 
-	if(!strncmp("main",task->comm,4) && task->parent->pid ==1)
-		 printk(KERN_WARNING"%s :%s(%d) write /proc/%d/oom_score_adj %d",__func__,
-			current->comm,task_pid_nr(current),task_pid_nr(task),task->signal->oom_score_adj);
+	if(!strncmp("main", task->group_leader->comm, 4) && task->group_leader->parent->pid ==1)
+		printk(KERN_WARNING"%s :%s(%d) write /proc/%d/oom_score_adj %d (group_leader pid:%d)\n", __func__,
+			current->comm, task_pid_nr(current), task_pid_nr(task), task->signal->oom_score_adj, task->group_leader->pid);
+
 err_sighand:
 	unlock_task_sighand(task, &flags);
 err_task_lock:
@@ -1076,9 +1077,10 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 		task->signal->oom_score_adj_min = (short)oom_score_adj;
 	trace_oom_score_adj_update(task);
 
-	if(!strncmp("main",task->comm,4) && task->parent->pid ==1)
-                 printk(KERN_WARNING"%s :%s(%d) write /proc/%d/oom_score_adj %d",__func__,
-                        current->comm,task_pid_nr(current),task_pid_nr(task),task->signal->oom_score_adj);
+	if(!strncmp("main", task->group_leader->comm, 4) && task->group_leader->parent->pid ==1)
+		printk(KERN_WARNING"%s :%s(%d) write /proc/%d/oom_score_adj %d (group_leader pid:%d)\n", __func__,
+			current->comm, task_pid_nr(current), task_pid_nr(task), task->signal->oom_score_adj, task->group_leader->pid);
+
 err_sighand:
 	unlock_task_sighand(task, &flags);
 err_task_lock:
@@ -2603,6 +2605,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("mounts",     S_IRUGO, proc_mounts_operations),
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 	REG("mountstats", S_IRUSR, proc_mountstats_operations),
+#ifdef CONFIG_PROCESS_RECLAIM
+	REG("reclaim", S_IWUSR, proc_reclaim_operations),
+#endif
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
 	REG("smaps",      S_IRUGO, proc_pid_smaps_operations),

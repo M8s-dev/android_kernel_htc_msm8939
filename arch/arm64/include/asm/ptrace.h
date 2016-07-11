@@ -21,11 +21,9 @@
 
 #include <uapi/asm/ptrace.h>
 
-/* Current Exception Level values, as contained in CurrentEL */
 #define CurrentEL_EL1		(1 << 2)
 #define CurrentEL_EL2		(2 << 2)
 
-/* AArch32-specific ptrace requests */
 #define COMPAT_PTRACE_GETREGS		12
 #define COMPAT_PTRACE_SETREGS		13
 #define COMPAT_PTRACE_GET_THREAD_AREA	22
@@ -35,7 +33,6 @@
 #define COMPAT_PTRACE_GETHBPREGS	29
 #define COMPAT_PTRACE_SETHBPREGS	30
 
-/* AArch32 CPSR bits */
 #define COMPAT_PSR_MODE_MASK	0x0000001f
 #define COMPAT_PSR_MODE_USR	0x00000010
 #define COMPAT_PSR_MODE_FIQ	0x00000011
@@ -57,20 +54,19 @@
 #define COMPAT_PSR_C_BIT	0x20000000
 #define COMPAT_PSR_Z_BIT	0x40000000
 #define COMPAT_PSR_N_BIT	0x80000000
-#define COMPAT_PSR_IT_MASK	0x0600fc00	/* If-Then execution state mask */
-/*
- * These are 'magic' values for PTRACE_PEEKUSR that return info about where a
- * process is located in memory.
- */
+#define COMPAT_PSR_IT_MASK	0x0600fc00	
 #define COMPAT_PT_TEXT_ADDR		0x10000
 #define COMPAT_PT_DATA_ADDR		0x10004
 #define COMPAT_PT_TEXT_END_ADDR		0x10008
+
+#define RET_SKIP_SYSCALL	-1
+#define RET_SKIP_SYSCALL_TRACE	-2
+#define IS_SKIP_SYSCALL(no)	((int)(no & 0xffffffff) == -1)
+
 #ifndef __ASSEMBLY__
 
-/* sizeof(struct user) for AArch32 */
 #define COMPAT_USER_SZ	296
 
-/* Architecturally defined mapping between AArch32 and AArch64 registers */
 #define compat_usr(x)	regs[(x)]
 #define compat_fp	regs[11]
 #define compat_sp	regs[13]
@@ -92,11 +88,6 @@
 #define compat_sp_fiq	regs[29]
 #define compat_lr_fiq	regs[30]
 
-/*
- * This struct defines the way the registers are stored on the stack during an
- * exception. Note that sizeof(struct pt_regs) has to be a multiple of 16 (for
- * stack alignment). struct user_pt_regs must form a prefix of struct pt_regs.
- */
 struct pt_regs {
 	union {
 		struct user_pt_regs user_regs;
@@ -144,25 +135,18 @@ static inline unsigned long regs_return_value(struct pt_regs *regs)
 	return regs->regs[0];
 }
 
-/*
- * Are the current registers suitable for user mode? (used to maintain
- * security in signal handlers)
- */
 static inline int valid_user_regs(struct user_pt_regs *regs)
 {
 	if (user_mode(regs) && (regs->pstate & PSR_I_BIT) == 0) {
 		regs->pstate &= ~(PSR_F_BIT | PSR_A_BIT);
 
-		/* The T bit is reserved for AArch64 */
+		
 		if (!(regs->pstate & PSR_MODE32_BIT))
 			regs->pstate &= ~COMPAT_PSR_T_BIT;
 
 		return 1;
 	}
 
-	/*
-	 * Force PSR to something logical...
-	 */
 	regs->pstate &= PSR_f | PSR_s | (PSR_x & ~PSR_A_BIT) | \
 			COMPAT_PSR_T_BIT | PSR_MODE32_BIT;
 
@@ -182,13 +166,7 @@ extern unsigned long profile_pc(struct pt_regs *regs);
 #define profile_pc(regs) instruction_pointer(regs)
 #endif
 
-/*
- * True if instr is a 32-bit thumb instruction. This works if instr
- * is the first or only half-word of a thumb instruction. It also works
- * when instr holds all 32-bits of a wide thumb instruction if stored
- * in the form (first_half<<16)|(second_half)
- */
 #define is_wide_instruction(instr)	((unsigned)(instr) >= 0xe800)
 
-#endif /* __ASSEMBLY__ */
+#endif 
 #endif

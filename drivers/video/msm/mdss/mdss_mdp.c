@@ -58,7 +58,7 @@
 #include "mdss_mdp_trace.h"
 
 #define AXI_HALT_TIMEOUT_US	0x4000
-#define AUTOSUSPEND_TIMEOUT_MS	200
+#define AUTOSUSPEND_TIMEOUT_MS	50
 
 struct mdss_data_type *mdss_res;
 
@@ -1138,6 +1138,10 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 	mdss_hw_rev_init(mdata);
 
 	
+	if (mdss_mdp_req_init_restore_cfg(mdata))
+		__mdss_restore_sec_cfg(mdata);
+
+	
 	writel_relaxed(0x0, mdata->mdp_base +
 			MDSS_MDP_REG_VIDEO_INTF_UNDERFLOW_CTL);
 
@@ -2134,13 +2138,13 @@ static int mdss_mdp_parse_dt_pipe(struct platform_device *pdev)
 	goto parse_done;
 
 parse_fail:
-	kfree(mdata->cursor_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->cursor_pipes);
 cursor_alloc_fail:
-	kfree(mdata->dma_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->dma_pipes);
 dma_alloc_fail:
-	kfree(mdata->rgb_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->rgb_pipes);
 rgb_alloc_fail:
-	kfree(mdata->vig_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->vig_pipes);
 parse_done:
 vig_alloc_fail:
 	kfree(xin_id);

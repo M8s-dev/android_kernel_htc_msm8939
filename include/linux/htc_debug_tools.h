@@ -16,17 +16,23 @@
 
 
 #if defined(CONFIG_HTC_DEBUG_WATCHDOG)
+/* exported from arch/arm/mach-msm/msm_watchdog_v2.c */
 int htc_debug_watchdog_enabled(void);
 
 void htc_debug_watchdog_check_pet(unsigned long long timestamp);
 void htc_debug_watchdog_update_last_pet(unsigned long long last_pet);
 void htc_debug_watchdog_dump_irqs(unsigned int dump);
-#endif 
+#endif /* CONFIG_HTC_DEBUG_WATCHDOG */
 
 #if defined(CONFIG_HTC_DEBUG_WORKQUEUE)
+/* exported from kernel/workqueue.c */
 void workqueue_show_pending_work(void);
-#endif 
+#endif /* CONFIG_HTC_DEBUG_WORKQUEUE */
 
+/* n.b.:
+ * 1. sched_clock is not irq safe
+ * 2. 32 bit: overflows every 4,294,967,296 msecs
+ */
 unsigned long htc_debug_get_sched_clock_ms(void);
 #if defined(CONFIG_HTC_DEBUG_HBRAMLOG)
 ssize_t bldr_log_read(const void *lastk_buf, ssize_t lastk_size, char __user *userbuf,
@@ -35,4 +41,4 @@ int bldr_log_init(void);
 void bldr_log_release(void);
 #endif
 
-#endif 
+#endif /* __HTC_DEBUG_TOOLS_H__ */

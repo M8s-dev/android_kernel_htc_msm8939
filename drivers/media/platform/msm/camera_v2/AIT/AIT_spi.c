@@ -36,7 +36,7 @@ int spi_AIT_probe(struct spi_device *AIT)
 
 	AIT_dev = AIT;
 
-	
+	/*from AIT*/
 	AIT_spi_ctrl = kzalloc(sizeof(*AIT_spi_ctrl), GFP_KERNEL);
 	if (!AIT_spi_ctrl)
 		return -ENOMEM;
@@ -91,8 +91,8 @@ void SetVenusRegW(uint16_t Addr, uint16_t Val)
 
 	mutex_lock(&spi_lock);
 	AIT_dev->bits_per_word = 8;
-	
-	
+	//CDBG("%s , Addr:0x%x,tx_buf[1]:0x%x, tx_buf[2]:0x%x\n", __func__,Addr, tx[1],tx[2] );
+	//CDBG("%s , Addr:0x%x,tx_buf[3]:0x%x, tx_buf[4]:0x%x\n", __func__,Addr, tx[3],tx[4] );
 	rc = spi_write(AIT_dev, tx, 5);
 	if (rc < 0) {
 		pr_err("[CAM]SetVenusRegW (0x%x,0x%x) failed, rc=%d\n", Addr,Val, rc);
@@ -135,7 +135,7 @@ uint16_t GetVenusRegW(uint16_t Addr)
 	tx_buf[3] = 0xff;
 	tx_buf[4] = 0xff;
 	
-	
+	//CDBG("%s , Addr:0x%x,tx_buf[1]:0x%x, tx_buf[2]:0x%x\n", __func__,Addr, tx_buf[1],tx_buf[2] );
 	rx_buf[0] = 0xff;
 	rx_buf[1] = 0xff;
 	rx_buf[2] = 0xff;
@@ -148,7 +148,7 @@ uint16_t GetVenusRegW(uint16_t Addr)
 		return Val;
 	}
 	Val = (rx_buf[4] << 8) | (rx_buf[3]);
-	
+	//CDBG("[CAM]%s rx_buf[3]:0x%x, rx_buf[4]:0x%x, Val:0x%x\n", __func__, rx_buf[3], rx_buf[4], Val );
 	mutex_unlock(&spi_lock);
 	return Val;
 }
@@ -174,7 +174,7 @@ void GetVenusMultiBytes(uint8_t* dataPtr, uint16_t startAddr, uint16_t length)
 		tx_buf[0] = 0x0 | (read_len - 1);
 		tx_buf[1] = ((startAddr_temp & 0xff00) >> 8);
 		tx_buf[2] = (startAddr_temp & 0xff);
-		
+		//CDBG("GetVenusMultiBytes, tx (0x%x, 0x%x, 0x%x) \n", tx_buf[0], tx_buf[1], tx_buf[2]);
 		rc = spi_read_buf(AIT_dev, tx_buf, rx_buf, read_len + 3);
 		if (rc < 0) {
 		pr_err("[CAM]GetVenusMultiBytes spi_read_buf failed, rc=%d \n", rc);
@@ -200,7 +200,7 @@ void SetVenusRegB(uint16_t Addr, uint8_t Val)
 	tx[3] = Val;
 	mutex_lock(&spi_lock);
 	AIT_dev->bits_per_word = 8;
-	
+	//CDBG("%s , Addr:0x%x,tx_buf[1]:0x%x, tx_buf[2]:0x%x, tx_buf[3]:0x%x\n", __func__,Addr, tx[1],tx[2], tx[3] );
 	rc = spi_write(AIT_dev, tx, 4);
 	if (rc < 0) {
 		pr_err("[CAM]SetVenusRegB (0x%x,0x%x) failed, rc=%d\n", Addr,Val, rc);
@@ -218,7 +218,7 @@ uint8_t GetVenusRegB(uint16_t Addr)
 	tx_buf[2] = (Addr & 0xff);
 	tx_buf[3] = 0xff;
 	
-	
+	//CDBG("%s , Addr:0x%x,tx_buf[1]:0x%x, tx_buf[2]:0x%x\n", __func__,Addr, tx_buf[1],tx_buf[2] );
 	rx_buf[0] = 0xff;
 	rx_buf[1] = 0xff;
 	rx_buf[2] = 0xff;
@@ -229,7 +229,7 @@ uint8_t GetVenusRegB(uint16_t Addr)
 		mutex_unlock(&spi_lock);
 		return rc;
 	}
-	
+	//CDBG("[CAM]%s rx_buf[3]:0x%x\n", __func__, rx_buf[3] );
 	mutex_unlock(&spi_lock);
 	return rx_buf[3];
 }

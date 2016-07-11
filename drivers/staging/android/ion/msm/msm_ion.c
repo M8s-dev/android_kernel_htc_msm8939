@@ -125,13 +125,19 @@ static struct notifier_block msm_ion_nb = {
 
 struct ion_client *msm_ion_client_create(const char *name)
 {
+	struct ion_client *client;
 	if (idev == NULL)
 		return ERR_PTR(-EPROBE_DEFER);
 
 	if (IS_ERR(idev))
 		return (struct ion_client *)idev;
 
-	return ion_client_create(idev, name);
+	client = ion_client_create(idev, name);
+
+	if (client)
+		ion_client_set_debug_name(client, name);
+
+	return client;
 }
 EXPORT_SYMBOL(msm_ion_client_create);
 
@@ -785,7 +791,28 @@ long msm_ion_custom_ioctl(struct ion_client *client,
 			ion_secure_cma_drain_pool);
 		break;
 	}
+	case ION_IOC_CLIENT_DEBUG_NAME:
+	{
+		struct ion_client_name_data data;
+		int name_len;
+		const size_t ION_CLIENT_DEBUG_NAME_LENGTH = 64;
+		char debug_name[ION_CLIENT_DEBUG_NAME_LENGTH + 1];
 
+		if (copy_from_user(&data, (void __user *)arg,
+					sizeof(struct ion_client_name_data)))
+			return -EFAULT;
+		if (data.len <= 0)
+			return -EFAULT;
+
+		name_len = min(ION_CLIENT_DEBUG_NAME_LENGTH, data.len);
+		if (copy_from_user(debug_name, (void __user *)data.name, name_len))
+			return -EFAULT;
+
+		debug_name[name_len] = '\0';
+
+		return ion_client_set_debug_name(
+				client, debug_name);
+	}
 	default:
 		return -ENOTTY;
 	}

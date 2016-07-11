@@ -42,12 +42,22 @@
 #include <asm/arch_timer.h>
 #include <asm/cacheflush.h>
 #include "lpm-levels.h"
+#include "lpm-workarounds.h"
 #include <trace/events/power.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_msm_low_power.h>
 
 #define SCLK_HZ (32768)
 #define SCM_HANDOFF_LOCK_ID "S:7"
+
+#define MSM_ARCH_TIMER_FREQ 19200000
+
+static inline u64 get_time_in_sec(u64 counter)
+{
+    do_div(counter, MSM_ARCH_TIMER_FREQ);
+    return counter;
+}
+
 static remote_spinlock_t scm_handoff_lock;
 
 enum {
@@ -229,7 +239,13 @@ int set_l2_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
 		lpm = MSM_SPM_MODE_DISABLED;
 		break;
 	}
-	rc = msm_spm_config_low_power_mode(ops->spm, lpm, notify_rpm);
+
+	
+	if (lpm_wa_get_skip_l2_spm())
+		rc = msm_spm_config_low_power_mode_addr(ops->spm, lpm,
+							true);
+	else
+		rc = msm_spm_config_low_power_mode(ops->spm, lpm, true);
 
 	if (rc)
 		pr_err("%s: Failed to set L2 low power mode %d, ERR %d",
@@ -268,6 +284,9 @@ static int cpu_power_select(struct cpuidle_device *dev,
 
 	if (!cpu)
 		return -EINVAL;
+
+	if (get_time_in_sec(arch_counter_get_cntpct()) < 180)
+		 return 0;
 
 	if (sleep_disabled)
 		return 0;
@@ -815,6 +834,8 @@ static void register_cpu_lpm_stats(struct lpm_cpu *cpu,
 
 	lpm_stats_config_level("cpu", level_name, cpu->nlevels,
 			parent->stats, &parent->child_cpus);
+
+	kfree(level_name);
 }
 
 static void register_cluster_lpm_stats(struct lpm_cluster *cl,

@@ -17,21 +17,22 @@
 #define __NCP6951_FLASHLIGHT_H
 
 struct ncp6951_flt_platform_data {
-	uint32_t flash_timeout_sw;	
-	uint32_t flash_timeout_hw;	
-	uint32_t flash_timeout_inhibit; 
-	uint32_t flash_timeout_inhibit_en;	
-	uint32_t flash_timeout_red_eye_en;	
+	uint32_t flash_timeout_sw;	/* ms, max sw flashing duration */
+	uint32_t flash_timeout_hw;	/* ms, max hw flashing duration */
+	uint32_t flash_timeout_inhibit; /* ms, min interval between 2 flashes */
+	uint32_t flash_timeout_inhibit_en;	/* switch of inhibit timer */
+	uint32_t flash_timeout_red_eye_en;	/* switch of pre-flash timeout protection */
 
-	uint32_t flash_current_max;	
-	uint32_t flash_current_reduced;	
-	uint32_t flash_current_red_eye;	
-	uint32_t torch_current_max;	
+	uint32_t flash_current_max;	/* mA, max flash current */
+	uint32_t flash_current_reduced;	/* mA, reduced flash current */
+	uint32_t flash_current_red_eye;	/* mA, pre-flash current */
+	uint32_t torch_current_max;	/* mA, max torch current */
 
-	uint32_t flash_count_red_eye;	
+	uint32_t flash_count_red_eye;	/* # of pre-flash */
 
-	uint32_t ncp6951_pin_flen;	
-	uint32_t ncp6951_pin_flsel;	
+	uint32_t ncp6951_pin_flen;	/* flash enable */
+	uint32_t ncp6951_pin_flsel;	/* flash in reduced current immediately
+					   when PA transmit burst (Optional) */
 };
 
 #undef __NCP6951_FLASHLIGHT_H

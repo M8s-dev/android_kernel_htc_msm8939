@@ -69,6 +69,8 @@ struct android_usb_platform_data {
 
 	u8 uicc_nluns;
 	bool cdrom;
+	const char *diag_client_interface;
+	const char *rmnet_transports_interface;
 };
 
 #ifndef CONFIG_TARGET_CORE

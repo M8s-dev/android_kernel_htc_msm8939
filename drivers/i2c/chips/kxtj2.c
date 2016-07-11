@@ -82,6 +82,9 @@ static DECLARE_WORK(irq_work, kxtj2_irq_work_func);
 #define YAS_RESOLUTION                                                    (1024)
 #endif
 #define YAS_GRAVITY_EARTH                                              (9806550)
+
+#define YAS_USER_CONVERT                                                 (10006)
+
 #define YAS_POWERUP_TIME                                                 (20000)
 #define YAS_SOFTRESET_WAIT_TIME                                           (1000)
 #define YAS_SOFTRESET_COUNT_MAX                                             (20)
@@ -477,6 +480,7 @@ struct yas_state {
 
 	struct class *sensor_class;
 	struct device *sensor_dev;
+	struct device *gs_cali_dev;
 };
 
 static struct yas_state *g_st;
@@ -751,6 +755,8 @@ static ssize_t yas_sampling_frequency_store(struct device *dev,
 	if (data <= 0)
 		return -EINVAL;
 	st->sampling_frequency = data;
+	
+	st->acc.set_delay(1000/st->sampling_frequency);
 	return count;
 }
 
@@ -1037,6 +1043,65 @@ static irqreturn_t kxtj2_irq_handler(int irq, void *handle)
 	return IRQ_HANDLED;
 }
 
+static ssize_t set_g_sensor_user_offset(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct yas_state *st = dev_get_drvdata(dev);
+	char *token;
+	char *str_buf;
+	char *running;
+	long input_val[3] = {0};
+	int rc, i;
+	s64 temp_kvalue[3] = {0};
+
+	str_buf = kstrndup(buf, count, GFP_KERNEL);
+	if (str_buf == NULL) {
+		E("%s: cannot allocate buffer\n", __func__);
+		return -1;
+	}
+	running = str_buf;
+
+	for (i = 0; i < 3; i++) {
+		token = strsep(&running, " ");
+		if (token == NULL) {
+			E("%s: token = NULL, i = %d\n", __func__, i);
+			break;
+		}
+
+		rc = kstrtol(token, 10, &input_val[i]);
+		if (rc) {
+			E("%s: kstrtol fails, rc = %d, i = %d\n",
+			  __func__, rc, i);
+			kfree(str_buf);
+			return rc;
+		}
+	}
+	kfree(str_buf);
+
+	I("%s: User Calibration(x, y, z) = (%ld, %ld, %ld)\n", __func__,
+	  input_val[0], input_val[1], input_val[2]);
+
+	temp_kvalue[0] = input_val[0];
+	temp_kvalue[1] = input_val[1];
+	temp_kvalue[2] = input_val[2];
+
+	I("%s: temp_kvalue(x, y, z) = (0x%llx, 0x%llx, 0x%llx)\n", __func__,
+	  temp_kvalue[0], temp_kvalue[1], temp_kvalue[2]);
+
+	for (i = 0; i < 3; i++) {
+		I("%s: temp_kvalue[%d] * YAS_GRAVITY_EARTH = %lld\n", __func__, i,
+		  temp_kvalue[i] * YAS_GRAVITY_EARTH);
+		st->calib_bias[i] = temp_kvalue[i] * YAS_USER_CONVERT;
+		I("%s: calib_bias[%d] = %d\n", __func__, i, st->calib_bias[i]);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(g_sensor_user_offset, S_IWUSR|S_IWGRP, NULL,
+		   set_g_sensor_user_offset);
+
 static int create_sysfs_interfaces(struct yas_state *st)
 {
 	int res;
@@ -1059,8 +1124,35 @@ static int create_sysfs_interfaces(struct yas_state *st)
 		goto err_fail_sysfs_create_link;
 	}
 
+
+	st->gs_cali_dev = device_create(st->sensor_class, NULL, 0, "%s",
+					"g_sensor");
+	if (st->gs_cali_dev == NULL)
+		goto custom_gs_cali_device_error;
+
+	res = dev_set_drvdata(st->gs_cali_dev, st);
+	if (res) {
+		E("%s: dev_set_drvdata(gs_cali_dev) fails, res = %d\n",
+		  __func__, res);
+		goto err_gs_cali_set_drvdata;
+	}
+
+	res = device_create_file(st->gs_cali_dev,
+				 &dev_attr_g_sensor_user_offset);
+	if (res) {
+		E("%s, create g_sensor_user_offset fail!\n", __func__);
+		goto err_create_g_sensor_user_offset_device_file;
+	}
+
 	return 0;
 
+err_create_g_sensor_user_offset_device_file:
+err_gs_cali_set_drvdata:
+	put_device(st->gs_cali_dev);
+	device_unregister(st->gs_cali_dev);
+custom_gs_cali_device_error:
+	sysfs_delete_link(&st->sensor_dev->kobj, &st->indio_dev->dev.kobj,
+			  "iio");
 err_fail_sysfs_create_link:
 	if (st->sensor_dev)
 		device_destroy(st->sensor_class, 0);
@@ -1243,6 +1335,25 @@ static int yas_remove(struct i2c_client *i2c)
 		iio_device_free(indio_dev);
 		this_client = NULL;
 	}
+
+	if (st && (st->gs_cali_dev || st->sensor_dev || st->indio_dev)) {
+		if (st->gs_cali_dev) {
+			device_remove_file(st->gs_cali_dev,
+				   &dev_attr_g_sensor_user_offset);
+			put_device(st->gs_cali_dev);
+			device_unregister(st->gs_cali_dev);
+		}
+		if (st->sensor_dev && st->indio_dev) {
+			sysfs_delete_link(&st->sensor_dev->kobj,
+					  &st->indio_dev->dev.kobj,
+					  "iio");
+			put_device(st->sensor_dev);
+			device_unregister(st->sensor_dev);
+		}
+		if (st->sensor_class)
+			class_destroy(st->sensor_class);
+	}
+
 	return 0;
 }
 

@@ -221,6 +221,8 @@
 			qcom,warm-bat-decidegc = <48>;
 			qcom,cool-bat-decidegc = <0>;
 
+			htc,r-hw-mb-impedance = <220>;
+
 			/* smb1360 + pm8916 */
 			htc,pm8916-enabled;
 			htc,combined-chgr-max-aicl-input-curr-limit = <1700>;
@@ -363,7 +365,6 @@
 		pinctrl-3 = <&cross_conn_det_sus>;
 		pinctrl-4 = <&cdc_pdm_lines_act &ext_cdc_tlmm_lines_act>;
 		pinctrl-5 = <&cdc_pdm_lines_sus &ext_cdc_tlmm_lines_sus>;
-		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
 		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
 				<&afe>, <&lsm>, <&routing>, <&lpa>;
@@ -438,6 +439,19 @@
         ncp6924-regulator@10 {
             ncp,use-ioexpander = <0>; /* 1: en_pin at gpio-expander */
             ncp,enable-gpio = <&msm_gpio 51 0>;
+
+			ncp6924_dcdc1: regulator-dcdc1 {
+				regulator-name = "ncp6924_dcdc1";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <3300000>;
+				ncp,resource-id = <1>;
+				ncp,regulator-type = <0>;
+				ncp,enable-addr = <0x14>;
+				ncp,enable-bit = <1>;
+				ncp,mode-bit = <0>;
+				ncp,mode = <0>;
+				ncp,base-addr = <0x20>;
+			};
         };
     };
 };

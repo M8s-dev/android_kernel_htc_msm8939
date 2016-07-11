@@ -31,8 +31,6 @@
 				ncp,regulator-type = <0>;
 				ncp,enable-addr = <0x14>;
 				ncp,enable-bit = <1>;
-				ncp,mode-bit = <0>;
-				ncp,mode = <0>;
 				ncp,base-addr = <0x20>;
 			};
 

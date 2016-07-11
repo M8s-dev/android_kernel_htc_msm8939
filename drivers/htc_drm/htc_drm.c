@@ -22,6 +22,7 @@
 #include <linux/random.h>
 #include <linux/vmalloc.h>
 #include <linux/mm.h>
+#include <linux/compat.h>
 
 #if !defined(CONFIG_ARCH_MSM7X30) && !defined(CONFIG_ARCH_MSM7X27A)
 #include <soc/qcom/scm.h>
@@ -85,6 +86,7 @@
 static int htcdrm_major;
 static struct class *htcdrm_class;
 static const struct file_operations htcdrm_fops;
+static long htcdrm_ioctl (struct file *file, unsigned int command, unsigned long arg);
 
 typedef struct _htc_drm_msg_s {
 	int func;
@@ -94,6 +96,15 @@ typedef struct _htc_drm_msg_s {
 	unsigned char *resp_buf;
 	int resp_len;
 } htc_drm_msg_s;
+
+typedef struct _compat_htc_drm_msg_s {
+	compat_int_t func;
+	compat_int_t offset;
+	compat_uptr_t req_buf;
+	compat_int_t req_len;
+	compat_uptr_t resp_buf;
+	compat_int_t resp_len;
+} compat_htc_drm_msg_s;
 
 enum {
 		HTC_OEMCRYPTO_STORE_KEYBOX = 1,
@@ -1012,6 +1023,115 @@ static long htcdrm_discretix_ioctl(struct file *file, unsigned int command, unsi
 	return 0;
 }
 #endif
+static int compat_get_htcdrm_msg (
+		compat_htc_drm_msg_s __user *data32,
+		htc_drm_msg_s __user *data)
+{
+	compat_int_t func;
+	compat_int_t offset;
+	compat_uptr_t req_buf;
+	compat_int_t req_len;
+	compat_uptr_t resp_buf;
+	compat_int_t resp_len;
+	int err = 0;
+
+	PDEBUG("Entry");
+	err |= get_user(func, &data32->func);
+	err |= put_user(func, &data->func);
+
+	err |= get_user(offset, &data32->offset);
+	err |= put_user(offset, &data->offset);
+
+	err |= get_user(req_buf, &data32->req_buf);
+	data->req_buf = 0;
+	err |= put_user(req_buf, (compat_uptr_t *)&data->req_buf);
+
+	err |= get_user(req_len, &data32->req_len);
+	err |= put_user(req_len, &data->req_len);
+
+	err |= get_user(resp_buf, &data32->resp_buf);
+	data->resp_buf = 0;
+	err |= put_user(resp_buf, (compat_uptr_t *)&data->resp_buf);
+
+	err |= get_user(resp_len, &data32->resp_len);
+	err |= put_user(resp_len, &data->resp_len);
+
+	PDEBUG("err: %d", err);
+	return err;
+}
+
+static int compat_put_htcdrm_msg (
+		compat_htc_drm_msg_s __user *data32,
+		htc_drm_msg_s __user *data)
+{
+	compat_int_t func;
+	compat_int_t offset;
+	compat_uptr_t req_buf;
+	compat_int_t req_len;
+	compat_uptr_t resp_buf;
+	compat_int_t resp_len;
+	int err = 0;
+
+	PDEBUG("Entry");
+	err |= get_user(func, &data->func);
+	err |= put_user(func, &data32->func);
+
+	err |= get_user(offset, &data->offset);
+	err |= put_user(offset, &data32->offset);
+
+	err |= get_user(req_buf, (compat_uptr_t *)&data->req_buf);
+	data32->req_buf = 0;
+	err |= put_user(req_buf, &data32->req_buf);
+
+	err |= get_user(req_len, &data->req_len);
+	err |= put_user(req_len, &data32->req_len);
+
+	err |= get_user(resp_buf, (compat_uptr_t *)&data->resp_buf);
+	data32->resp_buf = 0;
+	err |= put_user(resp_buf, &data32->resp_buf);
+
+	err |= get_user(resp_len, &data->resp_len);
+	err |= put_user(resp_len, &data32->resp_len);
+
+	PDEBUG("err: %d", err);
+	return err;
+}
+
+static long compat_htcdrm_ioctl(struct file *file, unsigned int command, unsigned long arg)
+{
+	compat_htc_drm_msg_s __user *compat_hmsg_32;
+	htc_drm_msg_s __user *hmsg = NULL;
+	int ret = -EFAULT;
+	int err = -EFAULT;
+
+	PDEBUG("command = %x", command);
+	switch (command) {
+		case HTCDRM_IOCTL_GDRIVE:
+			compat_hmsg_32 = compat_ptr(arg);
+			hmsg = compat_alloc_user_space(sizeof(*hmsg));
+
+			if (NULL == hmsg) {
+				ret = -ENOMEM;
+				break;
+			}
+			
+			err = compat_get_htcdrm_msg(compat_hmsg_32, hmsg);
+			if (err)
+				return err;
+
+			ret = htcdrm_ioctl(file, command, (unsigned long)hmsg);
+
+			
+			err = compat_put_htcdrm_msg(compat_hmsg_32, hmsg);
+
+			return ret ? ret : err;
+
+		default:
+			break;
+	}
+
+	return ret ? ret : err;
+}
 
 static long htcdrm_gdrive_ioctl(struct file *file, unsigned int command, unsigned long arg) {
 
@@ -1261,7 +1381,7 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
             return -EFAULT;
         }
 
-        if ((hmsg.resp_buf == NULL) || !hmsg.resp_len ) {
+        if ((hmsg.resp_buf == NULL) || !hmsg.resp_len) {
             PERR("invalid arguments");
             return -EFAULT;
         }
@@ -1270,8 +1390,11 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 
         if (ret)
             PERR("get cprmkey failed (%d)", ret);
+        else if (hmsg.resp_len < CPRM_KEY_LEN) {
+            PERR("data incorrect(%d)", hmsg.resp_len);
+        }
         else {
-            if (copy_to_user( (void __user *)hmsg.resp_buf , htc_cprmkey , hmsg.resp_len)) {
+            if (copy_to_user( (void __user *)hmsg.resp_buf , htc_cprmkey , CPRM_KEY_LEN)) {
                 PERR("copy_to_user error (cprmkey)");
                 return -EFAULT;
             }
@@ -1322,6 +1445,9 @@ static int htcdrm_mmap(struct file *filp, struct vm_area_struct *vma)
 
 static const struct file_operations htcdrm_fops = {
 	.unlocked_ioctl = htcdrm_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = compat_htcdrm_ioctl,
+#endif
 	.open = htcdrm_open,
 	.release = htcdrm_release,
 	.mmap = htcdrm_mmap,

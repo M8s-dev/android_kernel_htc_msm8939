@@ -21,12 +21,21 @@ DEFINE_MSM_MUTEX(ov13850_mut);
 static struct msm_sensor_ctrl_t ov13850_s_ctrl;
 
 static struct msm_sensor_power_setting ov13850_power_setting[] = {
+#ifdef CONFIG_MCLK_23M
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 5,
+	},
+#else
 	{
 		.seq_type = SENSOR_CLK,
 		.seq_val = SENSOR_CAM_MCLK,
 		.config_val = 0,
 		.delay = 5,
 	},
+#endif
     {
 		.seq_type = SENSOR_VREG,
 		.seq_val = CAM_VIO,
@@ -102,12 +111,21 @@ static struct msm_sensor_power_setting ov13850_power_down_setting[] = {
 		.config_val = 0,
 		.delay = 1,
 	},
+#ifdef CONFIG_MCLK_23M
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 5,
+	},
+#else
 	{
 		.seq_type = SENSOR_CLK,
 		.seq_val = SENSOR_CAM_MCLK,
 		.config_val = 0,
 		.delay = 5,
 	},
+#endif
 };
 
 
@@ -286,25 +304,11 @@ static int ov13850_read_fuseid(struct sensorb_cfg_data *cdata,
 		if (rc < 0)
 			pr_info("%s: i2c_write b 0x3613 fail\n", __func__);
 
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d84, 0x00, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d84 fail\n", __func__);
-
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d85, 0x17, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d85 fail\n", __func__);
-
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d8c, 0x73, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d8c fail\n", __func__);
-
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d8d, 0xbf, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d8d fail\n", __func__);
-
 		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x0100, 0x01, MSM_CAMERA_I2C_BYTE_DATA);
 		if (rc < 0)
 			pr_info("%s: i2c_write b 0x0100 fail\n", __func__);
+
+		msleep(10);
 
 		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x5002, 0x05, MSM_CAMERA_I2C_BYTE_DATA);
 		if (rc < 0)
@@ -456,25 +460,11 @@ static int ov13850_read_fuseid32(struct sensorb_cfg_data32 *cdata,
 		if (rc < 0)
 			pr_info("%s: i2c_write b 0x3613 fail\n", __func__);
 
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d84, 0x00, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d84 fail\n", __func__);
-
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d85, 0x17, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d85 fail\n", __func__);
-
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d8c, 0x73, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d8c fail\n", __func__);
-
-		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x3d8d, 0xbf, MSM_CAMERA_I2C_BYTE_DATA);
-		if (rc < 0)
-			pr_info("%s: i2c_write b 0x3d8d fail\n", __func__);
-
 		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x0100, 0x01, MSM_CAMERA_I2C_BYTE_DATA);
 		if (rc < 0)
 			pr_info("%s: i2c_write b 0x0100 fail\n", __func__);
+
+        msleep(10);
 
 		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(s_ctrl->sensor_i2c_client, 0x5002, 0x05, MSM_CAMERA_I2C_BYTE_DATA);
 		if (rc < 0)

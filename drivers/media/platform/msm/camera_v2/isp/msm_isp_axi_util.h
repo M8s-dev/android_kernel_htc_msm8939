@@ -54,7 +54,8 @@ int msm_isp_axi_reset(struct vfe_device *vfe_dev,
 	struct msm_vfe_axi_reset_cmd *reset_cmd);
 int msm_isp_axi_restart(struct vfe_device *vfe_dev,
 	struct msm_vfe_axi_restart_cmd *restart_cmd);
-
+int msm_isp_user_buf_done(struct vfe_device *vfe_dev,
+	struct msm_isp_event_data *buf_cmd);
 void msm_isp_axi_stream_update(struct vfe_device *vfe_dev,
 	uint8_t input_src);
 
@@ -65,4 +66,4 @@ void msm_isp_sof_notify(struct vfe_device *vfe_dev,
 void msm_isp_process_axi_irq(struct vfe_device *vfe_dev,
 	uint32_t irq_status0, uint32_t irq_status1,
 	struct msm_isp_timestamp *ts);
-#endif /* __MSM_ISP_AXI_UTIL_H__ */
+#endif 

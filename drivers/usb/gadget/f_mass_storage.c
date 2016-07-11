@@ -70,7 +70,7 @@
 #define FSG_DRIVER_DESC		"Mass Storage Function"
 #define FSG_DRIVER_VERSION	"2009/09/11"
 
-static const char fsg_string_interface[] = "Mass Storage";
+static const char fsg_string_interface[] = "Mass Storage Android";
 
 #include "storage_common.c"
 
@@ -1356,13 +1356,7 @@ static int do_mode_select(struct fsg_common *common, struct fsg_buffhd *bh)
 }
 
 int htc_usb_enable_function(char *name, int ebl);
-struct work_struct	ums_do_reserve_work;
 struct work_struct	ums_adb_state_change_work;
-static char usb_function_ebl;
-static void handle_reserve_cmd(struct work_struct *work)
-{
-	htc_usb_enable_function("adb", usb_function_ebl);
-}
 
 char *switch_adb_off_state[3] = { "SWITCH_NAME=scsi_cmd", "SWITCH_STATE=0", NULL };
 char *switch_adb_on_state[3] = { "SWITCH_NAME=scsi_cmd", "SWITCH_STATE=1", NULL };
@@ -1375,15 +1369,6 @@ static void handle_reserve_cmd_scsi(struct work_struct *work)
 
 static int do_reserve(struct fsg_common *common, struct fsg_buffhd *bh)
 {
-	int	call_us_ret = -1;
-	char *envp[] = {
-		"HOME=/",
-		"PATH=/sbin:/system/sbin:/system/bin:/system/xbin",
-		NULL,
-	};
-	char *exec_path[2] = {"/system/bin/stop", "/system/bin/start" };
-	char *argv_stop[] = { exec_path[0], "adbd", NULL, };
-	char *argv_start[] = { exec_path[1], "adbd", NULL, };
 
 
 	if (common->cmnd[1] == ('h'&0x1f) && common->cmnd[2] == 't'
@@ -1391,24 +1376,14 @@ static int do_reserve(struct fsg_common *common, struct fsg_buffhd *bh)
 		
 		switch (common->cmnd[5]) {
 		case 0x01: 
-			call_us_ret = call_usermodehelper(exec_path[1],
-				argv_start, envp, UMH_WAIT_PROC);
-			usb_function_ebl = 1;
-			schedule_work(&ums_do_reserve_work);
-			printk(KERN_NOTICE "[USB] Enable adb daemon from mass_storage %s(%d)\n",
-				(call_us_ret == 0) ? "DONE" : "FAIL", call_us_ret);
+			printk(KERN_NOTICE "[USB] Enable adb daemon from mass_storage\n");
 
 			
 			scsi_adb_state = 1;
 			schedule_work(&ums_adb_state_change_work);
 		break;
 		case 0x02: 
-			call_us_ret = call_usermodehelper(exec_path[0],
-				argv_stop, envp, UMH_WAIT_PROC);
-			usb_function_ebl = 0;
-			schedule_work(&ums_do_reserve_work);
-			printk(KERN_NOTICE "[USB] Disable adb daemon from mass_storage %s(%d)\n",
-				(call_us_ret == 0) ? "DONE" : "FAIL", call_us_ret);
+			printk(KERN_NOTICE "[USB] Disable adb daemon from mass_storage\n");
 
 			
 			scsi_adb_state = 0;
@@ -1433,6 +1408,50 @@ static int do_reserve(struct fsg_common *common, struct fsg_buffhd *bh)
 		}
 	}
 	return 0;
+}
+
+static int usb_ats = 0;
+static int ums_ctrlrequest(struct usb_composite_dev *cdev,
+		const struct usb_ctrlrequest *ctrl)
+{
+	int value = -EOPNOTSUPP;
+	u16 w_length = le16_to_cpu(ctrl->wLength);
+
+	if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_VENDOR) {
+		pr_debug("%s: request(req=0x%02x, wValue=%d, "
+				"wIndex=%d, wLength=%d)\n", __func__,
+				ctrl->bRequest, ctrl->wValue, ctrl->wIndex, ctrl->wLength);
+		switch (ctrl->bRequest) {
+			case 0xa0:
+				if (!ctrl->wValue) {
+					printk(KERN_INFO "[USB] %s: Disable adb daemon\n",__func__);
+					scsi_adb_state = 0;
+					usb_ats = 0;
+				} else {
+					printk(KERN_INFO "[USB] %s: Enable adb daemon\n",__func__);
+					scsi_adb_state = 1;
+					usb_ats = 1;
+				}
+				schedule_work(&ums_adb_state_change_work);
+				value = w_length;
+				break;
+			default:
+				printk(KERN_INFO "%s: unrecognized request(req=0x%02x, wValue=%d, "
+						"wIndex=%d, wLength=%d)\n", __func__,
+						ctrl->bRequest, ctrl->wValue, ctrl->wIndex, ctrl->wLength);
+				break;
+		}
+	}
+
+	if (value >= 0) {
+		cdev->req->zero = 0;
+		cdev->req->length = value;
+		value = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
+		if (value < 0)
+			printk(KERN_ERR "%s setup response queue error\n",__func__);
+	}
+
+	return value;
 }
 
 
@@ -2550,27 +2569,6 @@ static struct device_attribute dev_attr_file_nonremovable =
 static DEVICE_ATTR(perf, 0644, fsg_show_perf, fsg_store_perf);
 #endif
 
-static int string_id;
-static void fsg_update_mode(int _linux_fsg_mode)
-{
-	if (_linux_fsg_mode) {
-		fsg_intf_desc.bInterfaceClass =
-			USB_CLASS_VENDOR_SPEC;
-		fsg_intf_desc.bInterfaceSubClass =
-			USB_SUBCLASS_VENDOR_SPEC;
-		fsg_intf_desc.bInterfaceProtocol =
-			0x0;
-		fsg_intf_desc.iInterface = 0;
-	} else {
-		fsg_intf_desc.bInterfaceClass =
-			USB_CLASS_MASS_STORAGE;
-		fsg_intf_desc.bInterfaceSubClass =
-			USB_SC_SCSI;
-		fsg_intf_desc.bInterfaceProtocol =
-			USB_PR_BULK;
-		fsg_intf_desc.iInterface = string_id;
-	}
-}
 
 static void fsg_common_release(struct kref *ref);
 
@@ -2774,7 +2772,7 @@ buffhds_first_it:
 	init_completion(&common->thread_notifier);
 	init_waitqueue_head(&common->fsg_wait);
 
-	INIT_WORK(&ums_do_reserve_work, handle_reserve_cmd);
+	
 	INIT_WORK(&ums_adb_state_change_work, handle_reserve_cmd_scsi);
 
 	ret = switch_dev_register(&scsi_switch);

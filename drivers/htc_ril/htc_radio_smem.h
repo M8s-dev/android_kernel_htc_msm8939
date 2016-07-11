@@ -4,8 +4,10 @@
 #include <linux/types.h>
 
 #if 0
+//hTC radio smem driver version
 #define HTC_RADIO_SMEM_VERSION	0x20140901
 
+//APP run mode
 #define APP_IN_BOOTLOADER       (1 << 0)
 #define APP_IN_TESTBOOTLOADER   (1 << 1)
 #define APP_IN_DIAG             (1 << 2)
@@ -40,13 +42,13 @@ struct htc_smem_type
     uint32_t    struct_size_R;
     uint32_t    htc_smem_erase_efs_flag;
     uint32_t    htc_smem_flight_mode_flag;
-    uint8_t     htc_radio_version_addr[16]; 
-    uint8_t     htc_protocol_version_addr[16];  
+    uint8_t     htc_radio_version_addr[16]; //modem fill it
+    uint8_t     htc_protocol_version_addr[16];  // modem fill it
     uint32_t    htc_debug_FATAL_count;
     uint32_t    htc_debug_FATAL_NO_NW_count;
     uint32_t    htc_enable_modem_auto_fatal;
     uint32_t    htc_err_fatal_handler_magic;
-    struct htc_modem_request_type  htc_modem_request;   
+    struct htc_modem_request_type  htc_modem_request;   // for error handling only
     uint32_t    htc_emmc_magic_flag;
     uint32_t    htc_emmc_buff_addr;
     uint32_t    htc_emmc_buff_size;
@@ -59,7 +61,7 @@ struct htc_smem_type
     uint32_t    htc_tcxo_off_cnt_total;
     uint32_t    htc_tcxo_off_time_pwrc_suspend;
     uint32_t    htc_tcxo_off_cnt_pwrc_suspend;
-    uint32_t    htc_global_garbage_cnt; 
+    uint32_t    htc_global_garbage_cnt; //Offset: C0
     uint32_t    htc_mssahb_reset_status;
     uint32_t    htc_watchdog_status;
     uint32_t    htc_smlog_start_addr_for_apps;
@@ -94,7 +96,7 @@ struct htc_smem_type
     uint32_t    htc_modem_info_ps_bar3_time_lte;
     uint32_t    htc_modem_info_ps_bar4_time_lte;
     uint32_t    htc_modem_info_ps_bar5_time_lte;
-    uint32_t    htc_global_SYNCACK_garbage_cnt; 
+    uint32_t    htc_global_SYNCACK_garbage_cnt; /*HTC_INTEGRATE_8960PCN_GF_003*///Offset:14C
     uint32_t    htc_smlog_magic;
     uint8_t     htc_rom_ver[16];
     uint32_t    htc_smem_ce_radio_dbg_flag_ext1;
@@ -103,9 +105,9 @@ struct htc_smem_type
     uint32_t    htc_smem_is_nv_backup;
     uint32_t    htc_smlog_base;
     uint32_t    htc_smlog_size;
-    uint8_t     reserved[124];  
+    uint8_t     reserved[124];  // to keep consistency between 8974 and 8936, (4+4+32+16+8+24+32+16)-(4+4+4)
     uint8_t     RCMS_Name[64];
     uint8_t     rom_sku_name[128];
 };
 
-#endif 
+#endif /* end of _HTC_RADIO_SMEM_H */

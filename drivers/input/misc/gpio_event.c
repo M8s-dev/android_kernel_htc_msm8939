@@ -274,16 +274,15 @@ static int gpio_event_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 		event_info = kzalloc(sizeof(*event_info), GFP_KERNEL);
-		if (event_info == NULL)
+		if (event_info == NULL) {
 			KEY_LOGE("alloc memroy fail\n");
+			return -ENOMEM;
+		}
 		gpio_event_parser_dt(&pdev->dev, event_info);
 	} else {
 		event_info = pdev->dev.platform_data;
 	}
-	if (event_info == NULL) {
-		KEY_LOGE("KEY_ERR: %s: No pdata\n", __func__);
-		return -ENODEV;
-	}
+
 	if ((!event_info->name && !event_info->names[0]) ||
 	    !event_info->info || !event_info->info_count) {
 		KEY_LOGE("KEY_ERR: %s: Incomplete pdata\n", __func__);

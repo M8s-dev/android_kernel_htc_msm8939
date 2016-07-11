@@ -84,6 +84,8 @@ static ktime_t start;
 static int touch_init = 0;
 static int keypad_init = 0;
 
+static int max_input_current;
+extern int htc_battery_set_max_input_current(int target_ma);
 
 struct projector_dev {
 	struct usb_function function;
@@ -225,8 +227,8 @@ static DECLARE_WORK(conf_usb_work, usb_setup_android_projector);
 
 static void usb_setup_android_projector(struct work_struct *work)
 {
-    msleep(100);
-    android_switch_htc_mode();
+	msleep(100);
+	android_switch_htc_mode();
 	htc_mode_enable(1);
 
 	if (projector_dev) {
@@ -236,6 +238,12 @@ static void usb_setup_android_projector(struct work_struct *work)
 		schedule_work(&projector_dev->notifier_work);
 	}
 }
+
+static void battery_set_max_input_current(struct work_struct *work)
+{
+	htc_battery_set_max_input_current(max_input_current);
+}
+static DECLARE_WORK(set_current_work, battery_set_max_input_current);
 
 static inline struct projector_dev *proj_func_to_dev(struct usb_function *f)
 {
@@ -493,7 +501,6 @@ static void send_fb(struct projector_dev *dev)
 			break;
 		}
 	}
-
 	if (!projector_dev->htcmode_proto->debug_mode)
 		minifb_unlockbuf();
 }
@@ -638,8 +645,9 @@ static void send_fb2(struct projector_dev *dev)
 	}
 
 unlock:
-	if (!projector_dev->htcmode_proto->debug_mode)
+	if (!projector_dev->htcmode_proto->debug_mode){
 		minifb_unlockbuf();
+	}
 }
 
 void send_fb_do_work(struct work_struct *work)
@@ -1284,6 +1292,7 @@ static void projector_function_disable(struct usb_function *f)
 	dev->start_send_fb = false;
 	dev->online = 0;
 	dev->error = 1;
+	dev->is_htcmode = 0;
 	usb_ep_disable(dev->ep_in);
 	usb_ep_disable(dev->ep_out);
 
@@ -1311,7 +1320,6 @@ projector_function_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	dev->online = 0;
 	dev->error = 1;
-	dev->is_htcmode = 0;
 	if (dev->htcmode_proto)
 		dev->htcmode_proto->auth_in_progress = 0;
 
@@ -1559,7 +1567,7 @@ static int projector_ctrlrequest(struct usb_composite_dev *cdev,
 				if (!w_value)
 					projector_enable_fb_work(projector_dev, 1);
 				else
-					send_fb(projector_dev);
+					queue_work(projector_dev->wq_display, &projector_dev->send_fb_work_legacy);
 				value = 0;
 				break;
 
@@ -1598,8 +1606,8 @@ static int projector_ctrlrequest(struct usb_composite_dev *cdev,
 				}
 				break;
 			case HSML_06_REQ_SET_MAX_CHARGING_CURRENT:
-				
-				
+				max_input_current = (int) w_value;
+				schedule_work(&set_current_work);
 				value = 0;
 				break;
 

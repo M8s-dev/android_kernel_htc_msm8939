@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -45,7 +45,7 @@
 #define KGSL_STATE_NAP		0x00000004
 #define KGSL_STATE_SLEEP	0x00000008
 #define KGSL_STATE_SUSPEND	0x00000010
-#define KGSL_STATE_HUNG		0x00000020
+#define KGSL_STATE_AWARE	0x00000020
 #define KGSL_STATE_SLUMBER	0x00000080
 
 #define KGSL_GRAPHICS_MEMORY_LOW_WATERMARK  0x1000000
@@ -138,7 +138,7 @@ struct kgsl_functable {
 	int (*drain)(struct kgsl_device *device);
 	struct kgsl_context *(*drawctxt_create) (struct kgsl_device_private *,
 						uint32_t *flags);
-	int (*drawctxt_detach) (struct kgsl_context *context);
+	void (*drawctxt_detach)(struct kgsl_context *context);
 	void (*drawctxt_destroy) (struct kgsl_context *context);
 	void (*drawctxt_dump) (struct kgsl_device *device,
 		struct kgsl_context *context);
@@ -202,6 +202,7 @@ struct kgsl_cmdbatch {
 	unsigned long profiling_buffer_gpuaddr;
 	unsigned int profile_index;
 	uint64_t submit_ticks;
+	unsigned long timeout_jiffies;
 };
 
 struct kgsl_cmdbatch_sync_event {
@@ -319,7 +320,7 @@ struct kgsl_device {
 	.wait_queue = __WAIT_QUEUE_HEAD_INITIALIZER((_dev).wait_queue),\
 	.active_cnt_wq = __WAIT_QUEUE_HEAD_INITIALIZER((_dev).active_cnt_wq),\
 	.mutex = __MUTEX_INITIALIZER((_dev).mutex),\
-	.state = KGSL_STATE_INIT,\
+	.state = KGSL_STATE_NONE,\
 	.ver_major = DRIVER_VERSION_MAJOR,\
 	.ver_minor = DRIVER_VERSION_MINOR
 
@@ -359,6 +360,7 @@ struct kgsl_process_private {
 	char comm[TASK_COMM_LEN];
 	spinlock_t mem_lock;
 	struct kref refcount;
+	struct mutex process_private_mutex;
 	struct rb_root mem_rb;
 	struct idr mem_idr;
 	struct kgsl_pagetable *pagetable;
@@ -420,15 +422,19 @@ static inline void kgsl_process_add_stats(struct kgsl_process_private *priv,
 	if (type >= KGSL_MEM_ENTRY_MAX)
 		return;
 
+	mutex_lock(&priv->process_private_mutex);
 	priv->stats[type].cur += size;
 	if (priv->stats[type].max < priv->stats[type].cur)
 		priv->stats[type].max = priv->stats[type].cur;
+	mutex_unlock(&priv->process_private_mutex);
 }
 
 static inline void kgsl_process_sub_stats(struct kgsl_process_private *priv,
 	unsigned int type, size_t size)
 {
+	mutex_lock(&priv->process_private_mutex);
 	priv->stats[type].cur -= size;
+	mutex_unlock(&priv->process_private_mutex);
 }
 
 static inline void kgsl_regread(struct kgsl_device *device,
@@ -503,6 +509,15 @@ static inline int kgsl_create_device_workqueue(struct kgsl_device *device)
 	return 0;
 }
 
+static inline int kgsl_state_is_awake(struct kgsl_device *device)
+{
+	if (device->state == KGSL_STATE_ACTIVE ||
+		device->state == KGSL_STATE_AWARE)
+		return true;
+	else
+		return false;
+}
+
 int kgsl_readtimestamp(struct kgsl_device *device, void *priv,
 		enum kgsl_timestamp_type type, unsigned int *timestamp);
 
@@ -544,14 +559,14 @@ int kgsl_add_event(struct kgsl_device *device, struct kgsl_event_group *group,
 		unsigned int timestamp, kgsl_event_func func, void *priv);
 void kgsl_process_event_group(struct kgsl_device *device,
 	struct kgsl_event_group *group);
-
+void kgsl_flush_event_group(struct kgsl_device *device,
+		struct kgsl_event_group *group);
 void kgsl_process_events(struct work_struct *work);
 
 void kgsl_context_destroy(struct kref *kref);
 
 int kgsl_context_init(struct kgsl_device_private *, struct kgsl_context
 		*context);
-int kgsl_context_detach(struct kgsl_context *context);
 
 void kgsl_context_dump(struct kgsl_context *context);
 

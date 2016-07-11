@@ -1,3 +1,12 @@
+/*************************************************************************************************/
+/* AIT ISP Host API                                                                              */
+/* All rights reserved by Alpah Image Technology Corp.                                           */
+/*-----------------------------------------------------------------------------------------------*/
+/* File name: AIT_ISP_API.c                                                                      */
+/* Description: ISP Host API hardware independent layer                                          */
+/*                                                                                               */
+/* Version 0.01   20141209                                                                       */
+/*************************************************************************************************/
 
 #include "AIT_ISP_API.h"
 #include "AIT_ISP_API_hostcmd.h"
@@ -7,6 +16,12 @@
 
 #define MAX_TIMEOUT_CNT			1000
 
+/*
+void VA_DelayMS(uint16 ms)
+{
+	msleep(ms); Platform dependent code
+}
+*/
 
 uint8 VA_CheckReadyForCmd(void)
 {
@@ -25,7 +40,7 @@ uint8 VA_CheckReadyForCmd(void)
 
 	if(timeout_count >= MAX_TIMEOUT_CNT)
 	{
-		
+		/*		MULTI_TRACE_DEBUG_BEGIN();		*/
 		VA_ERR("VA_CheckReadyForCmd: Venus API Timeout!\n");
 		Reg = 0x65F0;
 		Val = receive_word_via_SPI(Reg);
@@ -55,16 +70,16 @@ uint8 VA_CheckReadyForCmd(void)
 		Val = receive_word_via_SPI(Reg);
 		VA_ERR("Reg[%x] %x\n", Reg, Val);
 
-		
+		/* Test Bootstrapping */
 		if ((receive_byte_via_SPI(0x6900) & 0xC0) != 0xC0)
 		{
-			VA_ERR("[ErrorMsg] Bootstrapping or SPI Interface error!.\n"); 
+			VA_ERR("[ErrorMsg] Bootstrapping or SPI Interface error!.\n"); //HTC
 		}
 		
-		
+		/* Test SPI Interface and call debug function if SPI Interface is ok */
 		if(TST_Flow())
 		{
-			
+			/* Disable Host Interrupt */
 			transmit_byte_via_SPI(0x6800, 0x00);
 
 			ret = receive_byte_via_SPI(0x6003);
@@ -107,7 +122,7 @@ uint8 VA_CheckReadyForCmd(void)
 			VA_ERR("[DebugMsg] H_ISP_PROCESSING : %x\n", ret);
 			
 		}else{
-			VA_ERR("[ErrorMsg] SPI Interface error\n"); 
+			VA_ERR("[ErrorMsg] SPI Interface error\n"); //HTC
 		}
 		
 
@@ -176,7 +191,7 @@ uint8 VA_CheckReadyForCmd(void)
 		Reg = 0x791E;
 		Val = receive_word_via_SPI(Reg);
 		VA_ERR("Reg[%x] %x\n", Reg, Val);
-		
+		/*		MULTI_TRACE_DEBUG_END();		*/
 #endif
 		return 1;
 	}
@@ -185,6 +200,7 @@ uint8 VA_CheckReadyForCmd(void)
 }
 
 
+/*******	Configure Sensor   		***************************************************************/
 uint8 VA_InitializeSensor(void)
 {
 	uint8 Result = 0;
@@ -199,6 +215,7 @@ uint8 VA_InitializeSensor(void)
 	return Result;
 }
 
+/*******	Start/Stop Preview  		***************************************************************/
 uint8 VA_SetPreviewControl(uint8 status)
 {
 	uint8 Result = 0;
@@ -221,7 +238,7 @@ uint8 VA_SetPreviewControl(uint8 status)
 		}
 
 	}
-	else     
+	else     /* status == VA_PREVIEW_STATUS_STOP */
 	{
 
 		VA_HIGH("VA_SetPreviewControl: VA_PREVIEW_STATUS_STOP\n");
@@ -236,6 +253,7 @@ uint8 VA_SetPreviewControl(uint8 status)
 }
 
 
+/*******	Configure Preview 		***************************************************************/
 uint8 VA_SetPreviewResolution(uint16 width, uint16 height)
 {
 	uint8 Result = 0;
@@ -267,6 +285,7 @@ uint8 VA_SetPreviewFormat(VENUS_PREVIEW_FORMAT format)
 }
 
 
+/*******	ISP		***************************************************************/
 uint8 VA_SetSharpness(uint8 Sharpness_parameter)
 {
 	uint8 Result = 0;
@@ -336,7 +355,10 @@ uint8 VA_SetCaliTable(uint8 *SetCaliStatus)
 	transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
 	Result = VA_CheckReadyForCmd();
 
-	
+	/* Get the data to check the variable of 0x65FA has be assigned. */
+	/*
+		while((receive_word_via_SPI(HOST_PARAMETER_C)!=0x98)||(receive_word_via_SPI(HOST_PARAMETER_B)!=0x82));
+	*/
 	*SetCaliStatus = receive_byte_via_SPI(HOST_PARAMETER_A);
 	if((*SetCaliStatus)&0x01)
 	{
@@ -365,20 +387,21 @@ uint8 VA_GetLux(uint32 *Lux)
 
 	*Lux = ((receive_word_via_SPI(HOST_PARAMETER_A) & 0xFFFF) << 16);
 	*Lux += (receive_word_via_SPI(HOST_PARAMETER_8) & 0xFFFF);
-	
+	//HTC_START
 	#if 1
 	VA_HIGH("VA_GetLux: Lux = %u\n", (uint32)(*Lux));
 	#else
 	VA_HIGH("VA_GetLux: Lux = %lu\n", (uint32)(*Lux));
 	#endif
-	
+	//HTC_END
 	return Result;
 }
 
 
+/*******	AWB		***************************************************************/
 uint8 VA_AutoAWBMode(ISP_AWB_MODE AWB_Mode)
 {
-	
+	/* We just prvide two AWB Mode : ByPass-AWB & Auto-AWB */
 
 	uint8 Result = 0;
 
@@ -466,7 +489,7 @@ uint8 VA_SetRGBGain(uint16 R_Gain, uint16 G_Gain, uint16 B_Gain)
 
 uint8 VA_SetAWBROIPosition(uint16 width, uint16 height, uint16 offsetx, uint16 offsety)
 {
-	
+	/* you need to add the condition to verify the coordinate is valid or not. */
 	uint8 Result = 0;
 
 	if((32 <= width) && (32 <= height) && (0 <= offsetx) && (0 <= offsety))
@@ -492,13 +515,15 @@ uint8 VA_SetAWBROIPosition(uint16 width, uint16 height, uint16 offsetx, uint16 o
 
 uint8 VA_GetAWBROIACC(uint32 *R_Sum, uint32 *G_Sum, uint32 *B_Sum, uint32 *pixel_count)
 {
-	
+	/* you need to add the condition to verify the coordinate is valid or not. */
 	uint8 Result = 0;
+//HTC_START
 #if 1
 	VA_HIGH("VA_GetAWBROIACC\n");
 #else
 	VA_HIGH("VA_SetAWBROIACC\n");
 #endif
+//HTC_END
 	Result = VA_CheckReadyForCmd();
 	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x01);
 	transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_AWB_ROI_GET_ACC);
@@ -526,9 +551,10 @@ uint8 VA_GetAWBROIACC(uint32 *R_Sum, uint32 *G_Sum, uint32 *B_Sum, uint32 *pixel
 }
 
 
+/*******	AE		***************************************************************/
 uint8 VA_SetFlickerMode(uint8 FlickerMode)
 {
-	
+	/* flicker: 0: off; 2:60Hz, 3:50Hz */
 	uint8 Result = 0;
 
 	if((FlickerMode == 0) || (FlickerMode == 2) || (FlickerMode == 3))
@@ -551,7 +577,7 @@ uint8 VA_SetFlickerMode(uint8 FlickerMode)
 
 uint8 VA_SetISO(uint16 ISO_Parameter)
 {
-	
+	/* iso 0:Auto ,iso != 0 => fix ISO. ISO 50 =1x Gain */
 	uint8 Result = 0;
 
 	if(((ISO_Parameter <= 1600) && (ISO_Parameter >= 50)) || (ISO_Parameter == 0))
@@ -574,7 +600,7 @@ uint8 VA_SetISO(uint16 ISO_Parameter)
 
 uint8 VA_SetISOLevel(VENUS_AE_ISO ISO_Level)
 {
-	
+	/* 5 Level */
 	uint8 Result = 0;
 
 	if(ISO_Level < 5)
@@ -638,7 +664,7 @@ uint8 VA_GetEV(uint16 *Exposure_Parameter)
 
 uint8 VA_SetEVLevel(VENUS_AE_EV Exposure_Level)
 {
-	
+	/* 9 Level */
 	uint8 Result = 0;
 
 	if(Exposure_Level < 9)
@@ -659,7 +685,9 @@ uint8 VA_SetEVLevel(VENUS_AE_EV Exposure_Level)
 	return Result;
 }
 
+/*******	Exposure Time		***************************************************************/
 uint8 VA_SetExposureMode(VENUS_AE_MODE AE_MODE)
+/* This function just support ISP_AE_MODE_P and ISP_AE_MODE_S */
 {
 	uint8 Result = 0;
 
@@ -678,7 +706,7 @@ uint8 VA_SetExposureMode(VENUS_AE_MODE AE_MODE)
 
 uint8 VA_SetManualExposureTime(uint16 Exposure_Level, uint16 Exposure_Partition)
 {
-	
+	/* In this function, we just provide 0~1 second */
 	uint8 Result = 0;
 	uint16 ISP_ExposureTimeBase;
 
@@ -687,7 +715,7 @@ uint8 VA_SetManualExposureTime(uint16 Exposure_Level, uint16 Exposure_Partition)
 
 	if(Exposure_Level <= Exposure_Partition)
 	{
-		
+		/* VA_GetExposureTime */
 		Result = VA_CheckReadyForCmd();
 		transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_AE_GET_EXPOSURE_TIME);
 		transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
@@ -709,12 +737,13 @@ uint8 VA_SetManualExposureTime(uint16 Exposure_Level, uint16 Exposure_Partition)
 }
 
 uint8 VA_SetExposureTime(uint32 N_parameter)
+/* N_parameter/ExposureTimeBase */
 {
 	uint8 Result = 0;
-	uint32 Custom_ShutterBase = 1048576;	
+	uint32 Custom_ShutterBase = 1048576;	/*(1<<20)*/
 	uint16 ISP_N_parameter, ISP_ExposureTimeBase;
 
-	
+	/* VA_GetExposureTime */
 	Result = VA_CheckReadyForCmd();
 	transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_AE_GET_EXPOSURE_TIME);
 	transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
@@ -723,7 +752,7 @@ uint8 VA_SetExposureTime(uint32 N_parameter)
 	ISP_N_parameter = receive_word_via_SPI(HOST_PARAMETER_A);
 
 	VA_HIGH("VA_SetExposureTime: Exposure Time p= %d\n", N_parameter);
-	
+	/* ISP_N_parameter = (uint16)(ISP_ExposureTimeBase * N_parameter / Custom_ShutterBase);*/
 	ISP_N_parameter = (uint16)(N_parameter /( Custom_ShutterBase / ISP_ExposureTimeBase ));
 
 	Result = VA_CheckReadyForCmd();
@@ -736,9 +765,10 @@ uint8 VA_SetExposureTime(uint32 N_parameter)
 }
 
 uint8 VA_GetExposureTime(uint32 *N_parameter, uint32 *ExposureTimeBase)
+/* N_parameter/ExposureTimeBase */
 {
 	uint8 Result = 0;
-	uint32 Custom_ShutterBase = 1048576;	
+	uint32 Custom_ShutterBase = 1048576;	/*(1<<20)*/
 	uint16 ISP_N_parameter, ISP_ExposureTimeBase;
 
 	VA_HIGH("VA_GetExposureTime\n");
@@ -750,7 +780,7 @@ uint8 VA_GetExposureTime(uint32 *N_parameter, uint32 *ExposureTimeBase)
 	ISP_ExposureTimeBase = receive_word_via_SPI(HOST_PARAMETER_8);
 	ISP_N_parameter = receive_word_via_SPI(HOST_PARAMETER_A);
 
-	
+	/* *N_parameter = (uint32)(Custom_ShutterBase * ISP_N_parameter / ISP_ExposureTimeBase); */
 	*N_parameter = (uint32)((Custom_ShutterBase / ISP_ExposureTimeBase) * ISP_N_parameter);
 	*ExposureTimeBase = Custom_ShutterBase;
 
@@ -758,10 +788,12 @@ uint8 VA_GetExposureTime(uint32 *N_parameter, uint32 *ExposureTimeBase)
 }
 
 
+/*******	Overall Gain		***************************************************************/
 uint8 VA_SetOverallGain(uint16 Overall_Gain)
+/* Gain/GainBase */
 {
 	uint8 Result = 0;
-	uint16 Custom_OverallGainBase = 256;	
+	uint16 Custom_OverallGainBase = 256;	/* (1<<8) */
 	uint16 ISP_Gain, ISP_GainBase;
 
 	Result = VA_CheckReadyForCmd();
@@ -787,9 +819,10 @@ uint8 VA_SetOverallGain(uint16 Overall_Gain)
 }
 
 uint8 VA_GetOverallGain(uint16 *Gain, uint16 *GainBase)
+/* Gain/GainBase */
 {
 	uint8 Result = 0;
-	uint16 Custom_OverallGainBase = 256;	
+	uint16 Custom_OverallGainBase = 256;	/* (1<<8) */
 	uint16 ISP_Gain, ISP_GainBase;
 
 	Result = VA_CheckReadyForCmd();
@@ -809,9 +842,10 @@ uint8 VA_GetOverallGain(uint16 *Gain, uint16 *GainBase)
 }
 
 
+/*******	Luma	***************************************************************/
 uint8 VA_SetLumaFormula(uint16 paraR, uint16 paraGr, uint16 paraGb, uint16 paraB)
 {
-	
+	/* formula: Y = (R * paraR + Gr * paraGr + Gb * paraGb + B * paraB )/256 */
 	uint8 Result = 0;
 
 	VA_HIGH("VA_SetLumaFormula\n");
@@ -874,9 +908,10 @@ uint8 VA_GetCustomAEROILuma(uint16 *Luma_Value)
 }
 
 
+/*******	AEROI		***************************************************************/
 uint8 VA_SetAEROIPosition(uint16 width, uint16 height, uint16 offsetx, uint16 offsety)
 {
-	
+	/* you need to add the condition to verify the coordinate is valid or not. */
 	uint8 Result = 0;
 
 	if((32 <= width) && (32 <= height) && (0 <= offsetx) && (0 <= offsety))
@@ -906,8 +941,8 @@ uint8 VA_SetAEROIMeteringTable(uint8 *Metering_Ptr)
 	uint8 BackUpValue1, BackUpValue2, BackUpValue3;
 	uint32 MeteringAddress = 0x00000000;
 
-	VA_CheckReadyForCmd(); 
-	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x01);
+	VA_CheckReadyForCmd(); /* getting address */
+	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x01);/* case */
 	transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_SET_AE_ROI_METERING_TABLE);
 	transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
 	VA_CheckReadyForCmd();
@@ -919,14 +954,14 @@ uint8 VA_SetAEROIMeteringTable(uint8 *Metering_Ptr)
 
 	MeteringAddress = ((receive_word_via_SPI(HOST_PARAMETER_A) & 0xFFFF) << 16);
 	MeteringAddress += (receive_word_via_SPI(HOST_PARAMETER_8) & 0xFFFF);
-	
+	/* Select memory bank */
 	transmit_byte_via_SPI(0x691E, (MeteringAddress >> 27) & 0x03);
 	transmit_byte_via_SPI(0x691D, (MeteringAddress >> 19) & 0xFF);
 	transmit_byte_via_SPI(0x691C, (MeteringAddress >> 15) & 0x0F);
 	transmit_multibytes_via_SPI(Metering_Ptr, 0x8000 + (MeteringAddress % 0x8000), 128);
 
-	Result = VA_CheckReadyForCmd(); 
-	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x03);
+	Result = VA_CheckReadyForCmd(); /* setting metering table */
+	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x03);/* case */
 	transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_SET_AE_ROI_METERING_TABLE);
 	transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
 
@@ -954,6 +989,7 @@ uint8 VA_GetAEROICurrentLuma(uint32 *AERIO_Luma)
 	return Result;
 }
 
+/*******	Custom AEROI		***************************************************************/
 uint8 VA_CustomAEROIModeEnable(ISP_CUSTOM_WIN_MODE Custom_Enable)
 {
 	uint8 Result = 0;
@@ -1012,9 +1048,10 @@ uint8 VA_SetCustomAEROIWeight(uint16 weight)
 }
 
 
+/*******	IQ status		***************************************************************/
 uint8 VA_GetIQGainStatus(uint16 *Gain_Status)
 {
-	
+	/* This command has effect after tuning  IQ */
 	uint8 Result = 0;
 
 	Result = VA_CheckReadyForCmd();
@@ -1028,7 +1065,7 @@ uint8 VA_GetIQGainStatus(uint16 *Gain_Status)
 
 uint8 VA_GetIQEnergyStatus(uint16 *Energy_Status)
 {
-	
+	/* This command has effect after tuning  IQ */
 	uint8 Result = 0;
 
 	Result = VA_CheckReadyForCmd();
@@ -1042,7 +1079,7 @@ uint8 VA_GetIQEnergyStatus(uint16 *Energy_Status)
 
 uint8 VA_GetIQColortempStatus(uint16 *Colortemp_Status)
 {
-	
+	/* This command has effect after tuning  IQ */
 	uint8 Result = 0;
 
 	Result = VA_CheckReadyForCmd();
@@ -1056,6 +1093,11 @@ uint8 VA_GetIQColortempStatus(uint16 *Colortemp_Status)
 
 uint8 VA_GetAEStatus(uint8 *AE_Status)
 {
+	/*
+	This command has effect after tuning  IQ
+	ISP_AE_STATUS_UNSTABLE		= 0,
+	ISP_AE_STATUS_STABLE			= 1
+	*/
 	uint8 Result = 0;
 
 	Result = VA_CheckReadyForCmd();
@@ -1069,6 +1111,11 @@ uint8 VA_GetAEStatus(uint8 *AE_Status)
 
 uint8 VA_GetAWBStatus(uint8 *AWB_Status)
 {
+	/*
+	This command has effect after tuning  IQ
+	ISP_AWB_STATUS_UNSTABLE		= 0,
+	ISP_AWB_STATUS_STABLE			= 1
+	*/
 	uint8 Result = 0;
 
 	Result = VA_CheckReadyForCmd();
@@ -1082,6 +1129,15 @@ uint8 VA_GetAWBStatus(uint8 *AWB_Status)
 
 uint8 VA_IQEnable(uint8 IQ_Enable, uint8 IQ_Case)
 {
+	/*
+	IQ_Enable:
+		0 : Disable IQ / IQ Bypass
+		1 : Enable IQ
+	IQ_Case:
+		0 : Default ( Disable all of IQ processing )
+		1 : Disable IQ processing except shading.
+		2 : Disable IQ processing except shading and defect pixel compensation.
+	*/
 	uint8 Result = 0;
 	Result = VA_CheckReadyForCmd();
 	transmit_byte_via_SPI(HOST_PARAMETER_0, IQ_Enable);
@@ -1095,6 +1151,10 @@ uint8 VA_IQEnable(uint8 IQ_Enable, uint8 IQ_Case)
 
 uint8 VA_GetIQOPR(uint8 *Status_1, uint8 *Status_2)
 {
+	/*
+	Status_1 : 0x80007000 ~ 0x800073FF / Size : 1024
+	Status_2 : 0x80000C00 ~ 0x80000FFF / Size : 1024
+	*/
 	uint8 Result = 0;
 	uint8 BackUpValue1, BackUpValue2, BackUpValue3;
 
@@ -1125,6 +1185,7 @@ uint8 VA_GetIQOPR(uint8 *Status_1, uint8 *Status_2)
 }
 
 
+/*******	Sensor		***************************************************************/
 uint16 VA_GetSensorReg(uint16 sensor_reg_addr)
 {
 	uint16 reg_value;
@@ -1154,11 +1215,17 @@ uint16 VA_SetSensorReg(uint16 sensor_reg_addr, uint16 sensor_reg_value)
 
 uint16 VA_ReadSensorOTP(uint8 *OTP_buf)
 {
-	
+	/* This API function Just for sensor ov2722 */
+	/*
+		OTP_buf[0] = 0x3D09
+		OTP_buf[1] = 0x3D0A
+		OTP_buf[2] = 0x3D0B
+		OTP_buf[3] = 0x3D0C
+	*/
 	uint8 Result = 0;
 
 	Result = VA_CheckReadyForCmd();
-	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x04);
+	transmit_byte_via_SPI(HOST_PARAMETER_A, 0x04);/* for getting 0x3D09~0x3D0C*/
 	transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_SENSOR_READ_OTP);
 	transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
 	Result = VA_CheckReadyForCmd();
@@ -1172,6 +1239,7 @@ uint16 VA_ReadSensorOTP(uint8 *OTP_buf)
 }
 
 
+/*******	Standard		***************************************************************/
 uint8 VA_SetChipStandby(void)
 {
 	uint8 Result = 0;
@@ -1261,10 +1329,10 @@ uint8 VA_GetFWVersion(uint8 *version)
 	transmit_byte_via_SPI(HOST_CMD_ADDR0, VENUS_CMD_TAIL);
 	Result = VA_CheckReadyForCmd();
 
-	version[0] = receive_byte_via_SPI(HOST_PARAMETER_0); 
-	version[1] = receive_byte_via_SPI(HOST_PARAMETER_1); 
-	version[2] = receive_byte_via_SPI(HOST_PARAMETER_2); 
-	version[3] = receive_byte_via_SPI(HOST_PARAMETER_3); 
+	version[0] = receive_byte_via_SPI(HOST_PARAMETER_0); /* major */
+	version[1] = receive_byte_via_SPI(HOST_PARAMETER_1); /* minor */
+	version[2] = receive_byte_via_SPI(HOST_PARAMETER_2); /* major */
+	version[3] = receive_byte_via_SPI(HOST_PARAMETER_3); /* minor */
 
 	VA_HIGH("VA_GetFWVersion: Version = 0x%02X.0x%02X.0x%02X.0x%02X\n", version[0], version[1], version[2], version[3]);
 
@@ -1288,6 +1356,7 @@ uint8 VA_HostEvent(uint16 event)
 
 
 
+/*******	ISP debug		***************************************************************/
 uint8 VA_ISPDebug(VENUS_ISP_DEBUG_MODE DebugCase, uint32 *DebugMessage)
 {
 	uint8 Result = 0;
@@ -1338,6 +1407,7 @@ uint8 VA_ISPDebug(VENUS_ISP_DEBUG_MODE DebugCase, uint32 *DebugMessage)
 }
 
 
+/*******	Streaming debug		***************************************************************/
 uint8 VA_StreamingDebug(VENUS_STREAMING_DEBUG_MODE DebugCase, uint32 *DebugMessage)
 {
 	uint8 Result = 0;
@@ -1363,6 +1433,7 @@ uint8 VA_StreamingDebug(VENUS_STREAMING_DEBUG_MODE DebugCase, uint32 *DebugMessa
 }
 
 
+/*******	Sensor debug		***************************************************************/
 uint8 VA_SensorDebug(VENUS_SENSOR_DEBUG_MODE DebugCase)
 {
 	uint8 Result = 0;
@@ -1373,7 +1444,7 @@ uint8 VA_SensorDebug(VENUS_SENSOR_DEBUG_MODE DebugCase)
 	Result = VA_CheckReadyForCmd();
 	switch(DebugCase)
 	{
-		case	VENUS_SNR_S5K5E2_READ_ID: 
+		case	VENUS_SNR_S5K5E2_READ_ID: /* Read sensor ID for checking I2C */
 		case	VENUS_SNR_OV2722_READ_ID:
 			if(receive_word_via_SPI(HOST_PARAMETER_8) == 0x9882)
 			{
@@ -1385,8 +1456,8 @@ uint8 VA_SensorDebug(VENUS_SENSOR_DEBUG_MODE DebugCase)
 			}
 			break;
 
-		case	VENUS_SNR_S5K5E2_MODE: 
-		case	VENUS_SNR_OV2722_MODE: 
+		case	VENUS_SNR_S5K5E2_MODE: /* Read Sensor Mode @ standby or streaming mode */
+		case	VENUS_SNR_OV2722_MODE: /* Read Sensor Mode @ standby or streaming mode */
 			if(receive_word_via_SPI(HOST_PARAMETER_A) & 0x0001)
 			{
 				VA_HIGH("SNR_DEBUG_READ_MODE: Streaming Mode\n");
@@ -1397,7 +1468,7 @@ uint8 VA_SensorDebug(VENUS_SENSOR_DEBUG_MODE DebugCase)
 			}
 			break;
 
-		case	VENUS_SNR_S5K5E2_FRAME_COUNT: 
+		case	VENUS_SNR_S5K5E2_FRAME_COUNT: /* Get Sensor Frame Count */
 			VA_HIGH("SNR_DEBUG_READ_FRAME_COUNT: %d\n", VA_GetSensorReg(0x0005));
 			break;
 
@@ -1411,6 +1482,7 @@ uint8 VA_SensorDebug(VENUS_SENSOR_DEBUG_MODE DebugCase)
 	return Result;
 }
 
+/*******	Host Interrupt		***************************************************************/
 uint8 VA_HostIntertuptEnable(uint8 Enable)
 {
 
@@ -1436,6 +1508,23 @@ uint8 VA_HostIntertuptEnable(uint8 Enable)
 
 uint8 VA_HostIntertuptModeEnable(uint32 InterruptCase)
 {
+	/*
+	Bit0		: VIF Frame Stasrt
+	Bit1		: VIF Frame End
+
+	Bit2		: IBC Frame Stasrt
+	Bit3		: IBC Frame End
+
+	Bit4		: DSI UnderRun
+	Bit5		: DSI OverFlow
+
+	Bit6		: I2CM Slave NoACK
+	Bit7		: I2CM write data FIFO full
+	Bit8		: I2CM read data FIFO full
+
+	Bit9		: AE Stable
+	Bit10	: AWB Stable
+	*/
 	uint8 Result = 0, ret;
 
 	if(InterruptCase & 0x07FF)
@@ -1676,6 +1765,9 @@ uint8 VA_HostIntertuptModeStatusClear(uint32 InterruptCase)
 
 uint8 VA_HostIntertuptModeCheckStatus(uint32 * InterruptCase)
 {
+	/*	In this function, it just cehck one Host Interrupt for Host processing
+		If you need to check more status, you need calling  VA_CheckHostInterruptStatusList 
+		*/
 	uint8 Result = 0;
 	if(receive_byte_via_SPI(0x6800) == 0x01)
 	{
@@ -1733,6 +1825,23 @@ uint8 VA_HostIntertuptModeCheckStatus(uint32 * InterruptCase)
 
 uint8 VA_CheckHostInterruptStatusList(uint32 *Interrupt_Status)
 {
+	/*
+	Bit0		: VIF Frame Stasrt
+	Bit1		: VIF Frame End
+
+	Bit2		: IBC Frame Stasrt
+	Bit3		: IBC Frame End
+
+	Bit4		: DSI UnderRun
+	Bit5		: DSI OverFlow
+
+	Bit6		: I2CM Slave NoACK
+	Bit7		: I2CM write data FIFO full
+	Bit8		: I2CM read data FIFO full
+
+	Bit9		: AE Stable
+	Bit10	: AWB Stable
+	*/
 	uint8 StstusCount = 0;
 	*Interrupt_Status = 0;
 
@@ -1811,6 +1920,7 @@ uint8 VA_CheckHostInterruptStatusList(uint32 *Interrupt_Status)
 
 }
 
+/*******	Host Interrupt		***************************************************************/
 uint8 VA_CustomHostIntertupt0Enable(uint8 Enable)
 {
 	uint8 Result = 0;
@@ -1846,6 +1956,12 @@ uint8 VA_CustomHostIntertupt0ClearStatus(uint8 Enable)
 
 uint8 VA_CustomHostIntertupt0ModeEnable(uint8 InterruptCase)
 {
+	/* InterruptCase
+		Bit 0: The status of CUSTOM_HOST_INT0_AE_EFF
+		Bit 1: The status of CUSTOM_HOST_INT0_AWB_EFF
+		Bit 2: The status of CUSTOM_HOST_INT0_LUMA_EFF
+		Bit 3: The status of CUSTOM_HOST_INT0_Event
+	*/
 	uint8 Result = 0;
 	
 	if(InterruptCase&0x0F)
@@ -1864,6 +1980,12 @@ uint8 VA_CustomHostIntertupt0ModeEnable(uint8 InterruptCase)
 
 uint8 VA_CustomHostIntertupt0ModeDisable(uint8 InterruptCase)
 {
+	/* InterruptCase
+		Bit 0: The status of CUSTOM_HOST_INT0_AE_EFF
+		Bit 1: The status of CUSTOM_HOST_INT0_AWB_EFF
+		Bit 2: The status of CUSTOM_HOST_INT0_LUMA_EFF
+		Bit 3: The status of CUSTOM_HOST_INT0_Event
+	*/
 	uint8 Result = 0;
 	
 	if(InterruptCase&0x0F)
@@ -1885,6 +2007,12 @@ uint8 VA_CustomHostIntertupt0ModeDisable(uint8 InterruptCase)
 
 uint8 VA_CustomHostIntertupt0ModeStatusClear(uint8 InterruptCase)
 {
+	/* InterruptCase
+		Bit 0: The status of CUSTOM_HOST_INT0_AE_EFF
+		Bit 1: The status of CUSTOM_HOST_INT0_AWB_EFF
+		Bit 2: The status of CUSTOM_HOST_INT0_LUMA_EFF
+		Bit 3: The status of CUSTOM_HOST_INT0_Event
+	*/
 	uint8 Result = 0;
 
 	transmit_byte_via_SPI(0x6225, receive_byte_via_SPI(0x6225) & (~(InterruptCase & 0x0F)));
@@ -1908,6 +2036,12 @@ uint8 VA_CustomHostIntertupt0ModeStatusClear(uint8 InterruptCase)
 
 uint8 VA_CustomHostIntertupt0ModeCheckStatus(uint8 *InterruptCase)
 {
+	/* InterruptCase
+		Bit 0: The status of CUSTOM_HOST_INT0_AE_EFF
+		Bit 1: The status of CUSTOM_HOST_INT0_AWB_EFF
+		Bit 2: The status of CUSTOM_HOST_INT0_LUMA_EFF
+		Bit 3: The status of CUSTOM_HOST_INT0_Event
+	*/
 	uint8 Result = 0;
 
 	*InterruptCase = receive_byte_via_SPI(0x6225) & 0x0F;
@@ -1918,6 +2052,7 @@ uint8 VA_CustomHostIntertupt0ModeCheckStatus(uint8 *InterruptCase)
 
 }
 
+/*******	dump Opr 		***************************************************************/
 uint8 Dump_Opr(uint16 Start_Address, uint16 Dump_Size)
 {
 	uint8 Result;
@@ -1965,6 +2100,7 @@ uint8 Dump_Opr(uint16 Start_Address, uint16 Dump_Size)
 }
 
 
+/*******	Debug Message		***************************************************************/
 uint8 Debug_ISPStatus(void)
 {
 	uint8 ret, Result = 0;
@@ -1987,11 +2123,20 @@ uint8 Debug_ISPStatus(void)
 
 uint8 Debug_StreamingStatus(uint8 Enable_FrameCounterDebug, uint8 Enable_HostIntStatus)
 {
+	/*
+		1. Enable_FrameCounterDebug :
+			If you want to debug streaming with frame counter, you must be set 1,
+		2. Enable_HostIntStatus :
+			It you want check the Host Interrupt status for debug and it will disable all Host Interrupt.
+			After checking streaming, it will show the debug message. 
+			You must enable Enable_FrameCounterDebug when you wnat to enable Enable_HostIntStatus.
+		Both of these will be executed, if MIPI_TX UnderRun or OverFlow.
+	*/
 	uint8 ret, ret0, ret1, ret2, Result;
 	uint8 RecordHostInterrupt;
 	uint32 Interrupt_Status;
 
-	
+	/* Disable Host Interrupt */
 	transmit_byte_via_SPI(0x6800, 0x00);
 		
 	ret = receive_byte_via_SPI(0x6003);
@@ -2006,26 +2151,26 @@ uint8 Debug_StreamingStatus(uint8 Enable_FrameCounterDebug, uint8 Enable_HostInt
 	VA_HIGH("[DebugMsg] C_MIPI_TX : %x\n", ret);
 	if((ret & 0xC0) || (Enable_FrameCounterDebug == 1))
 	{
-		
+		//HTC_START
 		if(ret & 0xC0)
 		{
-		VA_HIGH("[ErrorMsg] MIPI_TX : UnderRun and OverFlow\n"); 
+		VA_HIGH("[ErrorMsg] MIPI_TX : UnderRun and OverFlow\n"); //HTC
 		}
-		
+		//HTC_END
 		if(Enable_HostIntStatus == 0x01)
 		{
-			
+			/* Back up the Host Interrupt enabling status */
 			RecordHostInterrupt = receive_byte_via_SPI(0x6800);
 
-			
-			
+			/* Use Host Interrupt to check the sstatus */
+			/* If you want to show these debug message, you must disable Host Interrupt */
 			transmit_byte_via_SPI(0x6001, 0xFF);
 			transmit_byte_via_SPI(0x6516, 0xFF);
 			transmit_byte_via_SPI(0x6517, 0xFF);
 			transmit_byte_via_SPI(0x70C5, 0xFF);
 		}
 
-		
+		/* Check the streaming with frame counter */
 	Result = VA_CheckReadyForCmd();
 	transmit_byte_via_SPI(HOST_PARAMETER_C, 0x03);
 	transmit_byte_via_SPI(HOST_CMD_ADDR1, VENUS_DEBUG_STREAMING);
@@ -2039,15 +2184,15 @@ uint8 Debug_StreamingStatus(uint8 Enable_FrameCounterDebug, uint8 Enable_HostInt
 	{
 		if(ret0 == 0)
 	{
-			VA_HIGH("[ErrorMsg] VIF Pipe : Could be error, please check it!.\n"); 
+			VA_HIGH("[ErrorMsg] VIF Pipe : Could be error, please check it!.\n"); //htc
 	}
 		if(ret1 == 0)
 {
-			VA_HIGH("[ErrorMsg] ISP Pipe : Could be error, please check it!.\n"); 
+			VA_HIGH("[ErrorMsg] ISP Pipe : Could be error, please check it!.\n"); //htc
 }
 		if(ret2 == 0)
 		{
-			VA_HIGH("[ErrorMsg] IBC0 Pipe : Could be error, please check it!.\n"); 
+			VA_HIGH("[ErrorMsg] IBC0 Pipe : Could be error, please check it!.\n"); //htc
 	}
 			
 			VA_HIGH("\n[Dump Register] MIPI RX(0x6000) :\n");
@@ -2087,7 +2232,7 @@ uint8 Debug_StreamingStatus(uint8 Enable_FrameCounterDebug, uint8 Enable_HostInt
 			ret = receive_byte_via_SPI(0x70C5);
 			VA_HIGH("[DebugMsg] H_ISP_PROCESSING : %x\n", ret);
 
-			
+			/* Reset the orginaze Host Interrupt enabling status */
 			if((RecordHostInterrupt & 0x01) == 0x01)
 			{
 				transmit_byte_via_SPI(0x6800, RecordHostInterrupt);
@@ -2107,6 +2252,11 @@ uint8 Debug_StreamingStatus(uint8 Enable_FrameCounterDebug, uint8 Enable_HostInt
 	return Result;
 }
 
+/*******	Test SPI Command 		***************************************************************/
+/*
+Return 1 means the command has be done.
+Return 0 means the command fail.
+*/
 uint8 TST_RDOP(void)
 {
 	if((receive_byte_via_SPI(0x6900) & 0xC0) == 0xC0)
@@ -2176,6 +2326,10 @@ uint8 TST_Flow(void)
 }
 
 
+/*******	Control Sensor PWDN pin		***************************************************************/
+/*
+	Config PWDN of sensor after reset AIT9882
+*/
 void Cntl_SensorPWDN(SENSOR_PWDN_PIN Sensor, uint8 Output)
 {
 	uint8 SensorIndex;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,18 +39,18 @@
 #include "msm_iommu_pagetable.h"
 
 #ifdef CONFIG_IOMMU_LPAE
-/* bitmap of the page sizes currently supported */
 #define MSM_IOMMU_PGSIZES	(SZ_4K | SZ_64K | SZ_2M | SZ_32M | SZ_1G)
 #else
-/* bitmap of the page sizes currently supported */
 #define MSM_IOMMU_PGSIZES	(SZ_4K | SZ_64K | SZ_1M | SZ_16M)
 #endif
 
-#define IOMMU_MSEC_STEP		10
-#define IOMMU_MSEC_TIMEOUT	5000
+#define IOMMU_USEC_STEP		10
+#define IOMMU_USEC_TIMEOUT	500
 
 
 static DEFINE_MUTEX(msm_iommu_lock);
+static DEFINE_SPINLOCK(msm_iommu_spin_lock);
+
 struct dump_regs_tbl_entry dump_regs_tbl[MAX_DUMP_REGS];
 
 static int __enable_regulators(struct msm_iommu_drvdata *drvdata)
@@ -104,25 +104,21 @@ static int __enable_clocks(struct msm_iommu_drvdata *drvdata)
 {
 	int ret;
 
-	ret = clk_prepare_enable(drvdata->pclk);
+	ret = clk_enable(drvdata->pclk);
 	if (ret)
 		goto fail;
 
-	ret = clk_prepare_enable(drvdata->clk);
+	ret = clk_enable(drvdata->clk);
 	if (ret)
 		goto fail1;
 
-	if (drvdata->aclk) {
-		ret = clk_prepare_enable(drvdata->aclk);
-		if (ret)
-			goto fail2;
-	}
+	ret = clk_enable(drvdata->aclk);
+	if (ret)
+		goto fail2;
 
-	if (drvdata->aiclk) {
-		ret = clk_prepare_enable(drvdata->aiclk);
-		if (ret)
-			goto fail3;
-	}
+	ret = clk_enable(drvdata->aiclk);
+	if (ret)
+		goto fail3;
 
 	if (drvdata->clk_reg_virt) {
 		unsigned int value;
@@ -130,30 +126,27 @@ static int __enable_clocks(struct msm_iommu_drvdata *drvdata)
 		value = readl_relaxed(drvdata->clk_reg_virt);
 		value &= ~0x1;
 		writel_relaxed(value, drvdata->clk_reg_virt);
-		/* Ensure clock is on before continuing */
+		
 		mb();
 	}
 	return 0;
 
 fail3:
-	if (drvdata->aclk)
-		clk_disable_unprepare(drvdata->aclk);
+	clk_disable(drvdata->aclk);
 fail2:
-	clk_disable_unprepare(drvdata->clk);
+	clk_disable(drvdata->clk);
 fail1:
-	clk_disable_unprepare(drvdata->pclk);
+	clk_disable(drvdata->pclk);
 fail:
 	return ret;
 }
 
 static void __disable_clocks(struct msm_iommu_drvdata *drvdata)
 {
-	if (drvdata->aiclk)
-		clk_disable_unprepare(drvdata->aiclk);
-	if (drvdata->aclk)
-		clk_disable_unprepare(drvdata->aclk);
-	clk_disable_unprepare(drvdata->clk);
-	clk_disable_unprepare(drvdata->pclk);
+	clk_disable(drvdata->aiclk);
+	clk_disable(drvdata->aclk);
+	clk_disable(drvdata->clk);
+	clk_disable(drvdata->pclk);
 }
 
 static void _iommu_lock_acquire(unsigned int need_extra_lock)
@@ -175,6 +168,14 @@ struct iommu_access_ops iommu_access_ops_v1 = {
 	.iommu_lock_acquire = _iommu_lock_acquire,
 	.iommu_lock_release = _iommu_lock_release,
 };
+
+static ATOMIC_NOTIFIER_HEAD(msm_iommu_notifier_list);
+
+void msm_iommu_register_notify(struct notifier_block *nb)
+{
+	atomic_notifier_chain_register(&msm_iommu_notifier_list, nb);
+}
+EXPORT_SYMBOL(msm_iommu_register_notify);
 
 #ifdef CONFIG_MSM_IOMMU_VBIF_CHECK
 
@@ -208,18 +209,14 @@ static void __dump_vbif_state(void __iomem *base, void __iomem *vbif_base)
 
 static int __check_vbif_state(struct msm_iommu_drvdata const *drvdata)
 {
-	phys_addr_t addr = (phys_addr_t) (drvdata->phys_base
-			   - (phys_addr_t) 0x4000);
-	void __iomem *base = ioremap(addr, 0x1000);
 	int ret = 0;
 
-	if (base) {
-		__dump_vbif_state(drvdata->base, base);
-		__halt_vbif_xin(drvdata->base);
-		__dump_vbif_state(drvdata->base, base);
-		iounmap(base);
+	if (drvdata->vbif_base) {
+		__dump_vbif_state(drvdata->base, drvdata->vbif_base);
+		__halt_vbif_xin(drvdata->vbif_base);
+		__dump_vbif_state(drvdata->base, drvdata->vbif_base);
 	} else {
-		pr_err("%s: Unable to ioremap\n", __func__);
+		pr_err("%s: failed to get vbif state\n", __func__);
 		ret = -ENOMEM;
 	}
 	return ret;
@@ -239,9 +236,9 @@ static void check_halt_state(struct msm_iommu_drvdata const *drvdata)
 
 	pr_err("Checking if IOMMU halt completed for %s\n", name);
 
-	res = readl_tight_poll_timeout(
+	res = readl_poll_timeout_noirq(
 		GLB_REG(MICRO_MMU_CTRL, base), val,
-			(val & MMU_CTRL_IDLE) == MMU_CTRL_IDLE, 5000000);
+			(val & MMU_CTRL_IDLE) == MMU_CTRL_IDLE, 10000, 50);
 
 	if (res) {
 		pr_err("Timed out (again) waiting for IOMMU halt to complete for %s\n",
@@ -267,8 +264,8 @@ static void check_tlb_sync_state(struct msm_iommu_drvdata const *drvdata,
 
 	pr_err("Checking if TLB sync completed for %s\n", name);
 
-	res = readl_tight_poll_timeout(CTX_REG(CB_TLBSTATUS, base, ctx), val,
-				(val & CB_TLBSTATUS_SACTIVE) == 0, 5000000);
+	res = readl_poll_timeout_noirq(CTX_REG(CB_TLBSTATUS, base, ctx), val,
+				(val & CB_TLBSTATUS_SACTIVE) == 0, 10000, 50);
 	if (res) {
 		pr_err("Timed out (again) waiting for TLB SYNC to complete for %s\n",
 			name);
@@ -280,10 +277,6 @@ static void check_tlb_sync_state(struct msm_iommu_drvdata const *drvdata,
 
 #else
 
-/*
- * For targets without VBIF or for targets with the VBIF check disabled
- * we directly just crash to capture the issue
- */
 static void check_halt_state(struct msm_iommu_drvdata const *drvdata)
 {
 	BUG();
@@ -311,7 +304,7 @@ void iommu_halt(struct msm_iommu_drvdata const *iommu_drvdata)
 
 		if (res)
 			check_halt_state(iommu_drvdata);
-		/* Ensure device is idle before continuing */
+		
 		mb();
 	}
 }
@@ -319,17 +312,8 @@ void iommu_halt(struct msm_iommu_drvdata const *iommu_drvdata)
 void iommu_resume(const struct msm_iommu_drvdata *iommu_drvdata)
 {
 	if (iommu_drvdata->halt_enabled) {
-		/*
-		 * Ensure transactions have completed before releasing
-		 * the halt
-		 */
 		mb();
 		SET_MICRO_MMU_CTRL_HALT_REQ(iommu_drvdata->base, 0);
-		/*
-		 * Ensure write is complete before continuing to ensure
-		 * we don't turn off clocks while transaction is still
-		 * pending.
-		 */
 		mb();
 	}
 }
@@ -341,40 +325,12 @@ static void __sync_tlb(struct msm_iommu_drvdata *iommu_drvdata, int ctx)
 	void __iomem *base = iommu_drvdata->cb_base;
 
 	SET_TLBSYNC(base, ctx, 0);
-	/* No barrier needed due to read dependency */
+	
 
-	res = readl_tight_poll_timeout(CTX_REG(CB_TLBSTATUS, base, ctx), val,
-				(val & CB_TLBSTATUS_SACTIVE) == 0, 5000000);
+	res = readl_poll_timeout_noirq(CTX_REG(CB_TLBSTATUS, base, ctx), val,
+				(val & CB_TLBSTATUS_SACTIVE) == 0, 10000, 50);
 	if (res)
 		check_tlb_sync_state(iommu_drvdata, ctx);
-}
-
-static int __flush_iotlb_va(struct iommu_domain *domain, unsigned int va)
-{
-	struct msm_iommu_priv *priv = domain->priv;
-	struct msm_iommu_drvdata *iommu_drvdata;
-	struct msm_iommu_ctx_drvdata *ctx_drvdata;
-	int ret = 0;
-
-	list_for_each_entry(ctx_drvdata, &priv->list_attached, attached_elm) {
-		BUG_ON(!ctx_drvdata->pdev || !ctx_drvdata->pdev->dev.parent);
-
-		iommu_drvdata = dev_get_drvdata(ctx_drvdata->pdev->dev.parent);
-		BUG_ON(!iommu_drvdata);
-
-
-		ret = __enable_clocks(iommu_drvdata);
-		if (ret)
-			goto fail;
-
-		SET_TLBIVA(iommu_drvdata->cb_base, ctx_drvdata->num,
-			   ctx_drvdata->asid | (va & CB_TLBIVA_VA));
-		mb();
-		__sync_tlb(iommu_drvdata, ctx_drvdata->num);
-		__disable_clocks(iommu_drvdata);
-	}
-fail:
-	return ret;
 }
 
 static int __flush_iotlb(struct iommu_domain *domain)
@@ -404,25 +360,19 @@ fail:
 	return ret;
 }
 
-/*
- * May only be called for non-secure iommus
- */
 static void __reset_iommu(struct msm_iommu_drvdata *iommu_drvdata)
 {
 	int i, smt_size, res;
 	unsigned long val;
 	void __iomem *base = iommu_drvdata->base;
 
-	/* SMMU_ACR is an implementation defined register.
-	 * Resetting is not required for some implementation.
-	 */
 	if (iommu_drvdata->model != MMU_500)
 		SET_ACR(base, 0);
 	SET_CR2(base, 0);
 	SET_GFAR(base, 0);
 	SET_GFSRRESTORE(base, 0);
 
-	/* Invalidate the entire non-secure TLB */
+	
 	SET_TLBIALLNSNH(base, 0);
 	SET_TLBGSYNC(base, 0);
 	res = readl_tight_poll_timeout(GLB_REG(TLBGSTATUS, base), val,
@@ -469,9 +419,6 @@ static void __program_iommu_secure(struct msm_iommu_drvdata *iommu_drvdata)
 	SET_NSCR0_CLIENTPD(base, 0);
 }
 
-/*
- * May only be called for non-secure iommus
- */
 static void __program_iommu(struct msm_iommu_drvdata *drvdata)
 {
 	__reset_iommu(drvdata);
@@ -500,7 +447,7 @@ static void __program_iommu(struct msm_iommu_drvdata *drvdata)
 		writel_relaxed(0xFFFFFFFF, drvdata->smmu_local_base +
 							SMMU_INTR_SEL_NS);
 
-	mb(); /* Make sure writes complete before returning */
+	mb(); 
 }
 
 void program_iommu_bfb_settings(void __iomem *base,
@@ -512,17 +459,13 @@ void program_iommu_bfb_settings(void __iomem *base,
 			SET_GLOBAL_REG(base, bfb_settings->regs[i],
 					     bfb_settings->data[i]);
 
-	mb(); /* Make sure writes complete before returning */
+	mb(); 
 }
 
 static void __reset_context(struct msm_iommu_drvdata *iommu_drvdata, int ctx)
 {
 	void __iomem *base = iommu_drvdata->cb_base;
 
-	/* Don't set ACTLR to zero because if context bank is in
-	 * bypass mode (say after iommu_detach), still this ACTLR
-	 * value matters for micro-TLB caching.
-	 */
 	if (iommu_drvdata->model != MMU_500)
 		SET_ACTLR(base, ctx, 0);
 	SET_FAR(base, ctx, 0);
@@ -542,7 +485,7 @@ static void __release_smg(void __iomem *base)
 	int i, smt_size;
 	smt_size = GET_IDR0_NUMSMRG(base);
 
-	/* Invalidate all SMGs */
+	
 	for (i = 0; i < smt_size; i++)
 		if (GET_SMR_VALID(base, i))
 			SET_SMR_VALID(base, i, 0);
@@ -575,7 +518,7 @@ static void msm_iommu_assign_ASID(const struct msm_iommu_drvdata *iommu_drvdata,
 #ifdef CONFIG_IOMMU_LPAE
 static void msm_iommu_setup_ctx(void __iomem *base, unsigned int ctx)
 {
-	SET_CB_TTBCR_EAE(base, ctx, 1); /* Extended Address Enable (EAE) */
+	SET_CB_TTBCR_EAE(base, ctx, 1); 
 }
 
 static void msm_iommu_setup_memory_remap(void __iomem *base, unsigned int ctx)
@@ -586,27 +529,23 @@ static void msm_iommu_setup_memory_remap(void __iomem *base, unsigned int ctx)
 
 static void msm_iommu_setup_pg_l2_redirect(void __iomem *base, unsigned int ctx)
 {
-	/*
-	 * Configure page tables as inner-cacheable and shareable to reduce
-	 * the TLB miss penalty.
-	 */
-	SET_CB_TTBCR_SH0(base, ctx, 3); /* Inner shareable */
-	SET_CB_TTBCR_ORGN0(base, ctx, 1); /* outer cachable*/
-	SET_CB_TTBCR_IRGN0(base, ctx, 1); /* inner cachable*/
-	SET_CB_TTBCR_T0SZ(base, ctx, 0); /* 0GB-4GB */
+	SET_CB_TTBCR_SH0(base, ctx, 3); 
+	SET_CB_TTBCR_ORGN0(base, ctx, 1); 
+	SET_CB_TTBCR_IRGN0(base, ctx, 1); 
+	SET_CB_TTBCR_T0SZ(base, ctx, 0); 
 
 
-	SET_CB_TTBCR_SH1(base, ctx, 3); /* Inner shareable */
-	SET_CB_TTBCR_ORGN1(base, ctx, 1); /* outer cachable*/
-	SET_CB_TTBCR_IRGN1(base, ctx, 1); /* inner cachable*/
-	SET_CB_TTBCR_T1SZ(base, ctx, 0); /* TTBR1 not used */
+	SET_CB_TTBCR_SH1(base, ctx, 3); 
+	SET_CB_TTBCR_ORGN1(base, ctx, 1); 
+	SET_CB_TTBCR_IRGN1(base, ctx, 1); 
+	SET_CB_TTBCR_T1SZ(base, ctx, 0); 
 }
 
 #else
 
 static void msm_iommu_setup_ctx(void __iomem *base, unsigned int ctx)
 {
-	/* Turn on TEX Remap */
+	
 	SET_CB_SCTLR_TRE(base, ctx, 1);
 }
 
@@ -618,14 +557,11 @@ static void msm_iommu_setup_memory_remap(void __iomem *base, unsigned int ctx)
 
 static void msm_iommu_setup_pg_l2_redirect(void __iomem *base, unsigned int ctx)
 {
-	/* Configure page tables as inner-cacheable and shareable to reduce
-	 * the TLB miss penalty.
-	 */
 	SET_CB_TTBR0_S(base, ctx, 1);
 	SET_CB_TTBR0_NOS(base, ctx, 1);
-	SET_CB_TTBR0_IRGN1(base, ctx, 0); /* WB, WA */
+	SET_CB_TTBR0_IRGN1(base, ctx, 0); 
 	SET_CB_TTBR0_IRGN0(base, ctx, 1);
-	SET_CB_TTBR0_RGN(base, ctx, 1);   /* WB, WA */
+	SET_CB_TTBR0_RGN(base, ctx, 1);   
 }
 
 #endif
@@ -640,7 +576,7 @@ static int program_m2v_table(struct device *dev, void __iomem *base)
 	int len = ctx_drvdata->nsid;
 
 	smt_size = GET_IDR0_NUMSMRG(base);
-	/* Program the M2V tables for this context */
+	
 	for (i = 0; i < len / sizeof(*sids); i++) {
 		for (; num < smt_size; num++)
 			if (GET_SMR_VALID(base, num) == 0)
@@ -654,7 +590,7 @@ static int program_m2v_table(struct device *dev, void __iomem *base)
 		SET_S2CR_N(base, num, 0);
 		SET_S2CR_CBNDX(base, num, ctx);
 		SET_S2CR_MEMATTR(base, num, 0x0A);
-		/* Set security bit override to be Non-secure */
+		
 		SET_S2CR_NSCFG(base, num, 3);
 	}
 
@@ -689,17 +625,23 @@ static void __program_context(struct msm_iommu_drvdata *iommu_drvdata,
 	pn = pgtable >> CB_TTBR0_ADDR_SHIFT;
 	SET_CB_TTBR0_ADDR(cb_base, ctx, pn);
 
-	/* Enable context fault interrupt */
+	
 	SET_CB_SCTLR_CFIE(cb_base, ctx, 1);
 
+	
+	if (ctx_drvdata->report_error_on_fault) {
+		SET_CB_SCTLR_HUPCF(cb_base, ctx, 1);
+		SET_CB_SCTLR_CFRE(cb_base, ctx, 1);
+	}
+
 	if (iommu_drvdata->model != MMU_500) {
-		/* Redirect all cacheable requests to L2 slave port. */
+		
 		SET_CB_ACTLR_BPRCISH(cb_base, ctx, 1);
 		SET_CB_ACTLR_BPRCOSH(cb_base, ctx, 1);
 		SET_CB_ACTLR_BPRCNSH(cb_base, ctx, 1);
 	}
 
-	/* Enable private ASID namespace */
+	
 	SET_CB_SCTLR_ASIDPNE(cb_base, ctx, 1);
 
 	if (!is_secure) {
@@ -708,34 +650,31 @@ static void __program_context(struct msm_iommu_drvdata *iommu_drvdata,
 
 		SET_CBAR_N(base, ctx, 0);
 
-		/* Stage 1 Context with Stage 2 bypass */
+		
 		SET_CBAR_TYPE(base, ctx, 1);
 
-		/* Route page faults to the non-secure interrupt */
+		
 		SET_CBAR_IRPTNDX(base, ctx, 1);
 
-		/* Set VMID to non-secure HLOS */
+		
 		SET_CBAR_VMID(base, ctx, 3);
 
-		/* Bypass is treated as inner-shareable */
+		
 		SET_CBAR_BPSHCFG(base, ctx, 2);
 
-		/* Do not downgrade memory attributes */
+		
 		SET_CBAR_MEMATTR(base, ctx, 0x0A);
 
 	}
 
 	msm_iommu_assign_ASID(iommu_drvdata, ctx_drvdata, priv);
 
-	/* Ensure that ASID assignment has completed before we use
-	 * ASID for TLB invalidation. Here, mb() is required because
-	 * both these registers are separated by more than 1KB. */
 	mb();
 	SET_TLBIASID(iommu_drvdata->cb_base, ctx_drvdata->num,
 					ctx_drvdata->asid);
 	__sync_tlb(iommu_drvdata, ctx_drvdata->num);
 
-	/* Enable the MMU */
+	
 	SET_CB_SCTLR_M(cb_base, ctx, 1);
 	mb();
 }
@@ -767,8 +706,10 @@ fail_nomem:
 static void msm_iommu_domain_destroy(struct iommu_domain *domain)
 {
 	struct msm_iommu_priv *priv;
+	unsigned long flags;
 
 	mutex_lock(&msm_iommu_lock);
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	priv = domain->priv;
 	domain->priv = NULL;
 
@@ -776,6 +717,7 @@ static void msm_iommu_domain_destroy(struct iommu_domain *domain)
 		msm_iommu_pagetable_free(&priv->pt);
 
 	kfree(priv);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 	mutex_unlock(&msm_iommu_lock);
 }
 
@@ -788,6 +730,7 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	int ret = 0;
 	int is_secure;
 	bool set_m2v = false;
+	unsigned long flags;
 
 	mutex_lock(&msm_iommu_lock);
 
@@ -809,16 +752,21 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	if (ctx_drvdata->attach_count > 1)
 		goto already_attached;
 
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	if (!list_empty(&ctx_drvdata->attached_elm)) {
 		ret = -EBUSY;
+		spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 		goto unlock;
 	}
 
 	list_for_each_entry(tmp_drvdata, &priv->list_attached, attached_elm)
 		if (tmp_drvdata == ctx_drvdata) {
 			ret = -EBUSY;
+			spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 			goto unlock;
 		}
+
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 
 	is_secure = iommu_drvdata->sec_id != -1;
 
@@ -836,7 +784,7 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		goto unlock;
 	}
 
-	/* We can only do this once */
+	
 	if (!iommu_drvdata->ctx_attach_count) {
 		if (!is_secure) {
 			iommu_halt(iommu_drvdata);
@@ -864,7 +812,10 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 
 	__disable_clocks(iommu_drvdata);
 
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	list_add(&(ctx_drvdata->attached_elm), &priv->list_attached);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
+
 	ctx_drvdata->attached_domain = domain;
 	++iommu_drvdata->ctx_attach_count;
 
@@ -886,6 +837,7 @@ static void msm_iommu_detach_dev(struct iommu_domain *domain,
 	struct msm_iommu_ctx_drvdata *ctx_drvdata;
 	int ret;
 	int is_secure;
+	unsigned long flags;
 
 	if (!dev)
 		return;
@@ -922,8 +874,6 @@ static void msm_iommu_detach_dev(struct iommu_domain *domain,
 
 	__reset_context(iommu_drvdata, ctx_drvdata->num);
 
-	/*
-	 * Only reset the M2V tables on the very last detach */
 	if (!is_secure && iommu_drvdata->ctx_attach_count == 1) {
 		iommu_halt(iommu_drvdata);
 		__release_smg(iommu_drvdata->base);
@@ -936,7 +886,10 @@ static void msm_iommu_detach_dev(struct iommu_domain *domain,
 
 	__disable_regulators(iommu_drvdata);
 
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	list_del_init(&ctx_drvdata->attached_elm);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
+
 	ctx_drvdata->attached_domain = NULL;
 	BUG_ON(iommu_drvdata->ctx_attach_count == 0);
 	--iommu_drvdata->ctx_attach_count;
@@ -949,9 +902,9 @@ static int msm_iommu_map(struct iommu_domain *domain, unsigned long va,
 {
 	struct msm_iommu_priv *priv;
 	int ret = 0;
+	unsigned long flags;
 
-	mutex_lock(&msm_iommu_lock);
-
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	priv = domain->priv;
 	if (!priv) {
 		ret = -EINVAL;
@@ -962,12 +915,8 @@ static int msm_iommu_map(struct iommu_domain *domain, unsigned long va,
 	if (ret)
 		goto fail;
 
-#ifdef CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP
-	ret = __flush_iotlb_va(domain, va);
-#endif
-
 fail:
-	mutex_unlock(&msm_iommu_lock);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 	return ret;
 }
 
@@ -976,9 +925,9 @@ static size_t msm_iommu_unmap(struct iommu_domain *domain, unsigned long va,
 {
 	struct msm_iommu_priv *priv;
 	int ret = -ENODEV;
+	unsigned long flags;
 
-	mutex_lock(&msm_iommu_lock);
-
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	priv = domain->priv;
 	if (!priv)
 		goto fail;
@@ -987,13 +936,12 @@ static size_t msm_iommu_unmap(struct iommu_domain *domain, unsigned long va,
 	if (ret < 0)
 		goto fail;
 
-	ret = __flush_iotlb_va(domain, va);
+	ret = __flush_iotlb(domain);
 
 	msm_iommu_pagetable_free_tables(&priv->pt, va, len);
 fail:
-	mutex_unlock(&msm_iommu_lock);
-
-	/* the IOMMU API requires us to return how many bytes were unmapped */
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
+	
 	len = ret ? 0 : len;
 	return len;
 }
@@ -1004,9 +952,9 @@ static int msm_iommu_map_range(struct iommu_domain *domain, unsigned int va,
 {
 	int ret;
 	struct msm_iommu_priv *priv;
+	unsigned long flags;
 
-	mutex_lock(&msm_iommu_lock);
-
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	priv = domain->priv;
 	if (!priv) {
 		ret = -EINVAL;
@@ -1014,15 +962,9 @@ static int msm_iommu_map_range(struct iommu_domain *domain, unsigned int va,
 	}
 
 	ret = msm_iommu_pagetable_map_range(&priv->pt, va, sg, len, prot);
-	if (ret)
-		goto fail;
-
-#ifdef CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP
-	__flush_iotlb(domain);
-#endif
 
 fail:
-	mutex_unlock(&msm_iommu_lock);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 	return ret;
 }
 
@@ -1031,16 +973,16 @@ static int msm_iommu_unmap_range(struct iommu_domain *domain, unsigned int va,
 				 unsigned int len)
 {
 	struct msm_iommu_priv *priv;
+	unsigned long flags;
 
-	mutex_lock(&msm_iommu_lock);
-
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	priv = domain->priv;
 	msm_iommu_pagetable_unmap_range(&priv->pt, va, len);
 
 	__flush_iotlb(domain);
 
 	msm_iommu_pagetable_free_tables(&priv->pt, va, len);
-	mutex_unlock(&msm_iommu_lock);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 	return 0;
 }
 
@@ -1048,7 +990,7 @@ static int msm_iommu_unmap_range(struct iommu_domain *domain, unsigned int va,
 static phys_addr_t msm_iommu_get_phy_from_PAR(unsigned long va, u64 par)
 {
 	phys_addr_t phy;
-	/* Upper 28 bits from PAR, lower 12 from VA */
+	
 	phy = (par & 0xFFFFFFF000ULL) | (va & 0x00000FFF);
 	return phy;
 }
@@ -1057,10 +999,10 @@ static phys_addr_t msm_iommu_get_phy_from_PAR(unsigned long va, u64 par)
 {
 	phys_addr_t phy;
 
-	/* We are dealing with a supersection */
+	
 	if (par & CB_PAR_SS)
 		phy = (par & 0xFF000000) | (va & 0x00FFFFFF);
-	else /* Upper 20 bits from PAR, lower 12 from VA */
+	else 
 		phy = (par & 0xFFFFF000) | (va & 0x00000FFF);
 
 	return phy;
@@ -1078,6 +1020,7 @@ static phys_addr_t msm_iommu_iova_to_phys(struct iommu_domain *domain,
 	phys_addr_t ret = 0;
 	int ctx;
 	int i;
+	unsigned long flags;
 
 	mutex_lock(&msm_iommu_lock);
 
@@ -1085,12 +1028,17 @@ static phys_addr_t msm_iommu_iova_to_phys(struct iommu_domain *domain,
 	if (list_empty(&priv->list_attached))
 		goto fail;
 
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	ctx_drvdata = list_entry(priv->list_attached.next,
 				 struct msm_iommu_ctx_drvdata, attached_elm);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
+
 	iommu_drvdata = dev_get_drvdata(ctx_drvdata->pdev->dev.parent);
 
 	if (iommu_drvdata->model == MMU_500) {
+		spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 		ret = msm_iommu_iova_to_phys_soft(domain, va);
+		spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
 		mutex_unlock(&msm_iommu_lock);
 		return ret;
 	}
@@ -1100,19 +1048,20 @@ static phys_addr_t msm_iommu_iova_to_phys(struct iommu_domain *domain,
 
 	ret = __enable_clocks(iommu_drvdata);
 	if (ret) {
-		ret = 0;	/* 0 indicates translation failed */
+		ret = 0;	
 		goto fail;
 	}
 
+	spin_lock_irqsave(&msm_iommu_spin_lock, flags);
 	SET_ATS1PR(base, ctx, va & CB_ATS1PR_ADDR);
 	mb();
-	for (i = 0; i < IOMMU_MSEC_TIMEOUT; i += IOMMU_MSEC_STEP)
+	for (i = 0; i < IOMMU_USEC_TIMEOUT; i += IOMMU_USEC_STEP)
 		if (GET_CB_ATSR_ACTIVE(base, ctx) == 0)
 			break;
 		else
-			msleep(IOMMU_MSEC_STEP);
+			udelay(IOMMU_USEC_STEP);
 
-	if (i >= IOMMU_MSEC_TIMEOUT) {
+	if (i >= IOMMU_USEC_TIMEOUT) {
 		pr_err("%s: iova to phys timed out on %pa for %s (%s)\n",
 			__func__, &va, iommu_drvdata->name, ctx_drvdata->name);
 		ret = 0;
@@ -1120,6 +1069,8 @@ static phys_addr_t msm_iommu_iova_to_phys(struct iommu_domain *domain,
 	}
 
 	par = GET_PAR(base, ctx);
+	spin_unlock_irqrestore(&msm_iommu_spin_lock, flags);
+
 	__disable_clocks(iommu_drvdata);
 
 	if (par & CB_PAR_F) {
@@ -1358,11 +1309,6 @@ irqreturn_t msm_iommu_fault_handler_v2(int irq, void *dev_id)
 		pr_err("Unexpected IOMMU page fault!\n");
 		pr_err("name = %s\n", drvdata->name);
 		pr_err("Power is OFF. Unable to read page fault information\n");
-		/*
-		 * We cannot determine which context bank caused the issue so
-		 * we just return handled here to ensure IRQ handler code is
-		 * happy
-		 */
 		ret = IRQ_HANDLED;
 		goto fail;
 	}

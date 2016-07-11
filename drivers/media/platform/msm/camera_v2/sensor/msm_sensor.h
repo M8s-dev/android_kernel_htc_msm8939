@@ -53,10 +53,12 @@ struct msm_sensor_fn_t {
 	int (*sensor_power_down) (struct msm_sensor_ctrl_t *);
 	int (*sensor_power_up) (struct msm_sensor_ctrl_t *);
 	int (*sensor_match_id) (struct msm_sensor_ctrl_t *);
-   int (*sensor_i2c_read_fuseid)(struct sensorb_cfg_data *cdata, struct msm_sensor_ctrl_t *s_ctrl); 
+/*HTC_START, HTC_VCM*/
+   int (*sensor_i2c_read_fuseid)(struct sensorb_cfg_data *cdata, struct msm_sensor_ctrl_t *s_ctrl); /*HTC Harvey 20130628 - Porting read OTP*/
 #ifdef CONFIG_COMPAT
-	int (*sensor_i2c_read_fuseid32)(struct sensorb_cfg_data32 *cdata, struct msm_sensor_ctrl_t *s_ctrl); 
+	int (*sensor_i2c_read_fuseid32)(struct sensorb_cfg_data32 *cdata, struct msm_sensor_ctrl_t *s_ctrl); /*HTC Harvey 20130628 - Porting read OTP*/
 #endif
+/*HTC_END, HTC_VCM*/
 };
 
 struct msm_sensor_ctrl_t {
@@ -83,11 +85,15 @@ struct msm_sensor_ctrl_t {
 	struct device_node *of_node;
 	enum msm_camera_stream_type_t camera_stream_type;
 	uint32_t set_mclk_23880000;
-	uint8_t driver_ic; 
+/*HTC_START, HTC_VCM*/
+	uint8_t driver_ic; /*HTC Harvey 20130628 - Porting read OTP*/
+/*HTC_END, HTC_VCM*/
 };
 
 int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp);
+//HTC_CAM_START
 int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp);
+//HTC_CAM_END
 
 int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl);
 
@@ -108,9 +114,11 @@ int msm_sensor_free_sensor_data(struct msm_sensor_ctrl_t *s_ctrl);
 
 int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl);
 
+/*HTC_START*/
 struct file* msm_fopen(const char* path, int flags, int rights);
 int msm_fwrite(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size);
 void msm_fclose(struct file* file);
+/*HTC_END*/
 
 int32_t msm_sensor_get_dt_gpio_req_tbl(struct device_node *of_node,
 	struct msm_camera_gpio_conf *gconf, uint16_t *gpio_array,

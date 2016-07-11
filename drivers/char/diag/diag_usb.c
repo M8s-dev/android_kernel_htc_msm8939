@@ -95,11 +95,15 @@ struct diag_usb_info diag_usb[NUM_DIAG_USB_DEV] = {
 #endif
 };
 
+/*
+ * This function is called asynchronously when USB is connected and
+ * synchronously when Diag wants to connect to USB explicitly.
+ */
 static void usb_connect(struct diag_usb_info *ch)
 {
 	int err = 0;
 	int num_write = 0;
-	int num_read = 1; 
+	int num_read = 1; /* Only one read buffer for any USB channel */
 
 	if (!ch)
 		return;
@@ -114,7 +118,7 @@ static void usb_connect(struct diag_usb_info *ch)
 
 	if (ch->ops && ch->ops->open)
 		ch->ops->open(ch->ctxt, DIAG_USB_MODE);
-	
+	/* As soon as we open the channel, queue a read */
 	queue_work(ch->usb_wq, &(ch->read_work));
 }
 
@@ -125,6 +129,11 @@ static void usb_connect_work_fn(struct work_struct *work)
 	usb_connect(ch);
 }
 
+/*
+ * This function is called asynchronously when USB is disconnected
+ * and synchronously when Diag wants to disconnect from USB
+ * explicitly.
+ */
 static void usb_disconnect(struct diag_usb_info *ch)
 {
 	if (ch && ch->ops && ch->ops->close)
@@ -175,6 +184,10 @@ static void usb_read_done_work_fn(struct work_struct *work)
 	if (!ch)
 		return;
 
+	/*
+	 * USB is disconnected/Disabled before the previous read completed.
+	 * Discard the packet and don't do any further processing.
+	 */
 	if (!ch->connected || !ch->enabled)
 		return;
 
@@ -196,7 +209,7 @@ static void diag_usb_write_done(struct diag_usb_info *ch,
 	ch->write_cnt++;
 	ctxt = (int)(uintptr_t)req->context;
 	if (ch->ops && ch->ops->write_done)
-		ch->ops->write_done(req->buf, req->actual, ctxt, ch->ctxt);
+		ch->ops->write_done(req->buf, req->actual, ctxt, DIAG_USB_MODE);
 	diagmem_free(driver, req, ch->mempool);
 	queue_work(ch->usb_wq, &(ch->read_work));
 }
@@ -275,6 +288,12 @@ int diag_usb_write(int id, unsigned char *buf, int len, int ctxt)
 	req = diagmem_alloc(driver, sizeof(struct diag_request),
 			    usb_info->mempool);
 	if (!req) {
+		/*
+		 * This should never happen. It either means that we are
+		 * trying to write more buffers than the max supported by
+		 * this particualar diag USB channel at any given instance,
+		 * or the previous write ptrs are stuck in the USB layer.
+		 */
 		pr_err_ratelimited("diag: In %s, cannot retrieve USB write ptrs for USB channel %s\n",
 				   __func__, usb_info->name);
 		return -ENOMEM;
@@ -308,36 +327,38 @@ int diag_usb_write(int id, unsigned char *buf, int len, int ctxt)
 	return err;
 }
 
+/*
+ * This functions performs USB connect operations wrt Diag synchronously. It
+ * doesn't translate to actual USB connect. This is used when Diag switches
+ * logging to USB mode and wants to mimic USB connection.
+ */
 void diag_usb_connect_all(void)
 {
 	int i = 0;
-	unsigned long flags;
 	struct diag_usb_info *usb_info = NULL;
 
 	for (i = 0; i < NUM_DIAG_USB_DEV; i++) {
 		usb_info = &diag_usb[i];
 		if (!usb_info->enabled)
 			continue;
-		spin_lock_irqsave(&usb_info->lock, flags);
-		usb_info->connected = 1;
-		spin_unlock_irqrestore(&usb_info->lock, flags);
 		usb_connect(usb_info);
 	}
 }
 
+/*
+ * This functions performs USB disconnect operations wrt Diag synchronously.
+ * It doesn't translate to actual USB disconnect. This is used when Diag
+ * switches logging from USB mode and want to mimic USB disconnect.
+ */
 void diag_usb_disconnect_all(void)
 {
 	int i = 0;
-	unsigned long flags;
 	struct diag_usb_info *usb_info = NULL;
 
 	for (i = 0; i < NUM_DIAG_USB_DEV; i++) {
 		usb_info = &diag_usb[i];
 		if (!usb_info->enabled)
 			continue;
-		spin_lock_irqsave(&usb_info->lock, flags);
-		usb_info->connected = 0;
-		spin_unlock_irqrestore(&usb_info->lock, flags);
 		usb_disconnect(usb_info);
 	}
 }

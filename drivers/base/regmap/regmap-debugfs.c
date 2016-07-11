@@ -20,7 +20,6 @@
 
 static struct dentry *regmap_debugfs_root;
 
-/* Calculate the length of a fixed format  */
 static size_t regmap_calc_reg_len(int max_val, char *buf, size_t buf_size)
 {
 	snprintf(buf, buf_size, "%x", max_val);
@@ -69,10 +68,6 @@ static void regmap_debugfs_free_dump_cache(struct regmap *map)
 	}
 }
 
-/*
- * Work out where the start offset maps into register numbers, bearing
- * in mind that we suppress hidden registers.
- */
 static unsigned int regmap_debugfs_get_dump_start(struct regmap *map,
 						  unsigned int base,
 						  loff_t from,
@@ -84,15 +79,11 @@ static unsigned int regmap_debugfs_get_dump_start(struct regmap *map,
 	unsigned int fpos_offset;
 	unsigned int reg_offset;
 
-	/*
-	 * If we don't have a cache build one so we don't have to do a
-	 * linear scan each time.
-	 */
 	mutex_lock(&map->cache_lock);
 	i = base;
 	if (list_empty(&map->debugfs_off_cache)) {
 		for (; i <= map->max_register; i += map->reg_stride) {
-			/* Skip unprinted registers, closing off cache entry */
+			
 			if (!regmap_readable(map, i) ||
 			    regmap_precious(map, i)) {
 				if (c) {
@@ -106,7 +97,7 @@ static unsigned int regmap_debugfs_get_dump_start(struct regmap *map,
 				continue;
 			}
 
-			/* No cache entry?  Start a new one */
+			
 			if (!c) {
 				c = kzalloc(sizeof(*c), GFP_KERNEL);
 				if (!c) {
@@ -122,7 +113,7 @@ static unsigned int regmap_debugfs_get_dump_start(struct regmap *map,
 		}
 	}
 
-	/* Close the last entry off if we didn't scan beyond it */
+	
 	if (c) {
 		c->max = p - 1;
 		c->max_reg = i - map->reg_stride;
@@ -130,15 +121,10 @@ static unsigned int regmap_debugfs_get_dump_start(struct regmap *map,
 			      &map->debugfs_off_cache);
 	}
 
-	/*
-	 * This should never happen; we return above if we fail to
-	 * allocate and we should never be in this code if there are
-	 * no registers at all.
-	 */
 	WARN_ON(list_empty(&map->debugfs_off_cache));
 	ret = base;
 
-	/* Find the relevant block:offset */
+	
 	list_for_each_entry(c, &map->debugfs_off_cache, list) {
 		if (from >= c->min && from <= c->max) {
 			fpos_offset = from - c->min;
@@ -159,13 +145,13 @@ static unsigned int regmap_debugfs_get_dump_start(struct regmap *map,
 static inline void regmap_calc_tot_len(struct regmap *map,
 				       void *buf, size_t count)
 {
-	/* Calculate the length of a fixed format  */
+	
 	if (!map->debugfs_tot_len) {
 		map->debugfs_reg_len = regmap_calc_reg_len(map->max_register,
 							   buf, count);
 		map->debugfs_val_len = 2 * map->format.val_bytes;
 		map->debugfs_tot_len = map->debugfs_reg_len +
-			map->debugfs_val_len + 3;      /* : \n */
+			map->debugfs_val_len + 3;      
 	}
 }
 
@@ -189,7 +175,7 @@ static ssize_t regmap_read_debugfs(struct regmap *map, unsigned int from,
 
 	regmap_calc_tot_len(map, buf, count);
 
-	/* Work out which register we're starting at */
+	
 	start_reg = regmap_debugfs_get_dump_start(map, from, *ppos, &p);
 
 	for (i = start_reg; i <= to; i += map->reg_stride) {
@@ -199,18 +185,18 @@ static ssize_t regmap_read_debugfs(struct regmap *map, unsigned int from,
 		if (regmap_precious(map, i))
 			continue;
 
-		/* If we're in the region the user is trying to read */
+		
 		if (p >= *ppos) {
-			/* ...but not beyond it */
+			
 			if (buf_pos + map->debugfs_tot_len > count)
 				break;
 
-			/* Format the register */
+			
 			snprintf(buf + buf_pos, count - buf_pos, "%.*x: ",
 				 map->debugfs_reg_len, i - from);
 			buf_pos += map->debugfs_reg_len + 2;
 
-			/* Format the value, write all X if we can't read */
+			
 			ret = regmap_read(map, i, &val);
 			if (ret == 0)
 				snprintf(buf + buf_pos, count - buf_pos,
@@ -248,14 +234,7 @@ static ssize_t regmap_map_read_file(struct file *file, char __user *user_buf,
 				   count, ppos);
 }
 
-#undef REGMAP_ALLOW_WRITE_DEBUGFS
-#ifdef REGMAP_ALLOW_WRITE_DEBUGFS
-/*
- * This can be dangerous especially when we have clients such as
- * PMICs, therefore don't provide any real compile time configuration option
- * for this feature, people who want to use this will need to modify
- * the source code directly.
- */
+#if IS_ENABLED(CONFIG_REGMAP_ALLOW_WRITE_DEBUGFS)
 static ssize_t regmap_map_write_file(struct file *file,
 				     const char __user *user_buf,
 				     size_t count, loff_t *ppos)
@@ -280,7 +259,7 @@ static ssize_t regmap_map_write_file(struct file *file,
 	if (strict_strtoul(start, 16, &value))
 		return -EINVAL;
 
-	/* Userspace has been fiddling around behind the kernel's back */
+	
 	add_taint(TAINT_USER, LOCKDEP_NOW_UNRELIABLE);
 
 	ret = regmap_write(map, reg, value);
@@ -340,16 +319,9 @@ static ssize_t regmap_reg_ranges_read_file(struct file *file,
 		return -ENOMEM;
 	}
 
-	/* While we are at it, build the register dump cache
-	 * now so the read() operation on the `registers' file
-	 * can benefit from using the cache.  We do not care
-	 * about the file position information that is contained
-	 * in the cache, just about the actual register blocks */
 	regmap_calc_tot_len(map, buf, count);
 	regmap_debugfs_get_dump_start(map, 0, *ppos, &p);
 
-	/* Reset file pointer as the fixed-format of the `registers'
-	 * file is not compatible with the `range' file */
 	p = 0;
 	mutex_lock(&map->cache_lock);
 	list_for_each_entry(c, &map->debugfs_off_cache, list) {
@@ -407,22 +379,22 @@ static ssize_t regmap_access_read_file(struct file *file,
 	if (!buf)
 		return -ENOMEM;
 
-	/* Calculate the length of a fixed format  */
+	
 	reg_len = regmap_calc_reg_len(map->max_register, buf, count);
-	tot_len = reg_len + 10; /* ': R W V P\n' */
+	tot_len = reg_len + 10; 
 
 	for (i = 0; i <= map->max_register; i += map->reg_stride) {
-		/* Ignore registers which are neither readable nor writable */
+		
 		if (!regmap_readable(map, i) && !regmap_writeable(map, i))
 			continue;
 
-		/* If we're in the region the user is trying to read */
+		
 		if (p >= *ppos) {
-			/* ...but not beyond it */
+			
 			if (buf_pos >= count - 1 - tot_len)
 				break;
 
-			/* Format the register */
+			
 			snprintf(buf + buf_pos, count - buf_pos,
 				 "%.*x: %c %c %c %c\n",
 				 reg_len, i,
@@ -460,16 +432,20 @@ void regmap_debugfs_init(struct regmap *map, const char *name)
 {
 	struct rb_node *next;
 	struct regmap_range_node *range_node;
+	const char *devname = "dummy";
 
 	INIT_LIST_HEAD(&map->debugfs_off_cache);
 	mutex_init(&map->cache_lock);
 
+	if (map->dev)
+		devname = dev_name(map->dev);
+
 	if (name) {
 		map->debugfs_name = kasprintf(GFP_KERNEL, "%s-%s",
-					      dev_name(map->dev), name);
+					      devname, name);
 		name = map->debugfs_name;
 	} else {
-		name = dev_name(map->dev);
+		name = devname;
 	}
 
 	map->debugfs = debugfs_create_dir(name, regmap_debugfs_root);
@@ -485,7 +461,14 @@ void regmap_debugfs_init(struct regmap *map, const char *name)
 			    map, &regmap_reg_ranges_fops);
 
 	if (map->max_register) {
-		debugfs_create_file("registers", 0400, map->debugfs,
+		umode_t registers_mode;
+
+		if (IS_ENABLED(CONFIG_REGMAP_ALLOW_WRITE_DEBUGFS))
+			registers_mode = 0600;
+		else
+			registers_mode = 0400;
+
+		debugfs_create_file("registers", registers_mode, map->debugfs,
 				    map, &regmap_map_fops);
 		debugfs_create_file("access", 0400, map->debugfs,
 				    map, &regmap_access_fops);

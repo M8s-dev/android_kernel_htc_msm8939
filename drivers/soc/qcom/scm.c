@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,6 +50,30 @@ static DEFINE_MUTEX(scm_lock);
 #define SCM_BUF_LEN(__cmd_size, __resp_size)	\
 	(sizeof(struct scm_command) + sizeof(struct scm_response) + \
 		__cmd_size + __resp_size)
+/**
+ * struct scm_command - one SCM command buffer
+ * @len: total available memory for command and response
+ * @buf_offset: start of command buffer
+ * @resp_hdr_offset: start of response buffer
+ * @id: command to be executed
+ * @buf: buffer returned from scm_get_command_buffer()
+ *
+ * An SCM command is laid out in memory as follows:
+ *
+ *	------------------- <--- struct scm_command
+ *	| command header  |
+ *	------------------- <--- scm_get_command_buffer()
+ *	| command buffer  |
+ *	------------------- <--- struct scm_response and
+ *	| response header |      scm_command_to_response()
+ *	------------------- <--- scm_get_response_buffer()
+ *	| response buffer |
+ *	-------------------
+ *
+ * There can be arbitrary padding between the headers and buffers so
+ * you should always use the appropriate scm_get_*_buffer() routines
+ * to access the buffers in a safe manner.
+ */
 struct scm_command {
 	u32	len;
 	u32	buf_offset;
@@ -58,6 +82,12 @@ struct scm_command {
 	u32	buf[0];
 };
 
+/**
+ * struct scm_response - one SCM response buffer
+ * @len: total available memory for response
+ * @buf_offset: start of response data relative to start of scm_response
+ * @is_complete: indicates if the command has finished processing
+ */
 struct scm_response {
 	u32	len;
 	u32	buf_offset;
@@ -101,6 +131,7 @@ struct oem_3rd_party_syscall_req {
 #define R4_STR "x4"
 #define R5_STR "x5"
 
+/* Outer caches unsupported on ARM64 platforms */
 #define outer_inv_range(x, y)
 #define outer_flush_range(x, y)
 
@@ -114,20 +145,39 @@ struct oem_3rd_party_syscall_req {
 #define R3_STR "r3"
 #define R4_STR "r4"
 #define R5_STR "r5"
+#define R6_STR "r6"
 
 #endif
 
+/**
+ * scm_command_to_response() - Get a pointer to a scm_response
+ * @cmd: command
+ *
+ * Returns a pointer to a response for a command.
+ */
 static inline struct scm_response *scm_command_to_response(
 		const struct scm_command *cmd)
 {
 	return (void *)cmd + cmd->resp_hdr_offset;
 }
 
+/**
+ * scm_get_command_buffer() - Get a pointer to a command buffer
+ * @cmd: command
+ *
+ * Returns a pointer to the command buffer of a command.
+ */
 static inline void *scm_get_command_buffer(const struct scm_command *cmd)
 {
 	return (void *)cmd->buf;
 }
 
+/**
+ * scm_get_response_buffer() - Get a pointer to a response buffer
+ * @rsp: response
+ *
+ * Returns a pointer to a response buffer of a response.
+ */
 static inline void *scm_get_response_buffer(const struct scm_response *rsp)
 {
 	return (void *)rsp + rsp->buf_offset;
@@ -182,6 +232,10 @@ static int __scm_call(const struct scm_command *cmd)
 	int ret;
 	u32 cmd_addr = virt_to_phys(cmd);
 
+	/*
+	 * Flush the command buffer so that the secure world sees
+	 * the correct data.
+	 */
 	__cpuc_flush_dcache_area((void *)cmd, cmd->len);
 	outer_flush_range(cmd_addr, cmd_addr + cmd->len);
 
@@ -223,6 +277,23 @@ void scm_inv_range(unsigned long start, unsigned long end)
 EXPORT_SYMBOL(scm_inv_range);
 #endif
 
+/**
+ * scm_call_common() - Send an SCM command
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @cmd_buf: command buffer
+ * @cmd_len: length of the command buffer
+ * @resp_buf: response buffer
+ * @resp_len: length of the response buffer
+ * @scm_buf: internal scm structure used for passing data
+ * @scm_buf_len: length of the internal scm structure
+ *
+ * Core function to scm call. Initializes the given cmd structure with
+ * appropriate values and makes the actual scm call. Validation of cmd
+ * pointer and length must occur in the calling function.
+ *
+ * Returns the appropriate error code from the scm call
+ */
 
 static int scm_call_common(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 				size_t cmd_len, void *resp_buf, size_t resp_len,
@@ -263,6 +334,13 @@ static int scm_call_common(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	return ret;
 }
 
+/*
+ * Sometimes the secure world may be busy waiting for a particular resource.
+ * In those situations, it is expected that the secure world returns a special
+ * error code (SCM_EBUSY). Retry any scm_call that fails with this error code,
+ * but with a timeout in place. Also, don't move this into scm_call_common,
+ * since we want the first attempt to be the "fastpath".
+ */
 static int _scm_call_retry(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 				size_t cmd_len, void *resp_buf, size_t resp_len,
 				struct scm_command *cmd,
@@ -283,6 +361,13 @@ static int _scm_call_retry(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	return ret;
 }
 
+/**
+ * scm_call_noalloc - Send an SCM command
+ *
+ * Same as scm_call except clients pass in a buffer (@scm_buf) to be used for
+ * scm internal structures. The buffer should be allocated with
+ * DEFINE_SCM_BUFFER to account for the proper alignment and size.
+ */
 int scm_call_noalloc(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 		size_t cmd_len, void *resp_buf, size_t resp_len,
 		void *scm_buf, size_t scm_buf_len)
@@ -405,6 +490,7 @@ static int __scm_call_armv8_32(u32 w0, u32 w1, u32 w2, u32 w3, u32 w4, u32 w5,
 	register u32 r3 asm("r3") = w3;
 	register u32 r4 asm("r4") = w4;
 	register u32 r5 asm("r5") = w5;
+	register u32 r6 asm("r6") = 0;
 
 	do {
 		asm volatile(
@@ -418,13 +504,14 @@ static int __scm_call_armv8_32(u32 w0, u32 w1, u32 w2, u32 w3, u32 w4, u32 w5,
 			__asmeq("%7", R3_STR)
 			__asmeq("%8", R4_STR)
 			__asmeq("%9", R5_STR)
+			__asmeq("%10", R6_STR)
 #ifdef REQUIRES_SEC
 			".arch_extension sec\n"
 #endif
 			"smc	#0\n"
 			: "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3)
 			: "r" (r0), "r" (r1), "r" (r2), "r" (r3), "r" (r4),
-			 "r" (r5));
+			 "r" (r5), "r" (r6));
 
 	} while (r0 == SCM_INTERRUPTED);
 
@@ -459,6 +546,7 @@ static enum scm_interface_version {
 	SCM_ARMV8_64,
 } scm_version = SCM_UNKNOWN;
 
+/* This will be set to specify SMC32 or SMC64 */
 static u32 scm_version_mask;
 
 bool is_scm_armv8(void)
@@ -469,15 +557,21 @@ bool is_scm_armv8(void)
 	if (likely(scm_version != SCM_UNKNOWN))
 		return (scm_version == SCM_ARMV8_32) ||
 			(scm_version == SCM_ARMV8_64);
+	/*
+	 * This is a one time check that runs on the first ever
+	 * invocation of is_scm_armv8. We might be called in atomic
+	 * context so no mutexes etc. Also, we can't use the scm_call2
+	 * or scm_call2_APIs directly since they depend on this init.
+	 */
 
-	
+	/* First try a SMC64 call */
 	scm_version = SCM_ARMV8_64;
 	ret1 = 0;
 	x0 = SCM_SIP_FNID(SCM_SVC_INFO, IS_CALL_AVAIL_CMD) | SMC_ATOMIC_MASK;
 	ret = __scm_call_armv8_64(x0 | SMC64_MASK, SCM_ARGS(1), x0, 0, 0, 0,
 				  &ret1, NULL, NULL);
 	if (ret || !ret1) {
-		
+		/* Try SMC32 call */
 		ret1 = 0;
 		ret = __scm_call_armv8_32(x0, SCM_ARGS(1), x0, 0, 0, 0,
 					  &ret1, NULL, NULL);
@@ -496,6 +590,11 @@ bool is_scm_armv8(void)
 }
 EXPORT_SYMBOL(is_scm_armv8);
 
+/*
+ * If there are more than N_REGISTER_ARGS, allocate a buffer and place
+ * the additional arguments in it. The extra argument buffer will be
+ * pointed to by X5.
+ */
 static int allocate_extra_arg_buffer(struct scm_desc *desc, gfp_t flags)
 {
 	int i, j;
@@ -533,6 +632,27 @@ static int allocate_extra_arg_buffer(struct scm_desc *desc, gfp_t flags)
 	return 0;
 }
 
+/**
+ * scm_call2() - Invoke a syscall in the secure world
+ * @fn_id: The function ID for this syscall
+ * @desc: Descriptor structure containing arguments and return values
+ *
+ * Sends a command to the SCM and waits for the command to finish processing.
+ * This should *only* be called in pre-emptible context.
+ *
+ * A note on cache maintenance:
+ * Note that any buffers that are expected to be accessed by the secure world
+ * must be flushed before invoking scm_call and invalidated in the cache
+ * immediately after scm_call returns. An important point that must be noted
+ * is that on ARMV8 architectures, invalidation actually also causes a dirty
+ * cache line to be cleaned (flushed + unset-dirty-bit). Therefore it is of
+ * paramount importance that the buffer be flushed before invoking scm_call2,
+ * even if you don't care about the contents of that buffer.
+ *
+ * Note that cache maintenance on the argument buffer (desc->args) is taken care
+ * of by scm_call2; however, callers are responsible for any other cached
+ * buffers passed over to the secure world.
+*/
 int scm_call2(u32 fn_id, struct scm_desc *desc)
 {
 	int arglen = desc->arginfo & 0xf;
@@ -586,6 +706,14 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 }
 EXPORT_SYMBOL(scm_call2);
 
+/**
+ * scm_call2_atomic() - Invoke a syscall in the secure world
+ *
+ * Similar to scm_call2 except that this can be invoked in atomic context.
+ * There is also no retry mechanism implemented. Please ensure that the
+ * secure world syscall can be executed in such a context and can complete
+ * in a timely manner.
+ */
 int scm_call2_atomic(u32 fn_id, struct scm_desc *desc)
 {
 	int arglen = desc->arginfo & 0xf;
@@ -625,6 +753,24 @@ int scm_call2_atomic(u32 fn_id, struct scm_desc *desc)
 	return ret;
 }
 
+/**
+ * scm_call() - Send an SCM command
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @cmd_buf: command buffer
+ * @cmd_len: length of the command buffer
+ * @resp_buf: response buffer
+ * @resp_len: length of the response buffer
+ *
+ * Sends a command to the SCM and waits for the command to finish processing.
+ *
+ * A note on cache maintenance:
+ * Note that any buffers that are expected to be accessed by the secure world
+ * must be flushed before invoking scm_call and invalidated in the cache
+ * immediately after scm_call returns. Cache maintenance on the command and
+ * response buffers is taken care of by scm_call; however, callers are
+ * responsible for any other cached buffers passed over to the secure world.
+ */
 int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
 		void *resp_buf, size_t resp_len)
 {
@@ -656,6 +802,15 @@ EXPORT_SYMBOL(scm_call);
 				SCM_MASK_IRQS | \
 				(n & 0xf))
 
+/**
+ * scm_call_atomic1() - Send an atomic SCM command with one argument
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @arg1: first argument
+ *
+ * This shall only be used with commands that are guaranteed to be
+ * uninterruptable, atomic and SMP safe.
+ */
 s32 scm_call_atomic1(u32 svc, u32 cmd, u32 arg1)
 {
 	int context_id;
@@ -679,6 +834,16 @@ s32 scm_call_atomic1(u32 svc, u32 cmd, u32 arg1)
 }
 EXPORT_SYMBOL(scm_call_atomic1);
 
+/**
+ * scm_call_atomic1_1() - SCM command with one argument and one return value
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @arg1: first argument
+ * @ret1: first return value
+ *
+ * This shall only be used with commands that are guaranteed to be
+ * uninterruptable, atomic and SMP safe.
+ */
 s32 scm_call_atomic1_1(u32 svc, u32 cmd, u32 arg1, u32 *ret1)
 {
 	int context_id;
@@ -705,6 +870,16 @@ s32 scm_call_atomic1_1(u32 svc, u32 cmd, u32 arg1, u32 *ret1)
 }
 EXPORT_SYMBOL(scm_call_atomic1_1);
 
+/**
+ * scm_call_atomic2() - Send an atomic SCM command with two arguments
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @arg1: first argument
+ * @arg2: second argument
+ *
+ * This shall only be used with commands that are guaranteed to be
+ * uninterruptable, atomic and SMP safe.
+ */
 s32 scm_call_atomic2(u32 svc, u32 cmd, u32 arg1, u32 arg2)
 {
 	int context_id;
@@ -729,6 +904,17 @@ s32 scm_call_atomic2(u32 svc, u32 cmd, u32 arg1, u32 arg2)
 }
 EXPORT_SYMBOL(scm_call_atomic2);
 
+/**
+ * scm_call_atomic3() - Send an atomic SCM command with three arguments
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @arg1: first argument
+ * @arg2: second argument
+ * @arg3: third argument
+ *
+ * This shall only be used with commands that are guaranteed to be
+ * uninterruptable, atomic and SMP safe.
+ */
 s32 scm_call_atomic3(u32 svc, u32 cmd, u32 arg1, u32 arg2, u32 arg3)
 {
 	int context_id;
@@ -789,6 +975,63 @@ s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 	return r0;
 }
 EXPORT_SYMBOL(scm_call_atomic4_3);
+
+/**
+ * scm_call_atomic5_3() - SCM command with five argument and three return value
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @arg1: first argument
+ * @arg2: second argument
+ * @arg3: third argument
+ * @arg4: fourth argument
+ * @arg5: fifth argument
+ * @ret1: first return value
+ * @ret2: second return value
+ * @ret3: third return value
+ *
+ * This shall only be used with commands that are guaranteed to be
+ * uninterruptable, atomic and SMP safe.
+ */
+s32 scm_call_atomic5_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
+	u32 arg3, u32 arg4, u32 arg5, u32 *ret1, u32 *ret2, u32 *ret3)
+{
+	int ret;
+	int context_id;
+	register u32 r0 asm("r0") = SCM_ATOMIC(svc, cmd, 5);
+	register u32 r1 asm("r1") = (uintptr_t)&context_id;
+	register u32 r2 asm("r2") = arg1;
+	register u32 r3 asm("r3") = arg2;
+	register u32 r4 asm("r4") = arg3;
+	register u32 r5 asm("r5") = arg4;
+	register u32 r6 asm("r6") = arg5;
+
+	asm volatile(
+		__asmeq("%0", R0_STR)
+		__asmeq("%1", R1_STR)
+		__asmeq("%2", R2_STR)
+		__asmeq("%3", R3_STR)
+		__asmeq("%4", R0_STR)
+		__asmeq("%5", R1_STR)
+		__asmeq("%6", R2_STR)
+		__asmeq("%7", R3_STR)
+#ifdef REQUIRES_SEC
+			".arch_extension sec\n"
+#endif
+		"smc	#0\n"
+		: "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3)
+		: "r" (r0), "r" (r1), "r" (r2), "r" (r3), "r" (r4), "r" (r5),
+		 "r" (r6));
+	ret = r0;
+
+	if (ret1)
+		*ret1 = r1;
+	if (ret2)
+		*ret2 = r2;
+	if (ret3)
+		*ret3 = r3;
+	return r0;
+}
+EXPORT_SYMBOL(scm_call_atomic5_3);
 
 u32 scm_get_version(void)
 {

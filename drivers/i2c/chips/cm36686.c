@@ -36,12 +36,16 @@
 #include <linux/jiffies.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
-#include <asm/uaccess.h> 
+#include <asm/uaccess.h> 	 
 #include <linux/regulator/consumer.h>
 
-
-#if 0
+#if 0 
+#include <asm/mach-types.h>
 #include <asm/setup.h>
+#include <mach/board.h>
+#include <mach/board_htc.h>
+#include <mach/rpm-regulator.h>
+#include <mach/devices_cmdline.h>
 #endif
 
 #define D(x...) pr_info(x)
@@ -87,6 +91,7 @@ static struct mutex als_enable_mutex, als_disable_mutex, als_get_adc_mutex;
 static struct mutex ps_enable_mutex;
 static int ps_hal_enable, ps_drv_enable;
 static int lightsensor_enable(struct cm36686_info *lpi);
+static void lightsensor_enable_work_func(struct work_struct *work);
 static int lightsensor_disable(struct cm36686_info *lpi);
 static void psensor_initial_cmd(struct cm36686_info *lpi);
 static int ps_near;
@@ -107,6 +112,7 @@ struct cm36686_info {
 	struct notifier_block fb_notif;
 	struct workqueue_struct *cm36686_fb_wq;
 	struct delayed_work work_fb;
+	struct work_struct lightsensor_enable_work;
 	struct i2c_client *i2c_client;
 	struct workqueue_struct *lp_wq;
 	struct wake_lock ps_wake_lock;
@@ -1232,7 +1238,8 @@ static void psensor_set_kvalue(struct cm36686_info *lpi)
 		lpi->inte_ps_canc = (uint16_t) (lpi->ps_kparam2 & 0xFFFF);
 		lpi->mfg_thd = (uint16_t) ((lpi->ps_kparam2 >> 16) & 0xFFFF);
 
-		lpi->ps_thd_set = lpi->mfg_thd;
+		if (lpi->mfg_thd)
+			lpi->ps_thd_set = lpi->mfg_thd;
 
 		D("[PS][cm36686] %s: PS calibrated inte_ps_canc = 0x%02X, "
 				"mfg_thd = 0x%02X, ((ps_kparam2 >> 16) & 0xFF) = 0x%X\n", __func__,
@@ -1263,8 +1270,9 @@ static int lightsensor_update_table(struct cm36686_info *lpi)
 	return 0;
 }
 
-static int lightsensor_enable(struct cm36686_info *lpi)
+static void lightsensor_enable_work_func(struct work_struct *work)
 {
+	struct cm36686_info *lpi = lp_info;
 	int ret = 0;
 	char cmd[3] = {0};
 
@@ -1290,7 +1298,15 @@ static int lightsensor_enable(struct cm36686_info *lpi)
 	}
 
 	mutex_unlock(&als_enable_mutex);
-	return ret;
+}
+
+static int lightsensor_enable(struct cm36686_info *lpi)
+{
+	D("[LS][cm36686] %s++\n", __func__);
+	schedule_work(&lpi->lightsensor_enable_work);
+	D("[LS][cm36686] %s--\n", __func__);
+
+	return 0;
 }
 
 static int lightsensor_disable(struct cm36686_info *lpi)
@@ -1429,6 +1445,61 @@ static ssize_t ps_enable_store(struct device *dev,
 }
 
 static DEVICE_ATTR(ps_adc, 0664, ps_adc_show, ps_enable_store);
+
+static ssize_t flush_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = sprintf(buf, "%d\n", 1);
+
+	return ret;
+}
+
+static ssize_t flush_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct cm36686_info *lpi = lp_info;
+
+	D("[PS][cm36686] %s++:\n", __func__);
+
+	input_report_abs(lpi->ps_input_dev, ABS_DISTANCE, 7);
+	input_sync(lpi->ps_input_dev);
+
+	return count;
+}
+
+static DEVICE_ATTR(flush, 0664, flush_show, flush_store);
+
+
+static ssize_t ls_flush_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = sprintf(buf, "%d\n", 1);
+
+	return ret;
+}
+
+static ssize_t ls_flush_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct cm36686_info *lpi = lp_info;
+
+	D("[LS][cm36686] %s++:\n", __func__);
+
+	input_report_abs(lpi->ls_input_dev, ABS_MISC, 77);
+	input_sync(lpi->ls_input_dev);
+
+	return count;
+}
+
+static DEVICE_ATTR(ls_flush, 0664, ls_flush_show, ls_flush_store);
+
+
 static int kcalibrated;
 static ssize_t ps_kadc_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1467,7 +1538,9 @@ static ssize_t ps_kadc_store(struct device *dev,
 	ps_canc_set = lpi->inte_ps_canc = (param2 & 0xFFFF);
 	mfg_thd = lpi->mfg_thd = ((param2 >> 16) & 0xFFFF);
 	psensor_intelligent_cancel_cmd(lpi);
-	lpi->ps_thd_set = mfg_thd;
+
+	if (mfg_thd)
+		lpi->ps_thd_set = mfg_thd;
 
 	if (lpi->ps_enable) {
 		ps_conf[0] = lpi->ps_conf1_val;
@@ -2699,6 +2772,10 @@ static int cm36686_probe(struct i2c_client *client,
 	if (ret)
 		goto err_create_ls_device_file;
 
+	ret = device_create_file(lpi->ls_dev, &dev_attr_ls_flush);
+	if (ret)
+		goto err_create_ls_device_file;
+
 	lpi->ps_dev = device_create(lpi->cm36686_class,	NULL, 0, "%s", "proximity");
 	if (unlikely(IS_ERR(lpi->ps_dev))) {
 		ret = PTR_ERR(lpi->ps_dev);
@@ -2746,12 +2823,17 @@ static int cm36686_probe(struct i2c_client *client,
 	if (ret)
 		goto err_create_ps_device;
 
+	ret = device_create_file(lpi->ps_dev, &dev_attr_flush);
+	if (ret)
+		goto err_create_ps_device;
+
 	lpi->cm36686_fb_wq = create_singlethread_workqueue("CM36686_FB");
 	if (!lpi->cm36686_fb_wq) {
 		pr_err("[PS][cm36686] allocate cm36686_fb_wq failed\n");
 		ret = -ENOMEM;
 		goto err_create_cm36686_fb_workqueue_failed;
 	}
+	INIT_WORK(&lpi->lightsensor_enable_work, lightsensor_enable_work_func);
 	INIT_DELAYED_WORK(&lpi->work_fb, cm36686_fb_register);
 	queue_delayed_work(lpi->cm36686_fb_wq, &lpi->work_fb, msecs_to_jiffies(30000));
 	ret = cm36686_ldo_init(1);

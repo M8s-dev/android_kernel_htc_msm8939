@@ -35,6 +35,7 @@ enum usb_otg_state {
 	OTG_STATE_B_IDLE,
 	OTG_STATE_B_SRP_INIT,
 	OTG_STATE_B_PERIPHERAL,
+	OTG_STATE_B_CHARGER,
 
 	
 	OTG_STATE_B_WAIT_ACON,
@@ -115,12 +116,13 @@ struct usb_phy {
 	int	(*reset)(struct usb_phy *x);
 
 	
-	int	(*set_phy_autosuspend)(struct usb_phy *x, struct device *dev,
-				int enable_autosuspend);
-	
 	void	(*notify_usb_attached)(struct usb_phy *x);
 	
 	void	(*notify_usb_disabled)(void);
+
+	
+	void	(*dbg_event)(struct usb_phy *x,
+			char *event, int msg1, int msg2);
 };
 
 struct usb_phy_bind {
@@ -300,6 +302,14 @@ usb_phy_notify_disconnect(struct usb_phy *x, enum usb_device_speed speed)
 		return x->notify_disconnect(x, speed);
 	else
 		return 0;
+}
+
+static inline void
+usb_phy_dbg_events(struct usb_phy *x,
+		char *event, int msg1, int msg2)
+{
+	if (x && x->dbg_event)
+		x->dbg_event(x, event, msg1, msg2);
 }
 
 static inline int

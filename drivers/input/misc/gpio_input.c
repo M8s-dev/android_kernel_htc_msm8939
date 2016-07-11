@@ -21,6 +21,7 @@
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/wakelock.h>
+#include <htc/devices_cmdline.h>
 #include <linux/irq.h>
 #include <linux/fs.h>
 #include <asm/uaccess.h>
@@ -165,7 +166,7 @@ static void handle_power_key_state(unsigned int code, int value)
 		ret = schedule_delayed_work(&power_key_state_disable_work, PWRKEY_PRESS_DUE);
 		if (!ret) {
 			KEY_LOGI("[PWR][STATE]Schedule power key pressed due failed, seems already have one, try to cancel...\n");
-			ret = __cancel_delayed_work(&power_key_state_disable_work);
+			ret = cancel_delayed_work_sync(&power_key_state_disable_work);
 			if (!ret) {
 				setPowerKeyState(1);
 				if (schedule_delayed_work(&power_key_state_disable_work, PWRKEY_PRESS_DUE)) {
@@ -221,6 +222,11 @@ struct gpio_input_state {
 	const struct gpio_event_input_info *info;
 #ifndef CONFIG_MFD_MAX8957
 	struct hrtimer timer;
+	struct mutex disable_lock;
+	struct workqueue_struct *disable_reset_wq;
+	unsigned int disable_reset_flag;
+	struct delayed_work disable_reset_work;
+	struct delayed_work clear_hw_reset_work;
 #endif
 	int use_irq;
 	int debounce_count;
@@ -467,7 +473,7 @@ static void power_key_check_reset_work_func(struct work_struct *dummy)
 					break;
 				}
 			}
-			if (!val) { 	
+			if (!val) {	
 				KEY_LOGI("HW RESET continue");
 			} else {	
 #ifdef CONFIG_OF
@@ -591,9 +597,9 @@ KEY_PWR:
 		if (value) {
 			clear_kpdpwr_s2_rst_flag = 1;
 			KEY_LOGD("%s: Enable kpdpwr s2 reset clear up [%d]\n",
-							__func__, clear_kpdpwr_s2_rst_flag);
+						__func__, clear_kpdpwr_s2_rst_flag);
 			hrtimer_start(&clr_kpd_reset_timer,
-					ktime_set(0, KPDPWR_CLR_RESET_TIMER), HRTIMER_MODE_REL);
+				ktime_set(0, KPDPWR_CLR_RESET_TIMER), HRTIMER_MODE_REL);
 #ifdef CONFIG_POWER_VOLUP_RESET
 			wake_lock_timeout(&key_reset_clr_wake_lock, msecs_to_jiffies(2000));
 			KEY_LOGI("[PWR] start count for power key check reset\n");
@@ -612,7 +618,7 @@ KEY_PWR:
 
 			clear_kpdpwr_s2_rst_flag = 0;
 			KEY_LOGD("%s: Disable kpdpwr s2 reset clear up [%d]\n",
-							__func__, clear_kpdpwr_s2_rst_flag);
+						__func__, clear_kpdpwr_s2_rst_flag);
 			if (hrtimer_is_queued(&clr_kpd_reset_timer))
 				hrtimer_cancel(&clr_kpd_reset_timer);
 			if (hrtimer_is_queued(&enable_kpd_s2_timer))
@@ -696,6 +702,199 @@ static enum hrtimer_restart enable_kpd_s2_timer_func(struct hrtimer *timer)
 #endif
 
 #ifndef CONFIG_MFD_MAX8957
+struct gpio_input_state *gb_ddata;
+struct wake_lock disable_reset_wake_lock;
+static void clear_hw_reset_func(struct work_struct *work)
+{
+	struct gpio_input_state *ds = gb_ddata;
+#ifdef CONFIG_OF
+	ds->info->dt_clear_hw_reset(ds->info->clr_gpio);
+#else
+	ds->info->clear_hw_reset();
+#endif
+	queue_delayed_work(ds->disable_reset_wq, &ds->clear_hw_reset_work,
+			msecs_to_jiffies(1000));
+}
+
+static void handle_only_power_key(unsigned int code, int value)
+{
+	struct gpio_input_state *ds = gb_ddata;
+
+	if (code == KEY_POWER && ds->disable_reset_flag != 0) {
+		if (value) {
+			queue_delayed_work(ds->disable_reset_wq,
+					&ds->clear_hw_reset_work,
+					msecs_to_jiffies(0));
+			clear_kpdpwr_s2_rst_flag = 1;
+			KEY_LOGD("%s: Enable kpdpwr s2 reset clear up [%d]\n",
+						__func__, clear_kpdpwr_s2_rst_flag);
+			wake_lock_timeout(&clear_kpdpwr_s2_wakelock, msecs_to_jiffies(1000));
+			hrtimer_start(&clr_kpd_reset_timer,
+				ktime_set(0, KPDPWR_CLR_RESET_TIMER), HRTIMER_MODE_REL);
+		} else {
+			cancel_delayed_work(&ds->clear_hw_reset_work);
+			clear_kpdpwr_s2_rst_flag = 0;
+			KEY_LOGD("%s: Disable kpdpwr s2 reset clear up [%d]\n",
+						__func__, clear_kpdpwr_s2_rst_flag);
+			if (hrtimer_is_queued(&clr_kpd_reset_timer))
+				hrtimer_cancel(&clr_kpd_reset_timer);
+			if (hrtimer_is_queued(&enable_kpd_s2_timer))
+				hrtimer_cancel(&enable_kpd_s2_timer);
+			wake_unlock(&clear_kpdpwr_s2_wakelock);
+		}
+	}
+}
+
+static void handle_transition_according_to_power_key(int value)
+{
+	struct gpio_input_state *ds = gb_ddata;
+
+	clear_kpdpwr_s2_rst_flag = 0;
+	if (hrtimer_is_queued(&clr_kpd_reset_timer))
+		hrtimer_cancel(&clr_kpd_reset_timer);
+	if (hrtimer_is_queued(&enable_kpd_s2_timer))
+		hrtimer_cancel(&enable_kpd_s2_timer);
+
+	if (ds->disable_reset_flag == 0 && value) {
+		
+#ifdef CONFIG_POWER_VOLUP_RESET
+		wake_lock_timeout(&key_reset_clr_wake_lock, msecs_to_jiffies(1000));
+		if (!schedule_delayed_work(&power_key_check_reset_work, msecs_to_jiffies(0)))
+#else
+		wake_lock_timeout(&key_reset_clr_wake_lock, PWRKEYCHKRST_WAKELOCK_TIMEOUT);
+		if (!schedule_delayed_work(&power_key_check_reset_work, PWRKEYCHKRST_DELAY))
+#endif
+			KEY_LOGI("[PWR] the reset work in already in the queue\n");
+	} else if (ds->disable_reset_flag != 0) {
+		
+		handle_only_power_key(KEY_POWER, value);
+	}
+}
+
+static void disable_reset_func(struct work_struct *work)
+{
+	struct delayed_work *dwork = container_of(work, struct delayed_work,
+									work);
+	struct gpio_input_state *ds = container_of(dwork,
+			struct gpio_input_state, disable_reset_work);
+	const struct gpio_event_direct_entry *key_entry = ds->info->keymap;
+	unsigned long irqflags;
+	unsigned gpio_flags = ds->info->flags;
+	unsigned npolarity;
+	uint8_t idx_pwr = 0;
+	int i = 0;
+	int pressed;
+
+	spin_lock_irqsave(&ds->irq_lock, irqflags);
+	ds->disable_reset_flag = 0;
+	cancel_delayed_work(&ds->clear_hw_reset_work);
+
+	for (i = 0; i < ds->info->keymap_size; i++, key_entry++)
+		if (key_entry->code == KEY_POWER)
+			idx_pwr = i;
+	key_entry = ds->info->keymap;
+	npolarity = !(gpio_flags & GPIOEDF_ACTIVE_HIGH);
+	pressed = gpio_get_value((key_entry + idx_pwr)->gpio) ^ npolarity;
+	handle_transition_according_to_power_key(pressed);
+
+	wake_unlock(&disable_reset_wake_lock);
+	spin_unlock_irqrestore(&ds->irq_lock, irqflags);
+
+	KEY_LOGI("%s, %d\n", __func__, ds->disable_reset_flag);
+}
+
+static ssize_t disable_reset_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	unsigned int value;
+	int i = 0;
+	int pressed;
+	struct gpio_input_state *ds = gb_ddata;
+	const struct gpio_event_direct_entry *key_entry = ds->info->keymap;
+	struct gpio_key_state *key_state = ds->key_state;
+	unsigned gpio_flags = ds->info->flags;
+	unsigned npolarity;
+	unsigned long irqflags;
+	uint8_t idx_pwr = 0;
+
+	if (kstrtouint(buf, 10, &value) < 0) {
+		KEY_LOGI("%s: input out of range\n",__func__);
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&ds->irq_lock, irqflags);
+	wake_lock(&disable_reset_wake_lock);
+	ds->disable_reset_flag = value;
+	if(!queue_delayed_work(ds->disable_reset_wq, &ds->disable_reset_work,
+			msecs_to_jiffies(ds->disable_reset_flag * 1000)))
+	{
+		if (cancel_delayed_work(&ds->disable_reset_work))
+		{
+			if(!queue_delayed_work(ds->disable_reset_wq, &ds->disable_reset_work,
+						msecs_to_jiffies(ds->disable_reset_flag * 1000)))
+				KEY_LOGI("%s: queue the new disable_reset_work unsuccessfully\n",__func__);
+		} else
+			KEY_LOGI("%s: cancel disable_reset_work unsuccessfully\n",__func__);
+
+	}
+
+
+	for (i = 0; i < ds->info->keymap_size; i++, key_entry++, key_state++)
+		if (key_entry->code == KEY_POWER)
+			idx_pwr = i;
+	key_entry = ds->info->keymap;
+	npolarity = !(gpio_flags & GPIOEDF_ACTIVE_HIGH);
+#ifdef CONFIG_POWER_KEY_LED
+	KEY_LOGI("[PWR] start count for power key led off\n");
+	schedule_delayed_work(&power_key_led_off_work, PWRKEYLEDOFF_DELAY);
+#endif
+
+	if (cancel_delayed_work(&power_key_check_reset_work))
+		KEY_LOGI("[PWR] cancel power key check reset work successfully\n");
+	else
+		KEY_LOGI("[PWR] cancel power key check reset work FAIL\n");
+
+	pressed = gpio_get_value((key_entry + idx_pwr)->gpio) ^ npolarity;
+	handle_transition_according_to_power_key(pressed);
+
+	spin_unlock_irqrestore(&ds->irq_lock, irqflags);
+
+	KEY_LOGI("%s, %d\n", __func__, ds->disable_reset_flag);
+	return count;
+}
+
+static ssize_t disable_reset_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct gpio_input_state *ds = gb_ddata;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", ds->disable_reset_flag);
+}
+
+static DEVICE_ATTR(disable_reset, S_IRUGO | S_IWUSR , disable_reset_show, disable_reset_store);
+
+static int disable_reset_sysfs_init(void)
+{
+	struct kobject *disable_reset_kobj;
+	int ret = 0;
+
+	disable_reset_kobj = kobject_create_and_add("recovery", NULL);
+
+	if (disable_reset_kobj == NULL) {
+		KEY_LOGE("%s: create kobj failed\n", __func__);
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	ret = sysfs_create_file(disable_reset_kobj, &dev_attr_disable_reset.attr);
+	if (ret) {
+		KEY_LOGE("%s: sysfs_create_file disable_reset failed\n", __func__);
+		return ret;
+	}
+
+	return 0;
+}
 static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 {
 	int i;
@@ -779,18 +978,23 @@ static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 			KEY_LOGI("gpio_keys_scan_keys: key %x-%x, %d (%d) "
 				"changed to %d\n", ds->info->type,
 				key_entry->code, i, key_entry->gpio, pressed);
+
+		if (ds->disable_reset_flag == 0) {
 #ifdef CONFIG_POWER_KEY_LED
-		handle_power_key_led(key_entry->code, pressed);
+			handle_power_key_led(key_entry->code, pressed);
 #endif
 #ifdef CONFIG_POWER_KEY_CLR_RESET
-		handle_power_key_reset(key_entry->code, pressed);
+			handle_power_key_reset(key_entry->code, pressed);
 #endif
 #ifdef CONFIG_PWRKEY_STATUS_API
-		handle_power_key_state(key_entry->code, pressed);
+			handle_power_key_state(key_entry->code, pressed);
 #endif
 #ifdef CONFIG_CLR_KPDPWR_RESET_BATT_RMV
-		handle_pmic_kpdpwr_s2_reset(key_entry->code, pressed);
+			handle_pmic_kpdpwr_s2_reset(key_entry->code, pressed);
 #endif
+		} else {
+			handle_only_power_key(key_entry->code, pressed);
+		}
 
 		input_event(ds->input_devs->dev[key_entry->dev], ds->info->type,
 			    key_entry->code, pressed);
@@ -1134,6 +1338,21 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 		if (sysfs_create_file(keyboard_kobj, &dev_attr_vol_wakeup.attr))
 			KEY_LOGE("KEY_ERR: %s: sysfs_create_file "
 					"return %d\n", __func__, ret);
+
+		if(board_mfg_mode() != MFG_MODE_NORMAL) {
+			KEY_LOGI("%s: mode: %d\n", __func__, board_mfg_mode());
+
+			ds->disable_reset_wq = create_singlethread_workqueue("disable reset wq");
+			INIT_DELAYED_WORK(&ds->disable_reset_work, disable_reset_func);
+			INIT_DELAYED_WORK(&ds->clear_hw_reset_work, clear_hw_reset_func);
+			gb_ddata = ds;
+			wake_lock_init(&disable_reset_wake_lock, WAKE_LOCK_SUSPEND, "gpio_input_disable_reset");
+
+			if (disable_reset_sysfs_init())
+				KEY_LOGE("KEY_ERR: %s: disable_reset_sysfs_init fail\n", __func__);
+		}
+		ds->disable_reset_flag = 0;
+
 		wakeup_bitmask = 0;
 		set_wakeup = 0;
 		spin_lock_irqsave(&ds->irq_lock, irqflags);
@@ -1173,6 +1392,9 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 		}
 	}
 	spin_unlock_irqrestore(&ds->irq_lock, irqflags);
+
+	if(board_mfg_mode() != MFG_MODE_NORMAL)
+		wake_lock_destroy(&disable_reset_wake_lock);
 
 	for (i = di->keymap_size - 1; i >= 0; i--) {
 err_gpio_configure_failed:

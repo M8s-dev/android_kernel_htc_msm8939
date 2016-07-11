@@ -201,7 +201,10 @@ static int keycombo_probe(struct platform_device *pdev)
 
 	state->wq = alloc_ordered_workqueue("keycombo", 0);
 	if (!state->wq)
+	{
+		kfree(state);
 		return -ENOMEM;
+	}
 
 	state->priv = pdata->priv;
 

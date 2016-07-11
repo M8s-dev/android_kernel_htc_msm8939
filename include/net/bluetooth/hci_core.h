@@ -27,10 +27,8 @@
 
 #include <net/bluetooth/hci.h>
 
-/* HCI priority */
 #define HCI_PRIO_MAX	7
 
-/* HCI Core structures */
 struct inquiry_data {
 	bdaddr_t	bdaddr;
 	__u8		pscan_rep_mode;
@@ -43,8 +41,8 @@ struct inquiry_data {
 };
 
 struct inquiry_entry {
-	struct list_head	all;		/* inq_cache.all */
-	struct list_head	list;		/* unknown or resolve */
+	struct list_head	all;		
+	struct list_head	list;		
 	enum {
 		NAME_NOT_KNOWN,
 		NAME_NEEDED,
@@ -64,9 +62,9 @@ struct discovery_state {
 		DISCOVERY_RESOLVING,
 		DISCOVERY_STOPPING,
 	} state;
-	struct list_head	all;	/* All devices found during inquiry */
-	struct list_head	unknown;	/* Name state not known */
-	struct list_head	resolve;	/* Name needs to be resolved */
+	struct list_head	all;	
+	struct list_head	unknown;	
+	struct list_head	resolve;	
 	__u32			timestamp;
 };
 
@@ -290,9 +288,13 @@ struct hci_dev {
 	__u8			adv_data[HCI_MAX_AD_LENGTH];
 	__u8			adv_data_len;
 
+	void			*driver_data;
+	struct module		*owner;
+
 	int (*open)(struct hci_dev *hdev);
 	int (*close)(struct hci_dev *hdev);
 	int (*flush)(struct hci_dev *hdev);
+	void (*destruct)(struct hci_dev *hdev);
 	int (*setup)(struct hci_dev *hdev);
 	int (*send)(struct sk_buff *skb);
 	void (*notify)(struct hci_dev *hdev, unsigned int evt);
@@ -375,7 +377,6 @@ extern struct list_head hci_cb_list;
 extern rwlock_t hci_dev_list_lock;
 extern rwlock_t hci_cb_list_lock;
 
-/* ----- HCI interface to upper protocols ----- */
 extern int l2cap_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr);
 extern void l2cap_connect_cfm(struct hci_conn *hcon, u8 status);
 extern int l2cap_disconn_ind(struct hci_conn *hcon);
@@ -389,9 +390,8 @@ extern void sco_connect_cfm(struct hci_conn *hcon, __u8 status);
 extern void sco_disconn_cfm(struct hci_conn *hcon, __u8 reason);
 extern int sco_recv_scodata(struct hci_conn *hcon, struct sk_buff *skb);
 
-/* ----- Inquiry cache ----- */
-#define INQUIRY_CACHE_AGE_MAX   (HZ*30)   /* 30 seconds */
-#define INQUIRY_ENTRY_AGE_MAX   (HZ*60)   /* 60 seconds */
+#define INQUIRY_CACHE_AGE_MAX   (HZ*30)   
+#define INQUIRY_ENTRY_AGE_MAX   (HZ*60)   
 
 static inline void discovery_init(struct hci_dev *hdev)
 {
@@ -433,7 +433,6 @@ void hci_inquiry_cache_update_resolve(struct hci_dev *hdev,
 bool hci_inquiry_cache_update(struct hci_dev *hdev, struct inquiry_data *data,
 			      bool name_known, bool *ssp);
 
-/* ----- HCI Connections ----- */
 enum {
 	HCI_CONN_AUTH_PEND,
 	HCI_CONN_REAUTH_PEND,
@@ -604,26 +603,6 @@ int hci_cfg_link_policy(struct hci_conn *conn);
 
 void hci_conn_enter_active_mode(struct hci_conn *conn, __u8 force_active);
 
-/*
- * hci_conn_get() and hci_conn_put() are used to control the life-time of an
- * "hci_conn" object. They do not guarantee that the hci_conn object is running,
- * working or anything else. They just guarantee that the object is available
- * and can be dereferenced. So you can use its locks, local variables and any
- * other constant data.
- * Before accessing runtime data, you _must_ lock the object and then check that
- * it is still running. As soon as you release the locks, the connection might
- * get dropped, though.
- *
- * On the other hand, hci_conn_hold() and hci_conn_drop() are used to control
- * how long the underlying connection is held. So every channel that runs on the
- * hci_conn object calls this to prevent the connection from disappearing. As
- * long as you hold a device, you must also guarantee that you have a valid
- * reference to the device via hci_conn_get() (or the initial reference from
- * hci_conn_add()).
- * The hold()/drop() ref-count is known to drop below 0 sometimes, which doesn't
- * break because nobody cares for that. But this means, we cannot use
- * _get()/_drop() in it, but require the caller to have a valid ref (FIXME).
- */
 
 static inline void hci_conn_get(struct hci_conn *conn)
 {
@@ -678,7 +657,6 @@ static inline void hci_conn_drop(struct hci_conn *conn)
 	}
 }
 
-/* ----- HCI Devices ----- */
 static inline void hci_dev_put(struct hci_dev *d)
 {
 	BT_DBG("%s orig refcnt %d", d->name,
@@ -712,7 +690,6 @@ static inline void hci_set_drvdata(struct hci_dev *hdev, void *data)
 	dev_set_drvdata(&hdev->dev, data);
 }
 
-/* hci_dev_list shall be locked */
 static inline uint8_t __hci_num_ctrl(void)
 {
 	uint8_t count = 0;
@@ -790,7 +767,6 @@ void hci_conn_del_sysfs(struct hci_conn *conn);
 
 #define SET_HCIDEV_DEV(hdev, pdev) ((hdev)->dev.parent = (pdev))
 
-/* ----- LMP capabilities ----- */
 #define lmp_encrypt_capable(dev)   ((dev)->features[0][0] & LMP_ENCRYPT)
 #define lmp_rswitch_capable(dev)   ((dev)->features[0][0] & LMP_RSWITCH)
 #define lmp_hold_capable(dev)      ((dev)->features[0][0] & LMP_HOLD)
@@ -810,12 +786,10 @@ void hci_conn_del_sysfs(struct hci_conn *conn);
 #define lmp_inq_tx_pwr_capable(dev) ((dev)->features[0][7] & LMP_INQ_TX_PWR)
 #define lmp_ext_feat_capable(dev)  ((dev)->features[0][7] & LMP_EXTFEATURES)
 
-/* ----- Extended LMP capabilities ----- */
 #define lmp_host_ssp_capable(dev)  ((dev)->features[1][0] & LMP_HOST_SSP)
 #define lmp_host_le_capable(dev)   (!!((dev)->features[1][0] & LMP_HOST_LE))
 #define lmp_host_le_br_capable(dev) (!!((dev)->features[1][0] & LMP_HOST_LE_BREDR))
 
-/* returns true if at least one AMP active */
 static inline bool hci_amp_capable(void)
 {
 	struct hci_dev *hdev;
@@ -831,7 +805,6 @@ static inline bool hci_amp_capable(void)
 	return ret;
 }
 
-/* ----- HCI protocols ----- */
 #define HCI_PROTO_DEFER             0x01
 
 static inline int hci_proto_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr,
@@ -894,7 +867,7 @@ static inline void hci_proto_disconn_cfm(struct hci_conn *conn, __u8 reason)
 		sco_disconn_cfm(conn, reason);
 		break;
 
-	/* L2CAP would be handled for BREDR chan */
+	
 	case AMP_LINK:
 		break;
 
@@ -936,7 +909,6 @@ static inline void hci_proto_encrypt_cfm(struct hci_conn *conn, __u8 status,
 		conn->security_cfm_cb(conn, status);
 }
 
-/* ----- HCI callbacks ----- */
 struct hci_cb {
 	struct list_head list;
 
@@ -1076,9 +1048,6 @@ struct hci_request {
 	struct hci_dev		*hdev;
 	struct sk_buff_head	cmd_q;
 
-	/* If something goes wrong when building the HCI request, the error
-	 * value is stored in this field.
-	 */
 	int			err;
 };
 
@@ -1102,14 +1071,12 @@ void hci_send_sco(struct hci_conn *conn, struct sk_buff *skb);
 
 void *hci_sent_cmd_data(struct hci_dev *hdev, __u16 opcode);
 
-/* ----- HCI Sockets ----- */
 void hci_send_to_sock(struct hci_dev *hdev, struct sk_buff *skb);
 void hci_send_to_control(struct sk_buff *skb, struct sock *skip_sk);
 void hci_send_to_monitor(struct hci_dev *hdev, struct sk_buff *skb);
 
 void hci_sock_dev_event(struct hci_dev *hdev, int event);
 
-/* Management interface */
 #define DISCOV_TYPE_BREDR		(BIT(BDADDR_BREDR))
 #define DISCOV_TYPE_LE			(BIT(BDADDR_LE_PUBLIC) | \
 					 BIT(BDADDR_LE_RANDOM))
@@ -1181,7 +1148,6 @@ int mgmt_device_unblocked(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 type);
 bool mgmt_valid_hdev(struct hci_dev *hdev);
 int mgmt_new_ltk(struct hci_dev *hdev, struct smp_ltk *key, u8 persistent);
 
-/* HCI info for socket */
 #define hci_pi(sk) ((struct hci_pinfo *) sk)
 
 struct hci_pinfo {
@@ -1192,7 +1158,6 @@ struct hci_pinfo {
 	unsigned short   channel;
 };
 
-/* HCI security filter */
 #define HCI_SFLT_MAX_OGF  5
 
 struct hci_sec_filter {
@@ -1201,7 +1166,6 @@ struct hci_sec_filter {
 	__u32 ocf_mask[HCI_SFLT_MAX_OGF + 1][4];
 };
 
-/* ----- HCI requests ----- */
 #define HCI_REQ_DONE	  0
 #define HCI_REQ_PEND	  1
 #define HCI_REQ_CANCELED  2
@@ -1223,4 +1187,4 @@ int hci_cancel_le_scan(struct hci_dev *hdev);
 
 u8 bdaddr_to_le(u8 bdaddr_type);
 
-#endif /* __HCI_CORE_H */
+#endif 

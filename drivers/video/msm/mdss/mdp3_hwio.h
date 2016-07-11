@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,7 +16,6 @@
 
 #include <linux/bitops.h>
 
-/*synchronization*/
 #define MDP3_REG_SYNC_CONFIG_0				0x0300
 #define MDP3_REG_SYNC_CONFIG_1				0x0304
 #define MDP3_REG_SYNC_CONFIG_2				0x0308
@@ -30,6 +29,7 @@
 #define MDP3_REG_PRIMARY_VSYNC_INIT_VAL			0x0328
 #define MDP3_REG_SECONDARY_VSYNC_INIT_VAL		0x032c
 #define MDP3_REG_EXTERNAL_VSYNC_INIT_VAL		0x0330
+#define MDP3_REG_AUTOREFRESH_CONFIG_P			0x034C
 #define MDP3_REG_SYNC_THRESH_0				0x0200
 #define MDP3_REG_SYNC_THRESH_1				0x0204
 #define MDP3_REG_SYNC_THRESH_2				0x0208
@@ -38,7 +38,6 @@
 #define MDP3_REG_SECONDARY_START_POS			0x0214
 #define MDP3_REG_EXTERNAL_START_POS			0x0218
 
-/*interrupt*/
 #define MDP3_REG_INTR_ENABLE				0x0020
 #define MDP3_REG_INTR_STATUS				0x0024
 #define MDP3_REG_INTR_CLEAR				0x0028
@@ -46,7 +45,6 @@
 #define MDP3_REG_PRIMARY_RD_PTR_IRQ			0x021C
 #define MDP3_REG_SECONDARY_RD_PTR_IRQ			0x0220
 
-/*operation control*/
 #define MDP3_REG_DMA_P_START				0x0044
 #define MDP3_REG_DMA_S_START				0x0048
 #define MDP3_REG_DMA_E_START				0x004c
@@ -57,18 +55,23 @@
 #define MDP3_REG_SW_RESET				0x0074
 #define MDP3_REG_SEL_CLK_OR_HCLK_TEST_BUS		0x007C
 
-/*EBI*/
 #define MDP3_REG_EBI2_LCD0				0x003c
 #define MDP3_REG_EBI2_LCD0_YSTRIDE			0x0050
 
-/*clock control*/
 #define MDP3_REG_CGC_EN					0x0100
 #define MDP3_VBIF_REG_FORCE_EN				0x0004
 
-/*danger safe*/
+#define MDP3_DMA_P_QOS_REMAPPER				0x90090
+#define MDP3_DMA_P_WATERMARK_0				0x90094
+#define MDP3_DMA_P_WATERMARK_1				0x90098
+#define MDP3_DMA_P_WATERMARK_2				0x9009C
+#define MDP3_PANIC_ROBUST_CTRL				0x900A0
+#define MDP3_PANIC_LUT0					0x900A4
+#define MDP3_PANIC_LUT1					0x900A8
+#define MDP3_ROBUST_LUT					0x900AC
+
 #define MDP3_PANIC_ROBUST_CTRL				0x900A0
 
-/*DMA_P*/
 #define MDP3_REG_DMA_P_CONFIG				0x90000
 #define MDP3_REG_DMA_P_SIZE				0x90004
 #define MDP3_REG_DMA_P_IBUF_ADDR			0x90008
@@ -115,18 +118,15 @@
 #define MDP3_REG_DMA_P_DCVS_CTRL			0x90080
 #define MDP3_REG_DMA_P_DCVS_STATUS			0x90084
 
-/*DMA_S*/
 #define MDP3_REG_DMA_S_CONFIG				0xA0000
 #define MDP3_REG_DMA_S_SIZE				0xA0004
 #define MDP3_REG_DMA_S_IBUF_ADDR			0xA0008
 #define MDP3_REG_DMA_S_IBUF_Y_STRIDE			0xA000C
 #define MDP3_REG_DMA_S_OUT_XY				0xA0010
 
-/*DMA MASK*/
 #define MDP3_DMA_IBUF_FORMAT_MASK 0x06000000
 #define MDP3_DMA_PACK_PATTERN_MASK 0x00003f00
 
-/*MISR*/
 #define MDP3_REG_MODE_CLK				0x000D0000
 #define MDP3_REG_MISR_RESET_CLK			0x000D0004
 #define MDP3_REG_EXPORT_MISR_CLK			0x000D0008
@@ -148,25 +148,19 @@
 #define MDP3_REG_CAPTURED_TVCLK			0x000D0310
 #define MDP3_REG_MISR_CAPT_VAL_TVCLK			0x000D0314
 
-/* Select DSI operation type(CMD/VIDEO) */
 #define MDP3_REG_MODE_DSI_PCLK				0x000D0400
 #define MDP3_REG_MODE_DSI_PCLK_BLOCK_DSI_CMD		0x10
 #define MDP3_REG_MODE_DSI_PCLK_BLOCK_DSI_VIDEO1	0x20
 #define MDP3_REG_MODE_DSI_PCLK_BLOCK_DSI_VIDEO2	0x30
-/* RESET DSI MISR STATE */
 #define MDP3_REG_MISR_RESET_DSI_PCLK			0x000D0404
 
-/* For reading MISR State(1) and driving data on test bus(0) */
 #define MDP3_REG_EXPORT_MISR_DSI_PCLK			0x000D0408
-/* Read MISR signature */
 #define MDP3_REG_MISR_CURR_VAL_DSI_PCLK		0x000D040C
 
-/* MISR status Bit0 (1) Capture Done */
 #define MDP3_REG_CAPTURED_DSI_PCLK			0x000D0410
 #define MDP3_REG_MISR_CAPT_VAL_DSI_PCLK		0x000D0414
 #define MDP3_REG_MISR_TESTBUS_CAPT_VAL			0x000D0600
 
-/*interface*/
 #define MDP3_REG_LCDC_EN				0xE0000
 #define MDP3_REG_LCDC_HSYNC_CTL				0xE0004
 #define MDP3_REG_LCDC_VSYNC_PERIOD			0xE0008
@@ -279,7 +273,6 @@
 
 #define MDP3_PPP_ACTIVE BIT(0)
 
-/*interrupt mask*/
 
 #define MDP3_INTR_DP0_ROI_DONE_BIT			BIT(0)
 #define MDP3_INTR_DP1_ROI_DONE_BIT			BIT(1)
@@ -345,4 +338,6 @@ enum {
 #define MDP3_DMA_P_HIST_INTR_HIST_DONE_BIT		BIT(1)
 #define MDP3_PPP_DONE MDP3_INTR_DP0_ROI_DONE
 
-#endif /* MDP3_HWIO_H */
+#define MDP3_DMA_P_BUSY_BIT				BIT(6)
+
+#endif 

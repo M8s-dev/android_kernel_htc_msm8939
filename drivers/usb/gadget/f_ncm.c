@@ -307,7 +307,7 @@ static struct usb_descriptor_header *ncm_hs_function[] = {
 
 static struct usb_string ncm_string_defs[] = {
 	[STRING_CTRL_IDX].s = "CDC Network Control Model (NCM)",
-	[STRING_MAC_IDX].s = NULL ,
+	[STRING_MAC_IDX].s = "",
 	[STRING_DATA_IDX_NCM].s = "CDC Network Data",
 	[STRING_IAD_IDX].s = "CDC NCM",
 	{  } 
@@ -1194,7 +1194,8 @@ ncm_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	DBG(c->cdev, "ncm unbind\n");
 
-	ncm_string_defs[0].id = 0;
+	
+	
 	usb_free_all_descriptors(f);
 
 	kfree(ncm->notify_req->buf);

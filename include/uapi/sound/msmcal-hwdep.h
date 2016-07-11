@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,6 +19,7 @@ enum wcd_cal_type {
 	WCD9XXX_ANC_CAL = WCD9XXX_MIN_CAL,
 	WCD9XXX_MAD_CAL,
 	WCD9XXX_MBHC_CAL,
+	WCD9XXX_VBAT_CAL,
 	WCD9XXX_MAX_CAL,
 };
 
@@ -31,4 +32,4 @@ struct wcdcal_ioctl_buffer {
 #define SNDRV_CTL_IOCTL_HWDEP_CAL_TYPE \
 	_IOW('U', 0x1, struct wcdcal_ioctl_buffer)
 
-#endif /*_CALIB_HWDEP_H*/
+#endif 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,9 +15,11 @@
 #include <sound/soc.h>
 #include <sound/jack.h>
 #include <sound/q6afe-v2.h>
-#include <linux/mfd/wcd9xxx/pdata.h>
 #include "wcd-mbhc-v2.h"
 #include "wcdcal-hwdep.h"
+
+#define MICBIAS_EXT_BYP_CAP 0x00
+#define MICBIAS_NO_EXT_BYP_CAP 0x01
 
 #define MSM8X16_WCD_NUM_REGISTERS	0x6FF
 #define MSM8X16_WCD_MAX_REGISTER	(MSM8X16_WCD_NUM_REGISTERS-1)
@@ -40,25 +42,63 @@
 	(((reg >= 0x200) && (reg <= 0x4FF)) ? 1 : 0)
 #define MSM8X16_WCD_IS_TOMBAK_REG(reg) \
 	(((reg >= 0x000) && (reg <= 0x1FF)) ? 1 : 0)
-/*
- * MCLK activity indicators during suspend and resume call
- */
 #define MCLK_SUS_DIS	1
 #define MCLK_SUS_RSC	2
 #define MCLK_SUS_NO_ACT	3
 
-#define NUM_DECIMATORS	2
+#define NUM_DECIMATORS	4
 #define MSM89XX_VDD_SPKDRV_NAME "cdc-vdd-spkdrv"
+
+#define DEFAULT_MULTIPLIER 800
+#define DEFAULT_GAIN 9
+#define DEFAULT_OFFSET 100
 
 extern const u8 msm8x16_wcd_reg_readable[MSM8X16_WCD_CACHE_SIZE];
 extern const u8 msm8x16_wcd_reg_readonly[MSM8X16_WCD_CACHE_SIZE];
 extern const u8 msm8x16_wcd_reset_reg_defaults[MSM8X16_WCD_CACHE_SIZE];
+extern const u8 cajon_digital_reg[MSM8X16_WCD_CACHE_SIZE];
 
 enum codec_versions {
 	TOMBAK_1_0,
 	TOMBAK_2_0,
 	CONGA,
+	CAJON,
+	CAJON_2_0,
 	UNSUPPORTED,
+};
+
+
+enum wcd_curr_ref {
+	I_h4_UA = 0,
+	I_pt5_UA,
+	I_14_UA,
+	I_l4_UA,
+	I_1_UA,
+};
+
+enum wcd_mbhc_imp_det_pin {
+	WCD_MBHC_DET_NONE = 0,
+	WCD_MBHC_DET_HPHL,
+	WCD_MBHC_DET_HPHR,
+	WCD_MBHC_DET_BOTH,
+};
+
+
+
+struct wcd9xxx_micbias_setting {
+	u8 ldoh_v;
+	u32 cfilt1_mv; 
+	u32 cfilt2_mv; 
+	u32 cfilt3_mv; 
+	u8 bias1_cfilt_sel;
+	u8 bias2_cfilt_sel;
+	u8 bias3_cfilt_sel;
+	u8 bias4_cfilt_sel;
+	u8 bias1_cap_mode;
+	u8 bias2_cap_mode;
+	u8 bias3_cap_mode;
+	u8 bias4_cap_mode;
+	bool bias2_is_headset_only;
 };
 
 enum msm8x16_wcd_pid_current {
@@ -80,7 +120,6 @@ enum msm8x16_wcd_mbhc_analog_pwr_cfg {
 	MSM8X16_WCD_NUM_ANALOG_PWR_CONFIGS,
 };
 
-/* Number of input and output I2S port */
 enum {
 	MSM8X16_WCD_RX1 = 0,
 	MSM8X16_WCD_RX2,
@@ -97,7 +136,7 @@ enum {
 };
 
 enum {
-	/* INTR_REG 0 - Digital Periph */
+	
 	MSM8X16_WCD_IRQ_SPKR_CNP = 0,
 	MSM8X16_WCD_IRQ_SPKR_CLIP,
 	MSM8X16_WCD_IRQ_SPKR_OCP,
@@ -106,7 +145,7 @@ enum {
 	MSM8X16_WCD_IRQ_MBHC_PRESS,
 	MSM8X16_WCD_IRQ_MBHC_INSREM_DET,
 	MSM8X16_WCD_IRQ_MBHC_HS_DET,
-	/* INTR_REG 1 - Analog Periph */
+	
 	MSM8X16_WCD_IRQ_EAR_OCP,
 	MSM8X16_WCD_IRQ_HPHR_OCP,
 	MSM8X16_WCD_IRQ_HPHL_OCP,
@@ -116,32 +155,12 @@ enum {
 	MSM8X16_WCD_NUM_IRQS,
 };
 
-enum wcd_notify_event {
-	WCD_EVENT_INVALID,
-	/* events for micbias ON and OFF */
-	WCD_EVENT_PRE_MICBIAS_2_OFF,
-	WCD_EVENT_POST_MICBIAS_2_OFF,
-	WCD_EVENT_PRE_MICBIAS_2_ON,
-	WCD_EVENT_POST_MICBIAS_2_ON,
-	/* events for PA ON and OFF */
-	WCD_EVENT_PRE_HPHL_PA_ON,
-	WCD_EVENT_POST_HPHL_PA_OFF,
-	WCD_EVENT_PRE_HPHR_PA_ON,
-	WCD_EVENT_POST_HPHR_PA_OFF,
-	WCD_EVENT_LAST,
-};
-
 enum {
 	ON_DEMAND_MICBIAS = 0,
 	ON_DEMAND_SPKDRV,
 	ON_DEMAND_SUPPLIES_MAX,
 };
 
-/*
- * The delay list is per codec HW specification.
- * Please add delay in the list in the future instead
- * of magic number
- */
 enum {
 	CODEC_DELAY_1_MS = 1000,
 	CODEC_DELAY_1_1_MS  = 1100,
@@ -156,19 +175,41 @@ struct msm8x16_wcd_regulator {
 	struct regulator *regulator;
 };
 
+struct on_demand_supply {
+	struct regulator *supply;
+	atomic_t ref;
+};
+
+struct wcd_imped_i_ref {
+	enum wcd_curr_ref curr_ref;
+	int min_val;
+	int multiplier;
+	int gain_adj;
+	int offset;
+};
+
 struct msm8916_asoc_mach_data {
 	int codec_type;
 	int ext_pa;
 	int us_euro_gpio;
+	int spk_ext_pa_gpio;
 	int mclk_freq;
 	int lb_mode;
+	u8 micbias1_cap_mode;
+	u8 micbias2_cap_mode;
 	atomic_t mclk_rsc_ref;
 	atomic_t mclk_enabled;
+	atomic_t wsa_mclk_rsc_ref;
 	struct mutex cdc_mclk_mutex;
+	struct mutex wsa_mclk_mutex;
 	struct delayed_work disable_mclk_work;
 	struct afe_digital_clk_cfg digital_cdc_clk;
 	void __iomem *vaddr_gpio_mux_spkr_ctl;
 	void __iomem *vaddr_gpio_mux_mic_ctl;
+	void __iomem *vaddr_gpio_mux_quin_ctl;
+	void __iomem *vaddr_gpio_mux_pcm_ctl;
+	struct on_demand_supply wsa_switch_supply;
+	struct snd_info_entry *codec_root;
 };
 
 struct msm8x16_wcd_pdata {
@@ -180,6 +221,8 @@ struct msm8x16_wcd_pdata {
 	struct wcd9xxx_micbias_setting micbias;
 	struct msm8x16_wcd_regulator regulator[MAX_REGULATOR];
 	u32 mclk_rate;
+	u32 is_lpass;
+	u32 dig_cdc_addr;
 };
 
 enum msm8x16_wcd_micbias_num {
@@ -207,11 +250,6 @@ struct msm8x16_wcd {
 	char __iomem *dig_base;
 };
 
-struct on_demand_supply {
-	struct regulator *supply;
-	atomic_t ref;
-};
-
 struct msm8x16_wcd_priv {
 	struct snd_soc_codec *codec;
 	u16 pmic_rev;
@@ -224,18 +262,22 @@ struct msm8x16_wcd_priv {
 	bool mclk_enabled;
 	bool clock_active;
 	bool config_mode_active;
+	u16 boost_option;
 	bool spk_boost_set;
 	bool ear_pa_boost_set;
 	bool ext_spk_boost_set;
 	bool dec_active[NUM_DECIMATORS];
 	struct on_demand_supply on_demand_list[ON_DEMAND_SUPPLIES_MAX];
 	struct regulator *spkdrv_reg;
-	/* mbhc module */
+	
 	struct wcd_mbhc mbhc;
-	/* cal info for codec */
+	
 	struct fw_info *fw_data;
 	struct blocking_notifier_head notifier;
-
+	int (*codec_spk_ext_pa_cb)(struct snd_soc_codec *codec, int enable);
+	unsigned long status_mask;
+	struct wcd_imped_i_ref imped_i_ref;
+	enum wcd_mbhc_imp_det_pin imped_det_pin;
 };
 
 extern int msm8x16_wcd_mclk_enable(struct snd_soc_codec *codec, int mclk_enable,
@@ -246,11 +288,8 @@ extern int msm8x16_wcd_hs_detect(struct snd_soc_codec *codec,
 
 extern void msm8x16_wcd_hs_detect_exit(struct snd_soc_codec *codec);
 
-extern int msm8x16_register_notifier(struct snd_soc_codec *codec,
-				     struct notifier_block *nblock);
-
-extern int msm8x16_unregister_notifier(struct snd_soc_codec *codec,
-				     struct notifier_block *nblock);
-
+extern void msm8x16_wcd_spk_ext_pa_cb(
+		int (*codec_spk_ext_pa)(struct snd_soc_codec *codec,
+		int enable), struct snd_soc_codec *codec);
 #endif
 

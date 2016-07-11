@@ -1,13 +1,24 @@
+/*************************************************************************************************/
+/* AIT ISP Host API                                                                              */
+/* All rights reserved by Alpah Image Technology Corp                                            */
+/*-----------------------------------------------------------------------------------------------*/
+/* File name: AIT_ISP_System.c                                                                   */
+/* Description: ISP Host API hardware dependent layer                                            */
+/*                                                                                               */
+/* Version 0.01   20141209                                                                       */
+/*************************************************************************************************/
 #include "AIT_ISP_project.h"
 #include "AIT_ISP_API.h"
 #include "AIT_ISP_spi_ctl.h"
 #include "AIT_ISP_API_hostcmd.h"
 #include "AIT_ISP_System.h"
 
+//HTC_START
 #if 0
 #include <stdlib.h>
 #endif
-extern void HTC_DelayMS(uint16 ms); 
+//HTC_END
+extern void HTC_DelayMS(uint16 ms); //HTC ADD
 static int gDlFWmode = FW_DRAM_LOAD_DEFAULT_MODE;
 #define AIT_FW_BUFFER 0x01040000L
 
@@ -23,14 +34,14 @@ uint8 V3A_GetFW_DLmode(void)
 
 void VA_DelayMS(uint16 ms)
 {
-	
-	
+	/* The code is platform dependent. It should be implemented by platform porting. */
+	//HTC_START
 	#if 1
 	HTC_DelayMS(ms);
 	#else
-	
+	/* msleep(ms); */
 	#endif
-	
+	//HTC_END
 }
 
 uint8 V3A_ChipEnable(void)
@@ -40,27 +51,40 @@ uint8 V3A_ChipEnable(void)
 
 uint8 V3A_ChipReset(void)
 {
-	
-	
+	/* extern u_short VA_VenusReset(void); */
+	/* VA_VenusReset(); */
 	return 0;
 }
 
+/*************************************************************************************************/
+/* Venus : Variables                                                                             */
+/*************************************************************************************************/
 uint8 VA_FirmwareUpdateStatus = 1;
 uint8 VA_FirmwareOffset = 0;
 
 uint8 V3_NeedInitSensor = 0;
 
+/* uint8 *V3_FirmwareBinPtr = 0; */
+/* uint32 V3_FirmwareBinSize = 0; */
 
+/*************************************************************************************************/
+/* Venus : Sample Functions                                                                      */
+/*************************************************************************************************/
 uint8 V3A_PowerOn(void)
 {
 	VA_HIGH("V3A_PowerOn : start\n");
 
-	
+	/* Enable Venus V3 */
 	V3A_ChipEnable();
 
+	/*
+	Reset Venus V3
+	If this command is too far from V3A_PLLOn(), VR_InitClock() in FW will be done before new PLL settings set.
+	Therefore, it shall be put before V3A_PLLOn() as close as possible to prevent from PLL ineffective.
+	*/
 	V3A_ChipReset();
 
-	
+	/* Set Venus V3 PLL */
 	V3A_PLLOn();
 
 	VA_HIGH("V3A_PowerOn : end\n");
@@ -71,7 +95,7 @@ uint8 V3A_PowerOn(void)
 uint8 V3A_PowerOff(void)
 {
 	VA_HIGH("V3A_PowerOff : start\n");
-	
+	/* 848 power off routines */
 	VA_SetChipPowerOff();
 	VA_HIGH("V3A_PowerOff : end\n");
 
@@ -99,7 +123,7 @@ uint8 V3A_PowerUp(uint8 *fw_ptr, uint32 fw_size, uint8 *Cali_ptr, uint32 Cali_si
 	V3A_PLLOn();
 
 	VA_INFO("Wait for booting ... \r\n");
-	
+	/* Read register 0x65FE status */
 	while(((receive_byte_via_SPI(HOST_STATUS_ADDR) & 0x10) == 0) && timeout_count++ < V3_TIMEOUT_CNT)
 	{
 		VA_INFO("Reg 0x%X = 0x%x\n", HOST_STATUS_ADDR, receive_byte_via_SPI(HOST_STATUS_ADDR));
@@ -117,7 +141,7 @@ uint8 V3A_PowerUp(uint8 *fw_ptr, uint32 fw_size, uint8 *Cali_ptr, uint32 Cali_si
 	}
 
 #endif
-	
+	/* Firmware Start*/
 	if(VA_FirmwareUpdateStatus)
     {
         V3A_FirmwareStart( fw_ptr, fw_size, Cali_ptr, Cali_size);
@@ -152,13 +176,13 @@ uint8 V3A_PLLOn(void)
 {
 	uint32 timeout_count = 0;
 
-	
+	/* wait for default PLL settings stable */
 	VA_DelayMS(5);
 
-	
+	/* Wait DMA complete from SIF to CPU program memory */
 	VA_MSG("Wait DMA complete from SIF to CPU program memory ... ");
 	VA_INFO("0x6713=0x%x\n", receive_byte_via_SPI(0x6713));
-	
+	/* Note: Register 0x6713 : bootstrapping setting to one when boot from SIF, so it must be set one. */
 	while(receive_byte_via_SPI(0x6713) != 0 && timeout_count++ < V3_TIMEOUT_CNT)
 	{
 		VA_DelayMS(1);
@@ -182,16 +206,16 @@ uint8 V3A_FirmwareStart(uint8 *fw_ptr, uint32 fw_size, uint8 *Cali_ptr, uint32 C
 
 	VA_HIGH("VA Firmware Start : start\n");
 
-	
+	/* set PLL */
 	V3A_PLLOn();
 
-	
+	/* enable access program memory ; disable CPU */
 	transmit_byte_via_SPI(0x6901, 0x06);
 
-	
+	/* download firmware */
 	V3A_DownloadFirmware(fw_ptr, fw_size);
 
-	
+	/* download Calibration Table */
     if ((Cali_ptr!=NULL)&&(Cali_size!=0))
 	{
 		VA_HIGH("download Calibration Table to firmware : start\n");
@@ -199,12 +223,12 @@ uint8 V3A_FirmwareStart(uint8 *fw_ptr, uint32 fw_size, uint8 *Cali_ptr, uint32 C
 		VA_HIGH("download Calibration Table to firmware : end\n");
     }
 
-	
+	/* disable access program memory ; enable CPU */
 	transmit_byte_via_SPI(0x6901, 0x00);
 
-	VA_DelayMS(100);   
+	VA_DelayMS(100);   /* wait for PLL stable */
 
-	
+	/* wait for initialization finished */
 	VA_HIGH("wait for initialization finished : start\n");
 	while(((receive_byte_via_SPI(HOST_STATUS_ADDR) & 0x10) == 0) && timeout_count++ < V3_TIMEOUT_CNT)
 	{
@@ -231,9 +255,9 @@ uint8 V3A_FirmwareStart(uint8 *fw_ptr, uint32 fw_size, uint8 *Cali_ptr, uint32 C
 
 void V3A_ResetFWRingBufParameter(void)
 {
-	transmit_byte_via_SPI(HOST_PARAMETER_4, 0);	
-	transmit_byte_via_SPI(HOST_PARAMETER_5, 0);	
-	transmit_word_via_SPI(HOST_PARAMETER_6, 0);	
+	transmit_byte_via_SPI(HOST_PARAMETER_4, 0);	/* fw_done = 0	 */
+	transmit_byte_via_SPI(HOST_PARAMETER_5, 0);	/* valid = 0	 */
+	transmit_word_via_SPI(HOST_PARAMETER_6, 0);	/* size = 0		 */
 }
 
 void V3A_WaitBootForFWDownload(void)
@@ -244,7 +268,7 @@ void V3A_WaitBootForFWDownload(void)
 		VA_INFO("0x65FF = 0x%x\n", receive_byte_via_SPI(0x65FF));
 		VA_DelayMS(100);
 #if 0
-		
+		/* show memory test log (0x10c000) */
 		if(receive_byte_via_SPI(0x65ff) == 0x99)
 		{
 			uint32 i;
@@ -274,14 +298,14 @@ void V3A_SetFWRingBufSize(uint16 size)
 
 void V3A_ValidateFWRingBuf(void)
 {
-	transmit_byte_via_SPI(HOST_PARAMETER_5, 1); 
+	transmit_byte_via_SPI(HOST_PARAMETER_5, 1); /* valid */
 	VA_DelayMS(10);
 	while(receive_byte_via_SPI(HOST_PARAMETER_5));
 }
 
 void V3A_FinishFWRingBufDownload(void)
 {
-	transmit_byte_via_SPI(HOST_PARAMETER_4, 1);	
+	transmit_byte_via_SPI(HOST_PARAMETER_4, 1);	/* fw done */
 }
 
 
@@ -307,13 +331,13 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 
 	VA_HIGH("V3A_DownloadFirmware : start\n");
 
-	
+	/* store file header information for new FW binary architecture */
 	for(i = 0 ; i < 8 ; i++)
 	{
 		header[i] = fw_ptr[i];
 	}
 
-	
+	/* To check FW_SRAM allocate size in binary head */
 	if(header[0] == 'A' && header[1] == 'I' && header[2] == 'T' && header[3] == 1)
 	{
 		offset = (uint32)(header[7] + ((uint32)header[6] << 8) + ((uint32)header[5] << 16));
@@ -325,7 +349,7 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 
 	header[4] = V3A_GetFW_DLmode();
 
-	fw_ptr += 8; 
+	fw_ptr += 8; /* skip pkg_name */
 
 	section_num = fw_ptr[0] + (fw_ptr[1] << 8);
 	fw_ptr += 2;
@@ -348,23 +372,23 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 		VA_MSG("  # section addr = 0x%08X\n", section_addr);
 		VA_MSG("  # section size = 0x%08X (%d)\n", section_size, section_size);
 
-		
+		/* if section is DRAM */
 		if(section_addr == 0x01000000)
 		{
 
-			
-			section_addr = (offset != 0) ? 0x100000 + offset : 0x102000;	
+			/* put into SRAM buffer first, then AIT848 FW move to DRAM after booting up */
+			section_addr = (offset != 0) ? 0x100000 + offset : 0x102000;	/* GraceV1 */
 
 			VA_MSG("  # redirect section address to 0x%08X, since the section is in DRAM)\n", section_addr);
 
-			
+			/* [achen] method #3 fw download */
 			if(header[4] == FW_DRAM_LOAD_FROM_SRAM_BY_RINGBUF)
 			{
 
 				V3A_ResetFWRingBufParameter();
 
-				transmit_byte_via_SPI(0x6901, 0x00);		
-				VA_DelayMS(100);   							
+				transmit_byte_via_SPI(0x6901, 0x00);		/* enable CPU			 */
+				VA_DelayMS(100);   							/* wait for PLL stable	 */
 
 				V3A_WaitBootForFWDownload();
 
@@ -382,15 +406,15 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 
 			part_size = VA_MIN(remain_section_size, V3_FW_DOWNLOAD_SIZE_PER_PART);
 
-			
+			/* write process */
 			transmit_multibytes_via_SPI(fw_ptr + part_idx * V3_FW_DOWNLOAD_SIZE_PER_PART, 0x8000 + section_addr % 0x8000, (uint16) part_size);
 
-			
+			/* if section is ITCM, write FW_DRAM offset in ITCM for DMA copy */
 			if(section_addr == 0)
 			{
 				if(header[0] == 'A' && header[1] == 'I' && header[2] == 'T' && header[3] == 1)
 				{
-					
+					/* for new FW binary architecture */
 					for(i = 0 ; i < 8 ; i++)
 					{
 						transmit_byte_via_SPI((uint16)(0x8FF8 + i), header[i]);
@@ -399,10 +423,10 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 			}
 
 #if V3_FW_DOWNLOAD_CHECK
-			
+			/* read process */
 			receive_multibytes_via_SPI(fw_read_ptr, 0x8000 + section_addr % 0x8000, part_size);
 
-			
+			/* verification */
 			for(i = 0; i < part_size; i++)
 			{
 				if(fw_ptr[part_idx * V3_FW_DOWNLOAD_SIZE_PER_PART + i] != fw_read_ptr[i])
@@ -413,7 +437,7 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 			}
 #endif
 
-			
+			/* If downloading frimware has be enabled. */
 			if(ringbuf_download)
 			{
 				V3A_SetFWRingBufSize((uint16)part_size);
@@ -437,7 +461,7 @@ uint8 V3A_DownloadFirmware(uint8 *fw_ptr, uint32 fw_size)
 #endif
 	}
 
-	
+	/* If downloading frimware has be enabled. */
 	if(ringbuf_download)
 	{
 		V3A_FinishFWRingBufDownload();
@@ -457,7 +481,7 @@ uint8 V3A_DownloadCaliTable(uint8 *Cali_ptr, uint32 Cali_size)
 	VA_HIGH("V3A_DownloadCaliTable : start\n");
 	VA_HIGH("The size of Claibration data is %d\n", Cali_size);
 
-	
+	/* Status : 0x0010F800 / Size : 2048  */
 	BackUpValue1 = receive_byte_via_SPI(0x691E);
 	BackUpValue2 = receive_byte_via_SPI(0x691D);
 	BackUpValue3 = receive_byte_via_SPI(0x691C);
@@ -477,6 +501,9 @@ uint8 V3A_DownloadCaliTable(uint8 *Cali_ptr, uint32 Cali_size)
 }
 
 
+/*************************************************************************************************/
+/* Venus : Memory                                                                                */
+/*************************************************************************************************/
 uint8 V3A_ReadMemAddr(uint32 addr)
 {
 	uint8 ret;
@@ -546,6 +573,7 @@ void V3A_SetMemL(uint32 addr, uint32 data32)
 	V3A_WriteMemAddr(addr + 1, (uint8)(data32 >>  8));
 	V3A_WriteMemAddr(addr  , (uint8)(data32));
 }
+//HTC_START
 #if 0
 void V3A_GetMemMultiBytes(uint32 host_dst, uint32 fw_src, uint32 len)
 {
@@ -587,6 +615,11 @@ void V3A_SetMemMultiBytes(uint32 fw_dst, uint32 host_src, uint32 len)
 #define MULTIBYTES		0x1000
 	uint32 part_idx, part_size, section_addr, remain_section_size;
 	uint8 *mem_ptr = (uint8*)host_src;
+	/*
+	for(i=0;i<size;i++) {
+		mem_ptr[i] = V3A_GetMemB(addr+i);
+	}
+	*/
 	section_addr = fw_dst;
 	remain_section_size = len;
 
@@ -605,6 +638,7 @@ void V3A_SetMemMultiBytes(uint32 fw_dst, uint32 host_src, uint32 len)
 	}
 }
 #endif
+//HTC_END
 void V3A_ClearMemMultiBytes(uint32 dst, uint32 len)
 {
 #define MULTIBYTES		0x1000
@@ -620,7 +654,7 @@ void V3A_ClearMemMultiBytes(uint32 dst, uint32 len)
 		transmit_byte_via_SPI(0x691C, (section_addr >> 15) & 0x0F);
 		part_size = VA_MIN(remain_section_size, MULTIBYTES);
 
-		
+		/* clear_multibytes_via_SPI(0x8000 + section_addr % 0x8000, part_size); */
 
 		remain_section_size -= part_size;
 		section_addr += part_size;

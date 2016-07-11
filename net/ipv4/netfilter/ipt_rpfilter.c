@@ -23,7 +23,6 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Florian Westphal <fw@strlen.de>");
 MODULE_DESCRIPTION("iptables: ipv4 reverse path filter match");
 
-/* don't try to find route from mcast/bcast/zeronet */
 static __be32 rpfilter_get_saddr(__be32 addr)
 {
 	if (ipv4_is_multicast(addr) || ipv4_is_lbcast(addr) ||
@@ -89,11 +88,8 @@ static bool rpfilter_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	if (ipv4_is_multicast(iph->daddr)) {
 		if (ipv4_is_zeronet(iph->saddr))
 			return ipv4_is_local_multicast(iph->daddr) ^ invert;
-		flow.flowi4_iif = 0;
-	} else {
-		flow.flowi4_iif = LOOPBACK_IFINDEX;
 	}
-
+	flow.flowi4_iif = LOOPBACK_IFINDEX;
 	flow.daddr = iph->saddr;
 	flow.saddr = rpfilter_get_saddr(iph->daddr);
 	flow.flowi4_oif = 0;

@@ -32,6 +32,8 @@
 #define ACOUSTIC_KILL_PID                       _IOW(ACOUSTIC_IOCTL_MAGIC, 88, unsigned)
 #define ACOUSTIC_UPDATE_DQ_STATUS               _IOW(ACOUSTIC_IOCTL_MAGIC, 52, unsigned)
 #define ACOUSTIC_ADSP_CMD			_IOW(ACOUSTIC_IOCTL_MAGIC, 98, unsigned)
+#define ACOUSTIC_ADSP_OEM_CMD			_IOW(ACOUSTIC_IOCTL_MAGIC, 97, unsigned)
+
 
 #define ACOUSTIC_GET_TABLES                  _IOW(ACOUSTIC_IOCTL_MAGIC, 33, unsigned)
 #define ACOUSTIC_SET_WB_SAMPLE_RATE          _IOW(ACOUSTIC_IOCTL_MAGIC, 38, unsigned int)

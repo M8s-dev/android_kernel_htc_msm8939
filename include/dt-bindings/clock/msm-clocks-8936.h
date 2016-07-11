@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,7 +13,6 @@
 #ifndef __MSM_CLOCKS_8936_H
 #define __MSM_CLOCKS_8936_H
 
-/* clock_gcc controlled clocks */
 #define clk_gcc_xo				0xbaf23f6a
 #define clk_xo_a_clk				0x83481a00
 #define clk_gpll0				0x5933b69f
@@ -154,6 +153,7 @@
 #define clk_gcc_camss_vfe_ahb_clk		0x4050f47a
 #define clk_gcc_camss_vfe_axi_clk		0x77fe2384
 #define clk_gcc_oxili_gmem_clk			0x5620913a
+#define clk_gcc_oxili_gmem_gate_clk		0xd179f583
 #define clk_gcc_gp1_clk				0x057f7b69
 #define clk_gcc_gp2_clk				0x9bf83ffd
 #define clk_gcc_gp3_clk				0xec6539ee
@@ -169,6 +169,7 @@
 #define clk_gcc_mdss_vsync_clk			0x32a09f1f
 #define clk_gcc_mss_cfg_ahb_clk			0x111cde81
 #define clk_gcc_mss_q6_bimc_axi_clk		0x67544d62
+#define clk_gcc_oxili_timer_clk			0x1180db06
 #define clk_gcc_oxili_ahb_clk			0xd15c8a00
 #define clk_gcc_oxili_gfx3d_clk			0x49a51fd9
 #define clk_gcc_pdm2_clk			0x99d55711
@@ -195,8 +196,8 @@
 
 #define clk_pixel_clk_src                       0x8b6f83d8
 #define clk_byte_clk_src                        0x3a911c53
+#define clk_gcc_snoc_qosgen_clk			0x37d40ce2
 
-/* clock_rpm controlled clocks */
 #define clk_pcnoc_clk				0xc1296d0f
 #define clk_pcnoc_a_clk				0x9bcffee4
 #define clk_pcnoc_msmbus_clk			0x2b53b688
@@ -250,7 +251,6 @@
 #define clk_rf_clk2_pin				0xa7c5602a
 #define clk_rf_clk2_a_pin			0x2d75eb4d
 
-/* clock_debug controlled clocks */
 #define clk_gcc_debug_mux			0x8121ac15
 #define clk_rpm_debug_mux			0x25cd1f3a
 #define clk_wcnss_m_clk				0x709f430b

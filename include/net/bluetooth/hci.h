@@ -35,7 +35,6 @@
 
 #define HCI_MAX_AMP_ASSOC_SIZE	672
 
-/* HCI dev events */
 #define HCI_DEV_REG			1
 #define HCI_DEV_UNREG			2
 #define HCI_DEV_UP			3
@@ -43,13 +42,11 @@
 #define HCI_DEV_SUSPEND			5
 #define HCI_DEV_RESUME			6
 
-/* HCI notify events */
 #define HCI_NOTIFY_CONN_ADD		1
 #define HCI_NOTIFY_CONN_DEL		2
 #define HCI_NOTIFY_VOICE_SETTING	3
 #define HCI_NOTIFY_SCO_COMPLETE		4
 
-/* HCI bus types */
 #define HCI_VIRTUAL	0
 #define HCI_USB		1
 #define HCI_PCCARD	2
@@ -57,15 +54,13 @@
 #define HCI_RS232	4
 #define HCI_PCI		5
 #define HCI_SDIO	6
+#define HCI_SMD		7
 
-/* HCI controller types */
 #define HCI_BREDR	0x00
 #define HCI_AMP		0x01
 
-/* First BR/EDR Controller shall have ID = 0 */
 #define HCI_BREDR_ID	0
 
-/* AMP controller status */
 #define AMP_CTRL_POWERED_DOWN			0x00
 #define AMP_CTRL_BLUETOOTH_ONLY			0x01
 #define AMP_CTRL_NO_CAPACITY			0x02
@@ -74,14 +69,12 @@
 #define AMP_CTRL_HIGH_CAPACITY			0x05
 #define AMP_CTRL_FULL_CAPACITY			0x06
 
-/* HCI device quirks */
 enum {
 	HCI_QUIRK_RESET_ON_CLOSE,
 	HCI_QUIRK_RAW_DEVICE,
 	HCI_QUIRK_FIXUP_BUFFER_SIZE
 };
 
-/* HCI device flags */
 enum {
 	HCI_UP,
 	HCI_INIT,
@@ -98,10 +91,6 @@ enum {
 	HCI_RESET,
 };
 
-/*
- * BR/EDR and/or LE controller flags: the flags defined here should represent
- * states from the controller.
- */
 enum {
 	HCI_SETUP,
 	HCI_AUTO_OFF,
@@ -125,13 +114,9 @@ enum {
 	HCI_FAST_CONNECTABLE,
 };
 
-/* A mask for the flags that are supposed to remain when a reset happens
- * or the HCI device is closed.
- */
 #define HCI_PERSISTENT_MASK (BIT(HCI_LE_SCAN) | BIT(HCI_PERIODIC_INQ) | \
 			      BIT(HCI_FAST_CONNECTABLE))
 
-/* HCI ioctl defines */
 #define HCIDEVUP	_IOW('H', 201, int)
 #define HCIDEVDOWN	_IOW('H', 202, int)
 #define HCIDEVRESET	_IOW('H', 203, int)
@@ -158,22 +143,19 @@ enum {
 
 #define HCIINQUIRY	_IOR('H', 240, int)
 
-/* HCI timeouts */
-#define HCI_DISCONN_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
-#define HCI_PAIRING_TIMEOUT	msecs_to_jiffies(60000)	/* 60 seconds */
-#define HCI_INIT_TIMEOUT	msecs_to_jiffies(10000)	/* 10 seconds */
-#define HCI_CMD_TIMEOUT		msecs_to_jiffies(2000)	/* 2 seconds */
-#define HCI_ACL_TX_TIMEOUT	msecs_to_jiffies(45000)	/* 45 seconds */
-#define HCI_AUTO_OFF_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
+#define HCI_DISCONN_TIMEOUT	msecs_to_jiffies(2000)	
+#define HCI_PAIRING_TIMEOUT	msecs_to_jiffies(60000)	
+#define HCI_INIT_TIMEOUT	msecs_to_jiffies(10000)	
+#define HCI_CMD_TIMEOUT		msecs_to_jiffies(2000)	
+#define HCI_ACL_TX_TIMEOUT	msecs_to_jiffies(45000)	
+#define HCI_AUTO_OFF_TIMEOUT	msecs_to_jiffies(2000)	
 
-/* HCI data types */
 #define HCI_COMMAND_PKT		0x01
 #define HCI_ACLDATA_PKT		0x02
 #define HCI_SCODATA_PKT		0x03
 #define HCI_EVENT_PKT		0x04
 #define HCI_VENDOR_PKT		0xff
 
-/* HCI packet types */
 #define HCI_DM1		0x0008
 #define HCI_DM3		0x0400
 #define HCI_DM5		0x4000
@@ -188,7 +170,6 @@ enum {
 #define SCO_PTYPE_MASK	(HCI_HV1 | HCI_HV2 | HCI_HV3)
 #define ACL_PTYPE_MASK	(~SCO_PTYPE_MASK)
 
-/* eSCO packet types */
 #define ESCO_HV1	0x0001
 #define ESCO_HV2	0x0002
 #define ESCO_HV3	0x0004
@@ -205,7 +186,6 @@ enum {
 #define ALL_ESCO_MASK	(SCO_ESCO_MASK | ESCO_EV3 | ESCO_EV4 | ESCO_EV5 | \
 			EDR_ESCO_MASK)
 
-/* ACL flags */
 #define ACL_START_NO_FLUSH	0x00
 #define ACL_CONT		0x01
 #define ACL_START		0x02
@@ -213,15 +193,12 @@ enum {
 #define ACL_ACTIVE_BCAST	0x04
 #define ACL_PICO_BCAST		0x08
 
-/* Baseband links */
 #define SCO_LINK	0x00
 #define ACL_LINK	0x01
 #define ESCO_LINK	0x02
-/* Low Energy links do not have defined link type. Use invented one */
 #define LE_LINK		0x80
 #define AMP_LINK	0x81
 
-/* LMP features */
 #define LMP_3SLOT	0x01
 #define LMP_5SLOT	0x02
 #define LMP_ENCRYPT	0x04
@@ -267,24 +244,20 @@ enum {
 #define LMP_INQ_TX_PWR	0x02
 #define LMP_EXTFEATURES	0x80
 
-/* Extended LMP features */
 #define LMP_HOST_SSP		0x01
 #define LMP_HOST_LE		0x02
 #define LMP_HOST_LE_BREDR	0x04
 
-/* Connection modes */
 #define HCI_CM_ACTIVE	0x0000
 #define HCI_CM_HOLD	0x0001
 #define HCI_CM_SNIFF	0x0002
 #define HCI_CM_PARK	0x0003
 
-/* Link policies */
 #define HCI_LP_RSWITCH	0x0001
 #define HCI_LP_HOLD	0x0002
 #define HCI_LP_SNIFF	0x0004
 #define HCI_LP_PARK	0x0008
 
-/* Link modes */
 #define HCI_LM_ACCEPT	0x8000
 #define HCI_LM_MASTER	0x0001
 #define HCI_LM_AUTH	0x0002
@@ -293,7 +266,6 @@ enum {
 #define HCI_LM_RELIABLE	0x0010
 #define HCI_LM_SECURE	0x0020
 
-/* Authentication types */
 #define HCI_AT_NO_BONDING		0x00
 #define HCI_AT_NO_BONDING_MITM		0x01
 #define HCI_AT_DEDICATED_BONDING	0x02
@@ -301,7 +273,6 @@ enum {
 #define HCI_AT_GENERAL_BONDING		0x04
 #define HCI_AT_GENERAL_BONDING_MITM	0x05
 
-/* Link Key types */
 #define HCI_LK_COMBINATION		0x00
 #define HCI_LK_LOCAL_UNIT		0x01
 #define HCI_LK_REMOTE_UNIT		0x02
@@ -309,13 +280,11 @@ enum {
 #define HCI_LK_UNAUTH_COMBINATION	0x04
 #define HCI_LK_AUTH_COMBINATION		0x05
 #define HCI_LK_CHANGED_COMBINATION	0x06
-/* The spec doesn't define types for SMP keys, the _MASTER suffix is implied */
 #define HCI_SMP_STK			0x80
 #define HCI_SMP_STK_SLAVE		0x81
 #define HCI_SMP_LTK			0x82
 #define HCI_SMP_LTK_SLAVE		0x83
 
-/* ---- HCI Error Codes ---- */
 #define HCI_ERROR_AUTH_FAILURE		0x05
 #define HCI_ERROR_CONNECTION_TIMEOUT	0x08
 #define HCI_ERROR_REJ_BAD_ADDR		0x0f
@@ -325,37 +294,32 @@ enum {
 #define HCI_ERROR_LOCAL_HOST_TERM	0x16
 #define HCI_ERROR_PAIRING_NOT_ALLOWED	0x18
 
-/* Flow control modes */
 #define HCI_FLOW_CTL_MODE_PACKET_BASED	0x00
 #define HCI_FLOW_CTL_MODE_BLOCK_BASED	0x01
 
-/* The core spec defines 127 as the "not available" value */
 #define HCI_TX_POWER_INVALID	127
 
-/* Extended Inquiry Response field types */
-#define EIR_FLAGS		0x01 /* flags */
-#define EIR_UUID16_SOME		0x02 /* 16-bit UUID, more available */
-#define EIR_UUID16_ALL		0x03 /* 16-bit UUID, all listed */
-#define EIR_UUID32_SOME		0x04 /* 32-bit UUID, more available */
-#define EIR_UUID32_ALL		0x05 /* 32-bit UUID, all listed */
-#define EIR_UUID128_SOME	0x06 /* 128-bit UUID, more available */
-#define EIR_UUID128_ALL		0x07 /* 128-bit UUID, all listed */
-#define EIR_NAME_SHORT		0x08 /* shortened local name */
-#define EIR_NAME_COMPLETE	0x09 /* complete local name */
-#define EIR_TX_POWER		0x0A /* transmit power level */
-#define EIR_CLASS_OF_DEV	0x0D /* Class of Device */
-#define EIR_SSP_HASH_C		0x0E /* Simple Pairing Hash C */
-#define EIR_SSP_RAND_R		0x0F /* Simple Pairing Randomizer R */
-#define EIR_DEVICE_ID		0x10 /* device ID */
+#define EIR_FLAGS		0x01 
+#define EIR_UUID16_SOME		0x02 
+#define EIR_UUID16_ALL		0x03 
+#define EIR_UUID32_SOME		0x04 
+#define EIR_UUID32_ALL		0x05 
+#define EIR_UUID128_SOME	0x06 
+#define EIR_UUID128_ALL		0x07 
+#define EIR_NAME_SHORT		0x08 
+#define EIR_NAME_COMPLETE	0x09 
+#define EIR_TX_POWER		0x0A 
+#define EIR_CLASS_OF_DEV	0x0D 
+#define EIR_SSP_HASH_C		0x0E 
+#define EIR_SSP_RAND_R		0x0F 
+#define EIR_DEVICE_ID		0x10 
 
-/* Low Energy Advertising Flags */
-#define LE_AD_LIMITED		0x01 /* Limited Discoverable */
-#define LE_AD_GENERAL		0x02 /* General Discoverable */
-#define LE_AD_NO_BREDR		0x04 /* BR/EDR not supported */
-#define LE_AD_SIM_LE_BREDR_CTRL	0x08 /* Simultaneous LE & BR/EDR Controller */
-#define LE_AD_SIM_LE_BREDR_HOST	0x10 /* Simultaneous LE & BR/EDR Host */
+#define LE_AD_LIMITED		0x01 
+#define LE_AD_GENERAL		0x02 
+#define LE_AD_NO_BREDR		0x04 
+#define LE_AD_SIM_LE_BREDR_CTRL	0x08 
+#define LE_AD_SIM_LE_BREDR_HOST	0x10 
 
-/* -----  HCI Commands ---- */
 #define HCI_OP_NOP			0x0000
 
 #define HCI_OP_INQUIRY			0x0401
@@ -704,17 +668,14 @@ struct hci_cp_set_event_flt {
 	__u8     condition[0];
 } __packed;
 
-/* Filter types */
 #define HCI_FLT_CLEAR_ALL	0x00
 #define HCI_FLT_INQ_RESULT	0x01
 #define HCI_FLT_CONN_SETUP	0x02
 
-/* CONN_SETUP Condition types */
 #define HCI_CONN_SETUP_ALLOW_ALL	0x00
 #define HCI_CONN_SETUP_ALLOW_CLASS	0x01
 #define HCI_CONN_SETUP_ALLOW_BDADDR	0x02
 
-/* CONN_SETUP Conditions */
 #define HCI_CONN_SETUP_AUTO_OFF	0x01
 #define HCI_CONN_SETUP_AUTO_ON	0x02
 
@@ -1079,7 +1040,6 @@ struct hci_rp_le_read_supported_states {
 	__u8	le_states[8];
 } __packed;
 
-/* ---- HCI Events ---- */
 #define HCI_EV_INQUIRY_COMPLETE		0x01
 
 #define HCI_EV_INQUIRY_RESULT		0x02
@@ -1435,7 +1395,6 @@ struct hci_ev_num_comp_blocks {
 	struct hci_comp_blocks_info handles[0];
 } __packed;
 
-/* Low energy meta events */
 #define LE_CONN_ROLE_MASTER	0x00
 
 #define HCI_EV_LE_CONN_COMPLETE		0x01
@@ -1458,7 +1417,6 @@ struct hci_ev_le_ltk_req {
 	__le16	ediv;
 } __packed;
 
-/* Advertising report event types */
 #define ADV_IND		0x00
 #define ADV_DIRECT_IND	0x01
 #define ADV_SCAN_IND	0x02
@@ -1477,7 +1435,6 @@ struct hci_ev_le_advertising_info {
 	__u8	 data[0];
 } __packed;
 
-/* Internal events generated by Bluetooth stack */
 #define HCI_EV_STACK_INTERNAL	0xfd
 struct hci_ev_stack_internal {
 	__u16    type;
@@ -1498,14 +1455,13 @@ struct hci_ev_si_security {
 	__u8     incoming;
 } __packed;
 
-/* ---- HCI Packet structures ---- */
 #define HCI_COMMAND_HDR_SIZE 3
 #define HCI_EVENT_HDR_SIZE   2
 #define HCI_ACL_HDR_SIZE     4
 #define HCI_SCO_HDR_SIZE     3
 
 struct hci_command_hdr {
-	__le16	opcode;		/* OCF & OGF */
+	__le16	opcode;		
 	__u8	plen;
 } __packed;
 
@@ -1515,7 +1471,7 @@ struct hci_event_hdr {
 } __packed;
 
 struct hci_acl_hdr {
-	__le16	handle;		/* Handle & Flags(PB, BC) */
+	__le16	handle;		
 	__le16	dlen;
 } __packed;
 
@@ -1539,24 +1495,19 @@ static inline struct hci_sco_hdr *hci_sco_hdr(const struct sk_buff *skb)
 	return (struct hci_sco_hdr *) skb->data;
 }
 
-/* Command opcode pack/unpack */
 #define hci_opcode_pack(ogf, ocf)	((__u16) ((ocf & 0x03ff)|(ogf << 10)))
 #define hci_opcode_ogf(op)		(op >> 10)
 #define hci_opcode_ocf(op)		(op & 0x03ff)
 
-/* ACL handle and flags pack/unpack */
 #define hci_handle_pack(h, f)	((__u16) ((h & 0x0fff)|(f << 12)))
 #define hci_handle(h)		(h & 0x0fff)
 #define hci_flags(h)		(h >> 12)
 
-/* ---- HCI Sockets ---- */
 
-/* Socket options */
 #define HCI_DATA_DIR	1
 #define HCI_FILTER	2
 #define HCI_TIME_STAMP	3
 
-/* CMSG flags */
 #define HCI_CMSG_DIR	0x0001
 #define HCI_CMSG_TSTAMP	0x0002
 
@@ -1588,7 +1539,6 @@ struct hci_ufilter {
 #define HCI_FLT_OGF_BITS	63
 #define HCI_FLT_OCF_BITS	127
 
-/* ---- HCI Ioctl requests structures ---- */
 struct hci_dev_stats {
 	__u32 err_rx;
 	__u32 err_tx;
@@ -1644,7 +1594,7 @@ struct hci_dev_req {
 
 struct hci_dev_list_req {
 	__u16  dev_num;
-	struct hci_dev_req dev_req[0];	/* hci_dev_req structures */
+	struct hci_dev_req dev_req[0];	
 };
 
 struct hci_conn_list_req {
@@ -1675,4 +1625,4 @@ struct hci_inquiry_req {
 
 extern bool enable_hs;
 
-#endif /* __HCI_H */
+#endif 

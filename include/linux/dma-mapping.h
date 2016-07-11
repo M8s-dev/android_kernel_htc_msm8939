@@ -83,6 +83,7 @@ static inline int is_device_dma_capable(struct device *dev)
 #include <asm-generic/dma-mapping-broken.h>
 #endif
 
+#ifndef CONFIG_NO_DMA
 static inline void *dma_remap(struct device *dev, void *cpu_addr,
 		dma_addr_t dma_handle, size_t size, struct dma_attrs *attrs)
 {
@@ -113,6 +114,7 @@ static inline void dma_unremap(struct device *dev, void *remapped_addr,
 
 	return ops->unremap(dev, remapped_addr, size);
 }
+#endif
 
 static inline u64 dma_get_mask(struct device *dev)
 {
@@ -184,7 +186,6 @@ static inline int dma_get_cache_alignment(void)
 }
 #endif
 
-/* flags for the coherent memory api */
 #define	DMA_MEMORY_MAP			0x01
 #define DMA_MEMORY_IO			0x02
 #define DMA_MEMORY_INCLUDES_CHILDREN	0x04
@@ -211,9 +212,6 @@ dma_mark_declared_memory_occupied(struct device *dev,
 }
 #endif
 
-/*
- * Managed DMA API
- */
 extern void *dmam_alloc_coherent(struct device *dev, size_t size,
 				 dma_addr_t *dma_handle, gfp_t gfp);
 extern void dmam_free_coherent(struct device *dev, size_t size, void *vaddr,
@@ -227,7 +225,7 @@ extern int dmam_declare_coherent_memory(struct device *dev, dma_addr_t bus_addr,
 					dma_addr_t device_addr, size_t size,
 					int flags);
 extern void dmam_release_declared_memory(struct device *dev);
-#else /* ARCH_HAS_DMA_DECLARE_COHERENT_MEMORY */
+#else 
 static inline int dmam_declare_coherent_memory(struct device *dev,
 				dma_addr_t bus_addr, dma_addr_t device_addr,
 				size_t size, gfp_t gfp)
@@ -238,7 +236,7 @@ static inline int dmam_declare_coherent_memory(struct device *dev,
 static inline void dmam_release_declared_memory(struct device *dev)
 {
 }
-#endif /* ARCH_HAS_DMA_DECLARE_COHERENT_MEMORY */
+#endif 
 
 #ifndef CONFIG_HAVE_DMA_ATTRS
 struct dma_attrs;
@@ -255,7 +253,7 @@ struct dma_attrs;
 #define dma_unmap_sg_attrs(dev, sgl, nents, dir, attrs) \
 	dma_unmap_sg(dev, sgl, nents, dir)
 
-#endif /* CONFIG_HAVE_DMA_ATTRS */
+#endif 
 
 #ifdef CONFIG_NEED_DMA_MAP_STATE
 #define DEFINE_DMA_UNMAP_ADDR(ADDR_NAME)        dma_addr_t ADDR_NAME

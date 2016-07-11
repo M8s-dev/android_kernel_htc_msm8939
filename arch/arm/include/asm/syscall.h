@@ -1,14 +1,9 @@
-/*
- * Access to user system call parameters and results
- *
- * See asm-generic/syscall.h for descriptions of what we must do here.
- */
 
 #ifndef _ASM_ARM_SYSCALL_H
 #define _ASM_ARM_SYSCALL_H
 
-#include <linux/audit.h> /* for AUDIT_ARCH_* */
-#include <linux/elf.h> /* for ELF_EM */
+#include <linux/audit.h> 
+#include <linux/elf.h> 
 #include <linux/err.h>
 #include <linux/sched.h>
 
@@ -103,11 +98,10 @@ static inline void syscall_set_arguments(struct task_struct *task,
 	memcpy(&regs->ARM_r0 + i, args, n * sizeof(args[0]));
 }
 
-static inline int syscall_get_arch(struct task_struct *task,
-				   struct pt_regs *regs)
+static inline int syscall_get_arch(void)
 {
-	/* ARM tasks don't change audit architectures on the fly. */
+	
 	return AUDIT_ARCH_ARM;
 }
 
-#endif /* _ASM_ARM_SYSCALL_H */
+#endif 

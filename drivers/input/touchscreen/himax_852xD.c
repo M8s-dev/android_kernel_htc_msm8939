@@ -805,7 +805,8 @@ u8 himax_read_FW_ver(bool hw_reset)
 	u16 cfg_ver_min_addr;
 	u16 cfg_ver_min_length;
 
-	uint8_t cmd[3];
+	int BYTE = 3;
+	uint8_t cmd[BYTE];
 	u16 i = 0;
 	u16 j = 0;
 	u16 k = 0;
@@ -871,11 +872,11 @@ u8 himax_read_FW_ver(bool hw_reset)
 
 		if (i == fw_ver_maj_start_addr) {
 			j = 0;
-			for( k = fw_ver_maj_addr; k < 4 && j < fw_ver_maj_length; k++) {
+			for( k = fw_ver_maj_addr; k < BYTE && j < fw_ver_maj_length; k++) {
 				FW_VER_MAJ_buff[j++] = cmd[k];
 			}
 		} else {
-			for( k = 0; k < 4 && j < fw_ver_maj_length; k++) {
+			for( k = 0; k < BYTE && j < fw_ver_maj_length; k++) {
 				FW_VER_MAJ_buff[j++] = cmd[k];
 			}
 		}
@@ -904,11 +905,11 @@ u8 himax_read_FW_ver(bool hw_reset)
 
 		if (i == fw_ver_min_start_addr) {
 			j = 0;
-			for(k = fw_ver_min_addr; k < 4 && j < fw_ver_min_length; k++) {
+			for(k = fw_ver_min_addr; k < BYTE && j < fw_ver_min_length; k++) {
 				FW_VER_MIN_buff[j++] = cmd[k];
 			}
 		} else {
-			for(k = 0; k < 4 && j < fw_ver_min_length; k++) {
+			for(k = 0; k < BYTE && j < fw_ver_min_length; k++) {
 				FW_VER_MIN_buff[j++] = cmd[k];
 			}
 		}
@@ -938,11 +939,11 @@ u8 himax_read_FW_ver(bool hw_reset)
 
 		if (i == cfg_ver_maj_start_addr) {
 			j = 0;
-			for( k = cfg_ver_maj_addr; k < 4 && j < cfg_ver_maj_length; k++) {
+			for( k = cfg_ver_maj_addr; k < BYTE && j < cfg_ver_maj_length; k++) {
 				CFG_VER_MAJ_buff[j++] = cmd[k];
 			}
 		} else {
-			for(k = 0; k < 4 && j < cfg_ver_maj_length; k++) {
+			for(k = 0; k < BYTE && j < cfg_ver_maj_length; k++) {
 				CFG_VER_MAJ_buff[j++] = cmd[k];
 			}
 		}
@@ -971,11 +972,11 @@ u8 himax_read_FW_ver(bool hw_reset)
 
 		if (i == cfg_ver_min_start_addr) {
 			j = 0;
-			for (k = cfg_ver_min_addr; k < 4 && j < cfg_ver_min_length; k++) {
+			for (k = cfg_ver_min_addr; k < BYTE && j < cfg_ver_min_length; k++) {
 				CFG_VER_MIN_buff[j++] = cmd[k];
 			}
 		} else {
-			for (k = 0; k < 4 && j < cfg_ver_min_length; k++) {
+			for (k = 0; k < BYTE && j < cfg_ver_min_length; k++) {
 				CFG_VER_MIN_buff[j++] = cmd[k];
 			}
 		}
@@ -7593,7 +7594,8 @@ static int himax8528_resume(struct device *dev)
 
 	struct himax_ts_data *ts = dev_get_drvdata(dev);
 
-	I("%s: enter\n", __func__);
+	I("%s: version: %02X-%02X-%02X\n", __func__,
+		ts->vendor_fw_ver, ts->vendor_sensor_id, ts->vendor_config_ver);
 
 	if (ts->pdata->powerOff3V3 && ts->pdata->power)
 		ts->pdata->power(1);

@@ -34,6 +34,13 @@
 #include "../codecs/wcd9306.h"
 
 #include <sound/htc_acoustic_alsa.h>
+#ifdef CONFIG_AMP_TPA6130A2
+#include <sound/tpa6130a2.h>
+#endif
+
+#ifdef CONFIG_TI_TCA6418
+#include <linux/i2c/tca6418_ioexpander.h>
+#endif
 
 #undef pr_info
 #undef pr_err
@@ -88,6 +95,24 @@ static int msm8x16_enable_extcodec_ext_clk(struct snd_soc_codec *codec,
 
 static int conf_int_codec_mux(struct msm8916_asoc_mach_data *pdata);
 
+#ifdef CONFIG_HTC_AUD_MBHC
+static struct wcd_mbhc_config mbhc_cfg = {
+	.read_fw_bin = false,
+	.calibration = NULL,
+	.detect_extn_cable = true,
+	.mono_stero_detection = false,
+	.swap_gnd_mic = NULL,
+	.hs_ext_micbias = false,
+	.key_code[0] = KEY_MEDIA,
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
+	.key_code[4] = 0,
+	.key_code[5] = 0,
+	.key_code[6] = 0,
+	.key_code[7] = 0,
+};
+#endif
 
 static struct wcd9xxx_mbhc_config wcd9xxx_mbhc_cfg = {
 	.read_fw_bin = false,
@@ -314,6 +339,8 @@ static int spkl_amp_on = 0;
 static int spkr_amp_on = 0;
 static int top_SPK_muted = 0;
 static struct mutex htc_amp_mutex;
+static unsigned long amp_off_time_jiff = 0;
+
 
 static atomic_t q6_effect_mode = ATOMIC_INIT(-1);
 
@@ -438,25 +465,54 @@ static int mute_left_SPK_set(struct snd_kcontrol *kcontrol,
 static void htc_rcv_amp_ctl(int enable)
 {
 	int i, value = (enable)?1:0;
+#ifdef CONFIG_AMP_TPA2011
+	int ret;
+#endif
 
 	if(!htc_rcv_config.init)
 		return;
+
+#ifdef CONFIG_AMP_TPA2011
+	
+	if(htc_rcv_config.supply) {
+		if(enable) {
+			ret = regulator_enable(htc_rcv_config.supply);
+			if (ret != 0)
+				pr_err("%s : Failed to enable supply: %d\n", __func__, ret);
+		}
+		else
+			ret = regulator_disable(htc_rcv_config.supply);
+			if (ret != 0)
+				pr_err("%s : Failed to disable supply: %d\n", __func__, ret);
+	} else {
+		pr_info("%s no rcv power control", __func__);
+	}
+#endif
+
 
 	
 	if (value == 0) {
 		for(i = 0; i < ARRAY_SIZE(htc_rcv_config.gpio); i++) {
 			pr_info("%s: gpio = %d, gpio name = %s value %d\n", __func__,
 			htc_rcv_config.gpio[i].gpio_no, htc_rcv_config.gpio[i].gpio_name,value);
+#ifdef CONFIG_TI_TCA6418
+			ioexp_gpio_set_value(htc_rcv_config.gpio[i].gpio_no, value);
+#else
 			gpio_set_value(htc_rcv_config.gpio[i].gpio_no, value);
+#endif
 		}
 	}
 	else {
 		for(i = ARRAY_SIZE(htc_rcv_config.gpio) -1 ; i >= 0; i--) {
 			pr_info("%s: gpio = %d, gpio name = %s value with %d\n", __func__,
 			htc_rcv_config.gpio[i].gpio_no, htc_rcv_config.gpio[i].gpio_name,value);
+#ifdef CONFIG_TI_TCA6418
+			ioexp_gpio_set_value(htc_rcv_config.gpio[i].gpio_no, value);
+#else
 			gpio_set_value(htc_rcv_config.gpio[i].gpio_no, value);
 			if(i == 1)
 				msleep(30);
+#endif
 		}
 	}
 
@@ -472,6 +528,7 @@ static void htc_amp_control(int amp_mask )
 			pr_info("headphone amp off\n");
 			htc_hs_amp_ctl(0);
 			hs_amp_on = 0;
+			amp_off_time_jiff = jiffies;
 		}
 
 		if((amp_mask & HTC_SPK_AMP) && spk_amp_on == 0) {
@@ -482,16 +539,22 @@ static void htc_amp_control(int amp_mask )
 			pr_info("speaker amp off\n");
 			htc_spk_amp_ctl(0);
 			spk_amp_on = 0;
+			amp_off_time_jiff = jiffies;
 		}
 
 		if((amp_mask & HTC_RCV_AMP) && rcv_amp_on == 0) {
 			pr_info("receiver amp on\n");
+#ifndef CONFIG_AMP_TPA2011
 			htc_rcv_amp_ctl(1);
+#endif
 			rcv_amp_on = 1;
 		} else if(!(amp_mask & HTC_RCV_AMP) && rcv_amp_on == 1) {
 			pr_info("receiver amp off\n");
+#ifndef CONFIG_AMP_TPA2011
 			htc_rcv_amp_ctl(0);
+#endif
 			rcv_amp_on = 0;
+			amp_off_time_jiff = jiffies;
 		}
 
 }
@@ -779,6 +842,9 @@ static int msm_htc_dtparse_rcv(struct platform_device *pdev,
 				struct rcv_config *pconfig)
 {
 	int i, ret;
+#ifdef CONFIG_AMP_TPA2011
+	const char *regulator = "rcv,Vdd";
+#endif
 
 	if(!pconfig || !pdev)
 		return 0;
@@ -825,6 +891,16 @@ static int msm_htc_dtparse_rcv(struct platform_device *pdev,
 		gpio_direction_output(pconfig->gpio[i].gpio_no, 0);
 #endif
 	}
+
+#ifdef CONFIG_AMP_TPA2011
+	
+	pconfig->supply = regulator_get(&pdev->dev, regulator);
+	if (IS_ERR(pconfig->supply)) {
+		pr_err("%s : Failed to request rcv supply\n", __func__);
+		pconfig->supply = NULL;
+	}
+#endif
+
 	pr_info("%s: pconfig->init %d",
 				__func__, pconfig->init);
 	pconfig->init = 1;
@@ -858,6 +934,39 @@ static void param_set_mask(struct snd_pcm_hw_params *p, int n, unsigned bit)
 static int msm8x16_mclk_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
 
+#ifdef CONFIG_AMP_TPA6130A2
+static int msm8x16_ext_hsAmp_event(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *k, int event)
+{
+	pr_err("%s()\n", __func__);
+
+	if (SND_SOC_DAPM_EVENT_ON(event)) {
+		pr_err("%s: SND_SOC_DAPM_EVENT_ON \n", __func__);
+		htc_acoustic_hs_amp_ctrl(1,0);
+	} else {
+		pr_err("%s: SND_SOC_DAPM_EVENT_OFF \n", __func__);
+		htc_acoustic_hs_amp_ctrl(0,0);
+	}
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_AMP_TPA2011
+static int msm8x16_rcv_Amp_event(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *k, int event)
+{
+	pr_err("%s()\n", __func__);
+
+	if (SND_SOC_DAPM_EVENT_ON(event)) {
+		pr_err("%s: SND_SOC_DAPM_EVENT_ON \n", __func__);
+		htc_rcv_amp_ctl(1);
+	} else {
+		pr_err("%s: SND_SOC_DAPM_EVENT_OFF \n", __func__);
+		htc_rcv_amp_ctl(0);
+	}
+	return 0;
+}
+#endif
 
 
 void amp_delay_work_fn(struct work_struct *work)
@@ -879,7 +988,7 @@ static int msm8x16_rcv_amp_event(struct snd_soc_dapm_widget *w,
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
 		pr_info("%s: SND_SOC_DAPM_EVENT_ON \n", __func__);
 		htc_amp_mask |= HTC_RCV_AMP;
-#ifdef CONFIG_AUD_8x16_MI2S
+#ifdef CONFIG_AMP_TPA2011
 		schedule_delayed_work(&amp_delay_work, msecs_to_jiffies(30));
 #else
 		htc_amp_control(htc_amp_mask);
@@ -888,7 +997,7 @@ static int msm8x16_rcv_amp_event(struct snd_soc_dapm_widget *w,
 		pr_info("%s: SND_SOC_DAPM_EVENT_OFF \n", __func__);
 		htc_amp_mask &= ~HTC_RCV_AMP;
 
-#ifdef CONFIG_AUD_8x16_MI2S
+#ifdef CONFIG_AMP_TPA2011
 		mutex_unlock(&htc_amp_mutex);
 		cancel_delayed_work_sync(&amp_delay_work);
 		mutex_lock(&htc_amp_mutex);
@@ -935,13 +1044,24 @@ static int msm8x16_hs_amp_event(struct snd_soc_dapm_widget *w,
 static int msm8x16_spk_amp_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *k, int event)
 {
+	unsigned long js = 0, delta_js = 0;
+
 	pr_info("%s()\n", __func__);
 
 	mutex_lock(&htc_amp_mutex);
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
 		pr_info("%s: SND_SOC_DAPM_EVENT_ON \n", __func__);
 		htc_amp_mask |= HTC_SPK_AMP;
-		schedule_delayed_work(&amp_delay_work, msecs_to_jiffies(80));
+		js = jiffies;
+		delta_js = js - amp_off_time_jiff;
+		if (delta_js >=  msecs_to_jiffies(500)) {
+			pr_info("%s: (%lu, %lu, %lu ,%lu) more than %d ms\n", __func__, js, amp_off_time_jiff, delta_js, msecs_to_jiffies(500), 500);
+			htc_amp_control(htc_amp_mask);
+		} else {
+			pr_info("delay work 80ms");
+			schedule_delayed_work(&amp_delay_work, msecs_to_jiffies(80));
+		}
+
 	} else {
 		pr_info("%s: SND_SOC_DAPM_EVENT_OFF \n", __func__);
 		htc_amp_mask &= ~HTC_SPK_AMP;
@@ -1004,6 +1124,12 @@ static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("RCV_AMP", msm8x16_rcv_amp_event),
 	SND_SOC_DAPM_HP("HP_AMP", msm8x16_hs_amp_event),
 	SND_SOC_DAPM_HP("SPK_AMP", msm8x16_spk_amp_event),
+#ifdef CONFIG_AMP_TPA6130A2
+	SND_SOC_DAPM_HP("HP_AMP_TPA", msm8x16_ext_hsAmp_event),
+#endif
+#ifdef CONFIG_AMP_TPA2011
+	SND_SOC_DAPM_LINE("EAR_AMP", msm8x16_rcv_Amp_event),
+#endif
 };
 
 static const struct snd_soc_dapm_route htc_hs_amp_route[] = {
@@ -1703,6 +1829,13 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		 substream->name, substream->stream);
 
 	if (!pdata->codec_type) {
+
+#ifdef CONFIG_AMP_TPA6130A2
+		if(hs_amp_on == 1 && substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			pr_info("%s: hs_amp_on==1 trigger-hs amp mute\n", __func__);
+			tpa6130a2_HSMute(1);
+		}
+#endif
 		ret = mi2s_clk_ctl(substream, false);
 		if (ret < 0)
 			pr_err("%s:clock disable failed; ret=%d\n", __func__,
@@ -1865,6 +1998,11 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 
 	pr_info("%s(): substream = %s  stream = %d\n", __func__,
 		 substream->name, substream->stream);
+
+#ifdef CONFIG_AMP_TPA6130A2
+		if (hs_amp_on == 1 && substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			tpa6130a2_HSMute(0);
+#endif
 
 	if (!pdata->codec_type) {
 		ret = conf_int_codec_mux(pdata);
@@ -2032,7 +2170,7 @@ static void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 #endif
 
 
-#if 0
+#ifdef CONFIG_HTC_AUD_MBHC
 static void *def_msm8x16_wcd_mbhc_cal(void)
 {
 	void *msm8x16_wcd_cal;
@@ -2047,7 +2185,7 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	}
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8x16_wcd_cal)->X) = (Y))
-	S(v_hs_max, 1500);
+	S(v_hs_max, 1600);
 #undef S
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(msm8x16_wcd_cal)->X) = (Y))
 	S(num_btn, WCD_MBHC_DEF_BUTTONS);
@@ -2058,16 +2196,16 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	btn_high = ((void *)&btn_cfg->_v_btn_low) +
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
-	btn_low[0] = 25;
-	btn_high[0] = 25;
-	btn_low[1] = 50;
-	btn_high[1] = 50;
-	btn_low[2] = 75;
-	btn_high[2] = 75;
-	btn_low[3] = 112;
-	btn_high[3] = 112;
-	btn_low[4] = 137;
-	btn_high[4] = 137;
+	btn_low[0] = 84;
+	btn_high[0] = 84;
+	btn_low[1] = 236;
+	btn_high[1] = 272;
+	btn_low[2] = 384;
+	btn_high[2] = 412;
+	btn_low[3] = 436;
+	btn_high[3] = 460;
+	btn_low[4] = 472;
+	btn_high[4] = 512;
 
 	return msm8x16_wcd_cal;
 }
@@ -2079,8 +2217,9 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	
-
+#ifdef CONFIG_HTC_AUD_MBHC
+	int ret = -ENOMEM;
+#endif
 	pr_debug("%s(),dev_name%s\n", __func__, dev_name(cpu_dai->dev));
 
 
@@ -2094,6 +2233,12 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 				ARRAY_SIZE(msm8x16_dapm_widgets));
 	snd_soc_dapm_add_routes(dapm, htc_hs_amp_route,
 		ARRAY_SIZE(htc_hs_amp_route));
+#ifdef CONFIG_AMP_TPA6130A2
+	snd_soc_dapm_enable_pin(dapm, "HP_AMP_TPA");
+#endif
+#ifdef CONFIG_AMP_TPA2011
+	snd_soc_dapm_enable_pin(dapm, "EAR_AMP");
+#endif
 	snd_soc_dapm_ignore_suspend(dapm, "Handset Mic");
 	snd_soc_dapm_ignore_suspend(dapm, "Headset Mic");
 	snd_soc_dapm_ignore_suspend(dapm, "Secondary Mic");
@@ -2111,7 +2256,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_sync(dapm);
 
-#if 0
+#ifdef CONFIG_HTC_AUD_MBHC
 	mbhc_cfg.calibration = def_msm8x16_wcd_mbhc_cal();
 	if (mbhc_cfg.calibration) {
 		ret = msm8x16_wcd_hs_detect(codec, &mbhc_cfg);
@@ -2949,7 +3094,7 @@ void disable_mclk(struct work_struct *work)
 	mutex_unlock(&pdata->cdc_mclk_mutex);
 }
 
-#if 0
+#ifdef CONFIG_HTC_AUD_MBHC
 static bool msm8x16_swap_gnd_mic(struct snd_soc_codec *codec)
 {
 	struct snd_soc_card *card = codec->card;
@@ -2991,6 +3136,7 @@ static int msm8x16_setup_hs_jack(struct platform_device *pdev,
 			"property %s in node %s not found %d\n",
 			"qcom,cdc-us-euro-gpios", pdev->dev.of_node->full_name,
 			pdata->us_euro_gpio);
+
 	} else {
 		mbhc_cfg.swap_gnd_mic = msm8x16_swap_gnd_mic;
 		if (!gpio_is_valid(pdata->us_euro_gpio)) {
@@ -3023,6 +3169,23 @@ static int msm8x16_setup_hs_jack(struct platform_device *pdev,
 	return 0;
 }
 #endif
+
+static void msm8x16_dt_parse_cap_info(struct platform_device *pdev,
+			struct msm8916_asoc_mach_data *pdata)
+{
+	const char *ext1_cap = "qcom,msm-micbias1-ext-cap";
+	const char *ext2_cap = "qcom,msm-micbias2-ext-cap";
+
+	pdata->micbias1_cap_mode =
+		(of_property_read_bool(pdev->dev.of_node, ext1_cap) ?
+		MICBIAS_EXT_BYP_CAP : MICBIAS_NO_EXT_BYP_CAP);
+
+	pdata->micbias2_cap_mode =
+		(of_property_read_bool(pdev->dev.of_node, ext2_cap) ?
+		MICBIAS_EXT_BYP_CAP : MICBIAS_NO_EXT_BYP_CAP);
+
+	return;
+}
 
 int get_cdc_gpio_lines(struct pinctrl *pinctrl, int ext_pa)
 {
@@ -3240,7 +3403,7 @@ static int msm8x16_asoc_machine_probe(struct platform_device *pdev)
 	if (!pdata) {
 		dev_err(&pdev->dev, "Can't allocate msm8x16_asoc_mach_data\n");
 		ret = -ENOMEM;
-		goto err;
+		return ret;
 	}
 
 	pdata->vaddr_gpio_mux_spkr_ctl =
@@ -3421,7 +3584,10 @@ static int msm8x16_asoc_machine_probe(struct platform_device *pdev)
 	
 	pdata->lb_mode = false;
 
-	
+#ifdef CONFIG_HTC_AUD_MBHC
+	msm8x16_setup_hs_jack(pdev, pdata);
+#endif
+	msm8x16_dt_parse_cap_info(pdev, pdata);
 
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);

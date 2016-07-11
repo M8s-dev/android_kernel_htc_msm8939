@@ -25,8 +25,9 @@ struct irq_domain;
 struct spi_device;
 struct regmap;
 struct regmap_range_cfg;
+struct regmap_field;
+struct swr_device;
 
-/* An enum of all the supported cache types */
 enum regcache_type {
 	REGCACHE_NONE,
 	REGCACHE_RBTREE,
@@ -34,14 +35,6 @@ enum regcache_type {
 	REGCACHE_FLAT,
 };
 
-/**
- * Default value for a register.  We use an array of structs rather
- * than a simple array as many modern devices have very sparse
- * register maps.
- *
- * @reg: Register address.
- * @def: Register default value.
- */
 struct reg_default {
 	unsigned int reg;
 	unsigned int def;
@@ -50,36 +43,18 @@ struct reg_default {
 #ifdef CONFIG_REGMAP
 
 enum regmap_endian {
-	/* Unspecified -> 0 -> Backwards compatible default */
+	
 	REGMAP_ENDIAN_DEFAULT = 0,
 	REGMAP_ENDIAN_BIG,
 	REGMAP_ENDIAN_LITTLE,
 	REGMAP_ENDIAN_NATIVE,
 };
 
-/**
- * A register range, used for access related checks
- * (readable/writeable/volatile/precious checks)
- *
- * @range_min: address of first register
- * @range_max: address of last register
- */
 struct regmap_range {
 	unsigned int range_min;
 	unsigned int range_max;
 };
 
-/*
- * A table of ranges including some yes ranges and some no ranges.
- * If a register belongs to a no_range, the corresponding check function
- * will return false. If a register belongs to a yes range, the corresponding
- * check function will return true. "no_ranges" are searched first.
- *
- * @yes_ranges : pointer to an array of regmap ranges used as "yes ranges"
- * @n_yes_ranges: size of the above array
- * @no_ranges: pointer to an array of regmap ranges used as "no ranges"
- * @n_no_ranges: size of the above array
- */
 struct regmap_access_table {
 	const struct regmap_range *yes_ranges;
 	unsigned int n_yes_ranges;
@@ -160,7 +135,9 @@ typedef void (*regmap_unlock)(void *);
  * @use_single_rw: If set, converts the bulk read and write operations into
  *		    a series of single read and write operations. This is useful
  *		    for device that does not support bulk read and write.
- *
+ * @can_multi_write: If set, the device supports the multi write mode of bulk
+ *                   write operations, if clear multi write requests will be
+ *                   split into individual write operations
  * @cache_type: The actual cache type.
  * @reg_defaults_raw: Power on reset values for registers (for use with
  *                    register cache support).
@@ -211,7 +188,7 @@ struct regmap_config {
 	u8 write_flag_mask;
 
 	bool use_single_rw;
-
+	bool can_multi_write;
 	enum regmap_endian reg_format_endian;
 	enum regmap_endian val_format_endian;
 
@@ -219,37 +196,19 @@ struct regmap_config {
 	unsigned int num_ranges;
 };
 
-/**
- * Configuration for indirectly accessed or paged registers.
- * Registers, mapped to this virtual range, are accessed in two steps:
- *     1. page selector register update;
- *     2. access through data window registers.
- *
- * @name: Descriptive name for diagnostics
- *
- * @range_min: Address of the lowest register address in virtual range.
- * @range_max: Address of the highest register in virtual range.
- *
- * @page_sel_reg: Register with selector field.
- * @page_sel_mask: Bit shift for selector value.
- * @page_sel_shift: Bit mask for selector value.
- *
- * @window_start: Address of first (lowest) register in data window.
- * @window_len: Number of registers in data window.
- */
 struct regmap_range_cfg {
 	const char *name;
 
-	/* Registers of virtual address range */
+	
 	unsigned int range_min;
 	unsigned int range_max;
 
-	/* Page selector for indirect addressing */
+	
 	unsigned int selector_reg;
 	unsigned int selector_mask;
 	int selector_shift;
 
-	/* Data window (per each page) */
+	
 	unsigned int window_start;
 	unsigned int window_len;
 };
@@ -271,31 +230,6 @@ typedef int (*regmap_hw_read)(void *context,
 typedef struct regmap_async *(*regmap_hw_async_alloc)(void);
 typedef void (*regmap_hw_free_context)(void *context);
 
-/**
- * Description of a hardware bus for the register map infrastructure.
- *
- * @fast_io: Register IO is fast. Use a spinlock instead of a mutex
- *	     to perform locking. This field is ignored if custom lock/unlock
- *	     functions are used (see fields lock/unlock of
- *	     struct regmap_config).
- * @write: Write operation.
- * @gather_write: Write operation with split register/value, return -ENOTSUPP
- *                if not implemented  on a given device.
- * @async_write: Write operation which completes asynchronously, optional and
- *               must serialise with respect to non-async I/O.
- * @read: Read operation.  Data is returned in the buffer used to transmit
- *         data.
- * @async_alloc: Allocate a regmap_async() structure.
- * @read_flag_mask: Mask to be set in the top byte of the register when doing
- *                  a read.
- * @reg_format_endian_default: Default endianness for formatted register
- *     addresses. Used when the regmap_config specifies DEFAULT. If this is
- *     DEFAULT, BIG is assumed.
- * @val_format_endian_default: Default endianness for formatted register
- *     values. Used when the regmap_config specifies DEFAULT. If this is
- *     DEFAULT, BIG is assumed.
- * @async_size: Size of struct used for async work.
- */
 struct regmap_bus {
 	bool fast_io;
 	regmap_hw_write write;
@@ -320,6 +254,8 @@ struct regmap *regmap_init_spi(struct spi_device *dev,
 struct regmap *regmap_init_mmio_clk(struct device *dev, const char *clk_id,
 				    void __iomem *regs,
 				    const struct regmap_config *config);
+struct regmap *regmap_init_swr(struct swr_device *dev,
+			       const struct regmap_config *config);
 
 struct regmap *devm_regmap_init(struct device *dev,
 				const struct regmap_bus *bus,
@@ -332,17 +268,9 @@ struct regmap *devm_regmap_init_spi(struct spi_device *dev,
 struct regmap *devm_regmap_init_mmio_clk(struct device *dev, const char *clk_id,
 					 void __iomem *regs,
 					 const struct regmap_config *config);
+struct regmap *devm_regmap_init_swr(struct swr_device *dev,
+				    const struct regmap_config *config);
 
-/**
- * regmap_init_mmio(): Initialise register map
- *
- * @dev: Device that will be interacted with
- * @regs: Pointer to memory-mapped IO region
- * @config: Configuration for register map
- *
- * The return value will be an ERR_PTR() on error or a valid pointer to
- * a struct regmap.
- */
 static inline struct regmap *regmap_init_mmio(struct device *dev,
 					void __iomem *regs,
 					const struct regmap_config *config)
@@ -350,17 +278,6 @@ static inline struct regmap *regmap_init_mmio(struct device *dev,
 	return regmap_init_mmio_clk(dev, NULL, regs, config);
 }
 
-/**
- * devm_regmap_init_mmio(): Initialise managed register map
- *
- * @dev: Device that will be interacted with
- * @regs: Pointer to memory-mapped IO region
- * @config: Configuration for register map
- *
- * The return value will be an ERR_PTR() on error or a valid pointer
- * to a struct regmap.  The regmap will be automatically freed by the
- * device management code.
- */
 static inline struct regmap *devm_regmap_init_mmio(struct device *dev,
 					void __iomem *regs,
 					const struct regmap_config *config)
@@ -377,6 +294,11 @@ int regmap_raw_write(struct regmap *map, unsigned int reg,
 		     const void *val, size_t val_len);
 int regmap_bulk_write(struct regmap *map, unsigned int reg, const void *val,
 			size_t val_count);
+int regmap_multi_reg_write(struct regmap *map, const struct reg_default *regs,
+			int num_regs);
+int regmap_multi_reg_write_bypassed(struct regmap *map,
+				    const struct reg_default *regs,
+				    int num_regs);
 int regmap_raw_write_async(struct regmap *map, unsigned int reg,
 			   const void *val, size_t val_len);
 int regmap_read(struct regmap *map, unsigned int reg, unsigned int *val);
@@ -413,36 +335,11 @@ bool regmap_reg_in_ranges(unsigned int reg,
 			  const struct regmap_range *ranges,
 			  unsigned int nranges);
 
-/**
- * Description of an IRQ for the generic regmap irq_chip.
- *
- * @reg_offset: Offset of the status/mask register within the bank
- * @mask:       Mask used to flag/control the register.
- */
 struct regmap_irq {
 	unsigned int reg_offset;
 	unsigned int mask;
 };
 
-/**
- * Description of a generic regmap irq_chip.  This is not intended to
- * handle every possible interrupt controller, but it should handle a
- * substantial proportion of those that are found in the wild.
- *
- * @name:        Descriptive name for IRQ controller.
- *
- * @status_base: Base status register address.
- * @mask_base:   Base mask register address.
- * @ack_base:    Base ack address.  If zero then the chip is clear on read.
- * @wake_base:   Base address for wake enables.  If zero unsupported.
- * @irq_reg_stride:  Stride to use for chips where registers are not contiguous.
- * @runtime_pm:  Hold a runtime PM lock on the device when accessing it.
- *
- * @num_regs:    Number of registers in each control bank.
- * @irqs:        Descriptors for individual IRQs.  Interrupt numbers are
- *               assigned based on the index in the array of the interrupt.
- * @num_irqs:    Number of descriptors.
- */
 struct regmap_irq_chip {
 	const char *name;
 
@@ -473,12 +370,6 @@ struct irq_domain *regmap_irq_get_domain(struct regmap_irq_chip_data *data);
 
 #else
 
-/*
- * These stubs should only ever be called by generic code which has
- * regmap based facilities, if they ever get called at runtime
- * something is going wrong and something probably needs to select
- * REGMAP.
- */
 
 static inline int regmap_write(struct regmap *map, unsigned int reg,
 			       unsigned int val)

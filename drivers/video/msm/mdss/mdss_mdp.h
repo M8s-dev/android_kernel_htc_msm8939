@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -49,11 +49,12 @@
 #define MAX_FREE_LIST_SIZE	12
 #define OVERLAY_MAX		10
 
-#define C3_ALPHA	3	
-#define C2_R_Cr		2	
-#define C1_B_Cb		1	
-#define C0_G_Y		0	
+#define C3_ALPHA	3	/* alpha */
+#define C2_R_Cr		2	/* R/Cr */
+#define C1_B_Cb		1	/* B/Cb */
+#define C0_G_Y		0	/* G/luma */
 
+/* wait for at most 2 vsync for lowest refresh rate (24hz) */
 #define KOFF_TIMEOUT msecs_to_jiffies(84)
 
 #define OVERFETCH_DISABLE_TOP		BIT(0)
@@ -137,6 +138,14 @@ enum mdss_mdp_panic_signal_type {
 	MDSS_MDP_PANIC_PER_PIPE_CFG,
 };
 
+/**
+ * enum mdp_commit_stage_type - Indicate different commit stages
+ *
+ * @MDP_COMMIT_STATE_WAIT_FOR_PINGPONG:	At the stage of being ready to
+*			wait for pingpong buffer.
+ * @MDP_COMMIT_STATE_PINGPONG_DONE:		At the stage that pingpong
+ *			buffer is ready.
+ */
 enum mdp_commit_stage_type {
 	MDP_COMMIT_STAGE_SETUP_DONE,
 	MDP_COMMIT_STAGE_READY_FOR_KICKOFF,
@@ -277,11 +286,11 @@ struct mdss_mdp_format_params {
 	u8 chroma_sample;
 	u8 solid_fill;
 	u8 fetch_planes;
-	u8 unpack_align_msb;	
-	u8 unpack_tight;	
-	u8 unpack_count;	
+	u8 unpack_align_msb;	/* 0 to LSB, 1 to MSB */
+	u8 unpack_tight;	/* 0 for loose, 1 for tight */
+	u8 unpack_count;	/* 0 = 1 component, 1 = 2 component ... */
 	u8 bpp;
-	u8 alpha_enable;	
+	u8 alpha_enable;	/*  source has alpha */
 	u8 tile;
 	u8 bits[MAX_PLANES];
 	u8 element[MAX_PLANES];
@@ -486,6 +495,7 @@ struct mdss_overlay_private {
 	struct mdss_mdp_data free_list[MAX_FREE_LIST_SIZE];
 	int free_list_size;
 	int ad_state;
+	int dyn_pu_state;
 
 	bool handoff;
 	u32 splash_mem_addr;
@@ -506,6 +516,12 @@ struct mdss_mdp_commit_cb {
 		void *data);
 };
 
+/**
+ * enum mdss_screen_state - Screen states that MDP can be forced into
+ *
+ * @MDSS_SCREEN_DEFAULT:	Do not force MDP into any screen state.
+ * @MDSS_SCREEN_FORCE_BLANK:	Force MDP to generate blank color fill screen.
+ */
 enum mdss_screen_state {
 	MDSS_SCREEN_DEFAULT,
 	MDSS_SCREEN_FORCE_BLANK,
@@ -609,6 +625,15 @@ static inline int mdss_mdp_line_buffer_width(void)
 	return MAX_LINE_BUFFER_WIDTH;
 }
 
+static inline bool mdss_mdp_req_init_restore_cfg(struct mdss_data_type *mdata)
+{
+	if ((mdata->mdp_rev == MDSS_MDP_HW_REV_106) ||
+                (mdata->mdp_rev == MDSS_MDP_HW_REV_108))
+		return true;
+
+	return false;
+}
+
 static inline int mdss_mdp_panic_signal_support_mode(
 	struct mdss_data_type *mdata, struct mdss_mdp_pipe *pipe)
 {
@@ -650,6 +675,11 @@ static inline void mdss_update_sd_client(struct mdss_data_type *mdata,
 static inline int mdss_mdp_get_wb_ctl_support(struct mdss_data_type *mdata,
 							bool rotator_session)
 {
+	/*
+	 * Initial control paths are used for primary and external
+	 * interfaces and remaining control paths are used for WB
+	 * interfaces.
+	 */
 	return rotator_session ? (mdata->nctl - mdata->nmixers_wb) :
 				(mdata->nctl - mdata->nwb);
 }
@@ -902,7 +932,8 @@ void mdss_mdp_crop_rect(struct mdss_rect *src_rect,
 	const struct mdss_rect *sci_rect);
 
 
-int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd);
+int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd,
+		struct mdss_mdp_commit_cb *commit_cb);
 int mdss_mdp_wb_ioctl_handler(struct msm_fb_data_type *mfd, u32 cmd, void *arg);
 
 int mdss_mdp_get_ctl_mixers(u32 fb_num, u32 *mixer_id);
@@ -932,4 +963,4 @@ int mdss_mdp_wb_set_secure(struct msm_fb_data_type *mfd, int enable);
 int mdss_mdp_wb_get_secure(struct msm_fb_data_type *mfd, uint8_t *enable);
 void mdss_mdp_ctl_restore(void);
 int  mdss_mdp_ctl_reset(struct mdss_mdp_ctl *ctl);
-#endif 
+#endif /* MDSS_MDP_H */

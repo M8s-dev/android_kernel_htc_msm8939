@@ -175,7 +175,7 @@ config SENSORS_NFC_PN544
 	  PN544 NFC Driver implemented.
 
 config NFC_MFG_FTM
-       bool " NFC FTM mode support"
+       bool "NFC FTM mode support"
        help
        If you say yes here, NXP PN547 will support FTM mode.
 

@@ -10,9 +10,11 @@
 
 #define PANEL_ID_A52_TIANMA_R63315      1
 #define PANEL_ID_M8QL_TIANMA_R63315      2
+/* HTC: dsi_power_data overwrite the role of dsi_drv_cm_data
+   in mdss_dsi_ctrl_pdata structure */
 struct dsi_power_data {
-	uint32_t sysrev;         
-	struct regulator *vddio; 	
+	uint32_t sysrev;         /* system revision info */
+	struct regulator *vddio; 	/* LCMIO 1.8v */
 	int lcmp5v;
 	int lcmn5v;
 	int lcm_bl_en;
@@ -105,7 +107,7 @@ static int lv52130_add_i2c(struct i2c_client *client)
 	struct i2c_adapter *adapter = client->adapter;
 	int idx;
 
-	
+	/* "Hotplug" the MHL transmitter device onto the 2nd I2C bus  for BB-xM or 4th for pandaboard*/
 	i2c_bus_adapter = adapter;
 	if (i2c_bus_adapter == NULL) {
 		PR_DISP_ERR("%s() failed to get i2c adapter\n", __func__);
@@ -222,7 +224,7 @@ static int htc_m8ql_regulator_init(struct platform_device *pdev)
 		return PTR_ERR(pwrdata->vddio);
 	}
 
-	
+	//MIPI L15 1v8
 	ret = regulator_set_voltage(pwrdata->vddio, 1800000, 1800000);
 	if (ret) {
 		PR_DISP_ERR("%s: set voltage failed on vddio vreg, rc=%d\n",
@@ -242,7 +244,9 @@ static int htc_m8ql_regulator_init(struct platform_device *pdev)
 static int htc_m8ql_regulator_deinit(struct platform_device *pdev)
 {
 	class_unregister(&lv52130_class);
-	
+	/* devm_regulator() will automatically free regulators
+	   while dev detach. */
+	/* nothing */
 	return 0;
 }
 
@@ -274,13 +278,13 @@ void htc_m8ql_panel_reset(struct mdss_panel_data *pdata, int enable)
 			return;
 		}
 		usleep_range(10000, 10500);
-		
+		/* enable AVDD+, +5.5V*/
 		gpio_set_value(pwrdata->lcmp5v, 1);
 		usleep_range(10000, 10500);
-		
+		/* enable AVDD-*/
 		gpio_set_value(pwrdata->lcmn5v, 1);
 		usleep_range(10000, 10500);
-		
+		/*set +-5.5v*/
 		avdd_level = 0x0F;
 		avdd_mode = 0x43;
 		platform_write_i2c_block(i2c_bus_adapter,0x7C,0x00, 0x01, &avdd_level);
@@ -292,10 +296,10 @@ void htc_m8ql_panel_reset(struct mdss_panel_data *pdata, int enable)
 		usleep_range(5000,5500);
 		gpio_set_value(ctrl_pdata->rst_gpio, 0);
 		usleep_range(10000,10500);
-		
+		/* disable AVDD-*/
 		gpio_set_value(pwrdata->lcmn5v, 0);
 		usleep_range(10000,10500);
-		
+		/* disable AVDD+, +5.5V*/
 		gpio_set_value(pwrdata->lcmp5v, 0);
 		usleep_range(10000,10500);
 	}
@@ -337,7 +341,7 @@ static int htc_m8ql_panel_power_on(struct mdss_panel_data *pdata, int enable)
 			usleep_range(10000, 10500);
 		}
 
-		
+		/*enable vddio L15 1v8*/
 		ret = regulator_enable(pwrdata->vddio);
 		if (ret) {
 			PR_DISP_ERR("%s: Failed to enable regulator3.\n",__func__);
@@ -346,7 +350,7 @@ static int htc_m8ql_panel_power_on(struct mdss_panel_data *pdata, int enable)
 		gpio_set_value(pwrdata->lcm_bl_en, 1);
 	} else {
 		gpio_set_value(pwrdata->lcm_bl_en, 0);
-		
+		/*disable vddio 1v8*/
 		ret = regulator_disable(pwrdata->vddio);
 		if (ret) {
 			PR_DISP_ERR("%s: Failed to disable regulator3.\n",

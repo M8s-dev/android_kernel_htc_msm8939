@@ -13,6 +13,7 @@
 #ifndef __HTC_CHARGER_H__
 #define __HTC_CHARGER_H__
 
+/* for cable_detect struct */
 #include <linux/usb/board.h>
 
 enum htc_charger_event {
@@ -38,14 +39,17 @@ enum htc_charger_event {
 };
 
 enum htc_charging_cfg {
-	HTC_CHARGER_CFG_LIMIT = 0,	
+	HTC_CHARGER_CFG_LIMIT = 0,	/* cdma talking */
 	HTC_CHARGER_CFG_SLOW,
 	HTC_CHARGER_CFG_FAST,
+/*	HTC_CHARGER_CFG_9VFAST,
+	HTC_CHARGER_CFG_WARM,
+	HTC_CHARGER_CFG_COOL,*/
 };
 
 enum htc_power_source_type {
-	
-	
+	/* HTC_PWR_SOURCE_TYPE_DRAIN, */
+	/* HTC_PWR_SOURCE_TYPE_UNKNOWN, */
 	HTC_PWR_SOURCE_TYPE_BATT = 0,
 	HTC_PWR_SOURCE_TYPE_USB,
 	HTC_PWR_SOURCE_TYPE_AC,
@@ -117,6 +121,7 @@ struct htc_charger {
 	int (*is_bad_cable_used)(int *result);
 };
 
+/* let driver including this .h can notify event to htc battery */
 int htc_charger_event_notify(enum htc_charger_event);
 
 #endif

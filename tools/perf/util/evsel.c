@@ -316,11 +316,6 @@ const char *perf_evsel__hw_cache_result[PERF_COUNT_HW_CACHE_RESULT_MAX]
 #define CACHE_PREFETCH	(1 << C(OP_PREFETCH))
 #define COP(x)		(1 << x)
 
-/*
- * cache operartion stat
- * L1I : Read and prefetch only
- * ITLB and BPU : Read-only
- */
 static unsigned long perf_evsel__hw_cache_stat[C(MAX)] = {
  [C(L1D)]	= (CACHE_READ | CACHE_WRITE | CACHE_PREFETCH),
  [C(L1I)]	= (CACHE_READ | CACHE_PREFETCH),
@@ -334,9 +329,9 @@ static unsigned long perf_evsel__hw_cache_stat[C(MAX)] = {
 bool perf_evsel__is_cache_op_valid(u8 type, u8 op)
 {
 	if (perf_evsel__hw_cache_stat[type] & COP(op))
-		return true;	/* valid */
+		return true;	
 	else
-		return false;	/* invalid */
+		return false;	
 }
 
 int __perf_evsel__hw_cache_type_op_res_name(u8 type, u8 op, u8 result,
@@ -459,39 +454,11 @@ int perf_evsel__group_desc(struct perf_evsel *evsel, char *buf, size_t size)
 	return ret;
 }
 
-/*
- * The enable_on_exec/disabled value strategy:
- *
- *  1) For any type of traced program:
- *    - all independent events and group leaders are disabled
- *    - all group members are enabled
- *
- *     Group members are ruled by group leaders. They need to
- *     be enabled, because the group scheduling relies on that.
- *
- *  2) For traced programs executed by perf:
- *     - all independent events and group leaders have
- *       enable_on_exec set
- *     - we don't specifically enable or disable any event during
- *       the record command
- *
- *     Independent events and group leaders are initially disabled
- *     and get enabled by exec. Group members are ruled by group
- *     leaders as stated in 1).
- *
- *  3) For traced programs attached by perf (pid/tid):
- *     - we specifically enable or disable all events during
- *       the record command
- *
- *     When attaching events to already running traced we
- *     enable/disable events specifically, as there's no
- *     initial traced exec call.
- */
 void perf_evsel__config(struct perf_evsel *evsel,
 			struct perf_record_opts *opts)
 {
 	struct perf_event_attr *attr = &evsel->attr;
-	int track = !evsel->idx; /* only the first counter needs these */
+	int track = !evsel->idx; 
 
 	attr->sample_id_all = perf_missing_features.sample_id_all ? 0 : 1;
 	attr->inherit	    = !opts->no_inherit;
@@ -499,10 +466,6 @@ void perf_evsel__config(struct perf_evsel *evsel,
 	perf_evsel__set_sample_bit(evsel, IP);
 	perf_evsel__set_sample_bit(evsel, TID);
 
-	/*
-	 * We default some events to a 1 default interval. But keep
-	 * it a weak assumption overridable by the user.
-	 */
 	if (!attr->sample_period || (opts->user_freq != UINT_MAX &&
 				     opts->user_interval != ULLONG_MAX)) {
 		if (opts->freq) {
@@ -572,19 +535,9 @@ void perf_evsel__config(struct perf_evsel *evsel,
 	attr->mmap = track;
 	attr->comm = track;
 
-	/*
-	 * XXX see the function comment above
-	 *
-	 * Disabling only independent events or group leaders,
-	 * keeping group members enabled.
-	 */
 	if (perf_evsel__is_group_leader(evsel))
 		attr->disabled = 1;
 
-	/*
-	 * Setting enable_on_exec for independent events and
-	 * group leaders for traced executed by perf.
-	 */
 	if (perf_target__none(&opts->target) && perf_evsel__is_group_leader(evsel))
 		attr->enable_on_exec = 1;
 }
@@ -805,10 +758,6 @@ static int get_group_fd(struct perf_evsel *evsel, int cpu, int thread)
 	if (perf_evsel__is_group_leader(evsel))
 		return -1;
 
-	/*
-	 * Leader must be already processed/open,
-	 * if not it's a bug.
-	 */
 	BUG_ON(!leader->fd);
 
 	fd = FD(leader, cpu, thread);
@@ -917,7 +866,7 @@ int perf_evsel__open(struct perf_evsel *evsel, struct cpu_map *cpus,
 		     struct thread_map *threads)
 {
 	if (cpus == NULL) {
-		/* Work around old compiler warnings about strict aliasing */
+		
 		cpus = &empty_cpu_map.map;
 	}
 
@@ -954,7 +903,7 @@ static int perf_evsel__parse_id_sample(const struct perf_evsel *evsel,
 	if (type & PERF_SAMPLE_CPU) {
 		u.val64 = *array;
 		if (swapped) {
-			/* undo swap of u64, then swap on individual u32s */
+			
 			u.val64 = bswap_64(u.val64);
 			u.val32[0] = bswap_32(u.val32[0]);
 		}
@@ -981,7 +930,7 @@ static int perf_evsel__parse_id_sample(const struct perf_evsel *evsel,
 	if (type & PERF_SAMPLE_TID) {
 		u.val64 = *array;
 		if (swapped) {
-			/* undo swap of u64, then swap on individual u32s */
+			
 			u.val64 = bswap_64(u.val64);
 			u.val32[0] = bswap_32(u.val32[0]);
 			u.val32[1] = bswap_32(u.val32[1]);
@@ -1013,10 +962,6 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
 	bool swapped = evsel->needs_swap;
 	const u64 *array;
 
-	/*
-	 * used for cross-endian analysis. See git commit 65014ab3
-	 * for why this goofiness is needed.
-	 */
 	union u64_swap u;
 
 	memset(data, 0, sizeof(*data));
@@ -1044,7 +989,7 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
 	if (type & PERF_SAMPLE_TID) {
 		u.val64 = *array;
 		if (swapped) {
-			/* undo swap of u64, then swap on individual u32s */
+			
 			u.val64 = bswap_64(u.val64);
 			u.val32[0] = bswap_32(u.val32[0]);
 			u.val32[1] = bswap_32(u.val32[1]);
@@ -1081,7 +1026,7 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
 
 		u.val64 = *array;
 		if (swapped) {
-			/* undo swap of u64, then swap on individual u32s */
+			
 			u.val64 = bswap_64(u.val64);
 			u.val32[0] = bswap_32(u.val32[0]);
 		}
@@ -1118,7 +1063,7 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
 		u.val64 = *array;
 		if (WARN_ONCE(swapped,
 			      "Endianness of raw data not corrected!\n")) {
-			/* undo swap of u64, then swap on individual u32s */
+			
 			u.val64 = bswap_64(u.val64);
 			u.val32[0] = bswap_32(u.val32[0]);
 			u.val32[1] = bswap_32(u.val32[1]);
@@ -1142,7 +1087,7 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
 		u64 sz;
 
 		data->branch_stack = (struct branch_stack *)array;
-		array++; /* nr */
+		array++; 
 
 		sz = data->branch_stack->nr * sizeof(struct branch_entry);
 		sz /= sizeof(u64);
@@ -1150,7 +1095,7 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
 	}
 
 	if (type & PERF_SAMPLE_REGS_USER) {
-		/* First u64 tells us if we have any regs in sample. */
+		
 		u64 avail = *array++;
 
 		if (avail) {
@@ -1195,10 +1140,6 @@ int perf_event__synthesize_sample(union perf_event *event, u64 type,
 {
 	u64 *array;
 
-	/*
-	 * used for cross-endian analysis. See git commit 65014ab3
-	 * for why this goofiness is needed.
-	 */
 	union u64_swap u;
 
 	array = event->sample.array;
@@ -1212,9 +1153,6 @@ int perf_event__synthesize_sample(union perf_event *event, u64 type,
 		u.val32[0] = sample->pid;
 		u.val32[1] = sample->tid;
 		if (swapped) {
-			/*
-			 * Inverse of what is done in perf_evsel__parse_sample
-			 */
 			u.val32[0] = bswap_32(u.val32[0]);
 			u.val32[1] = bswap_32(u.val32[1]);
 			u.val64 = bswap_64(u.val64);
@@ -1247,9 +1185,6 @@ int perf_event__synthesize_sample(union perf_event *event, u64 type,
 	if (type & PERF_SAMPLE_CPU) {
 		u.val32[0] = sample->cpu;
 		if (swapped) {
-			/*
-			 * Inverse of what is done in perf_evsel__parse_sample
-			 */
 			u.val32[0] = bswap_32(u.val32[0]);
 			u.val64 = bswap_64(u.val64);
 		}
@@ -1485,14 +1420,6 @@ bool perf_evsel__fallback(struct perf_evsel *evsel, int err,
 	if ((err == ENOENT || err == ENXIO) &&
 	    evsel->attr.type   == PERF_TYPE_HARDWARE &&
 	    evsel->attr.config == PERF_COUNT_HW_CPU_CYCLES) {
-		/*
-		 * If it's cycles then fall back to hrtimer based
-		 * cpu-clock-tick sw counter, which is always available even if
-		 * no PMU support.
-		 *
-		 * PPC returns ENXIO until 2.6.37 (behavior changed with commit
-		 * b0a873e).
-		 */
 		scnprintf(msg, msgsize, "%s",
 "The cycles event is not supported, trying to fall back to cpu-clock-ticks");
 
@@ -1515,12 +1442,15 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel,
 	case EPERM:
 	case EACCES:
 		return scnprintf(msg, size,
-		 "You may not have permission to collect %sstats.\n"
-		 "Consider tweaking /proc/sys/kernel/perf_event_paranoid:\n"
-		 " -1 - Not paranoid at all\n"
-		 "  0 - Disallow raw tracepoint access for unpriv\n"
-		 "  1 - Disallow cpu events for unpriv\n"
-		 "  2 - Disallow kernel profiling for unpriv",
+		 "You may not have permission to collect %sstats.\n\n"
+		 "Consider tweaking /proc/sys/kernel/perf_event_paranoid,\n"
+		 "which controls use of the performance events system by\n"
+		 "unprivileged users (without CAP_SYS_ADMIN).\n\n"
+		 "The default value is 1:\n\n"
+		 "  -1: Allow use of (almost) all events by all users\n"
+		 ">= 0: Disallow raw tracepoint access by users without CAP_IOC_LOCK\n"
+		 ">= 1: Disallow CPU event access by users without CAP_SYS_ADMIN\n"
+		 ">= 2: Disallow kernel profiling by users without CAP_SYS_ADMIN",
 				 target->system_wide ? "system-wide " : "");
 	case ENOENT:
 		return scnprintf(msg, size, "The %s event is not supported.",

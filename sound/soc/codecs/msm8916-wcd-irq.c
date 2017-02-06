@@ -87,7 +87,7 @@ struct wcd9xxx_spmi_map {
 
 	enum wcd9xxx_spmi_pm_state pm_state;
 	struct mutex pm_lock;
-	
+	/* pm_wq notifies change of pm_state */
 	wait_queue_head_t pm_wq;
 	struct pm_qos_request pm_qos_req;
 	int wlock_holders;
@@ -272,6 +272,10 @@ int wcd9xxx_spmi_suspend(pm_message_t pmesg)
 	int ret = 0;
 
 	pr_debug("%s: enter\n", __func__);
+	/*
+	 * pm_qos_update_request() can be called after this suspend chain call
+	 * started. thus suspend can be called while lock is being held
+	 */
 	mutex_lock(&map.pm_lock);
 	if (map.pm_state == WCD9XXX_PM_SLEEPABLE) {
 		pr_debug("%s: suspending system, state %d, wlock %d\n",
@@ -279,6 +283,10 @@ int wcd9xxx_spmi_suspend(pm_message_t pmesg)
 			 map.wlock_holders);
 		map.pm_state = WCD9XXX_PM_ASLEEP;
 	} else if (map.pm_state == WCD9XXX_PM_AWAKE) {
+		/*
+		 * unlock to wait for pm_state == WCD9XXX_PM_SLEEPABLE
+		 * then set to WCD9XXX_PM_ASLEEP
+		 */
 		pr_debug("%s: waiting to suspend system, state %d, wlock %d\n",
 			 __func__, map.pm_state,
 			 map.wlock_holders);
@@ -335,6 +343,14 @@ EXPORT_SYMBOL(wcd9xxx_spmi_resume);
 
 bool wcd9xxx_spmi_lock_sleep()
 {
+	/*
+	 * wcd9xxx_spmi_{lock/unlock}_sleep will be called by
+	 * wcd9xxx_spmi_irq_thread
+	 * and its subroutines only motly.
+	 * but btn0_lpress_fn is not wcd9xxx_spmi_irq_thread's subroutine and
+	 * It can race with wcd9xxx_spmi_irq_thread.
+	 * So need to embrace wlock_holders with mutex.
+	 */
 	mutex_lock(&map.pm_lock);
 	if (map.wlock_holders++ == 0) {
 		pr_debug("%s: holding wake lock\n", __func__);
@@ -377,6 +393,10 @@ void wcd9xxx_spmi_unlock_sleep()
 	if (--map.wlock_holders == 0) {
 		pr_debug("%s: releasing wake lock pm_state %d -> %d\n",
 			 __func__, map.pm_state, WCD9XXX_PM_SLEEPABLE);
+		/*
+		 * if wcd9xxx_spmi_lock_sleep failed, pm_state would be still
+		 * WCD9XXX_PM_ASLEEP, don't overwrite
+		 */
 		if (likely(map.pm_state == WCD9XXX_PM_AWAKE))
 			map.pm_state = WCD9XXX_PM_SLEEPABLE;
 		pm_qos_update_request(&map.pm_qos_req,

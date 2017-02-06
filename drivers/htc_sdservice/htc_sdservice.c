@@ -30,6 +30,9 @@
 #include "qseecom_kernel.h"
 
 #define DEVICE_NAME "htc_sdservice"
+/*
+static char *appname = "htc_sdservice";
+*/
 
 #define HTC_SDKEY_LEN 32
 #define HTC_IOCTL_SDSERVICE 0x9527
@@ -47,7 +50,7 @@
 		__func__, current->pid, current->comm, ## args)
 #else
 #define PDEBUG(fmt, args...) do {} while (0)
-#endif 
+#endif /* HTC_SDSERVICE_DEBUG */
 
 #undef PERR
 #define PERR(fmt, args...) printk(KERN_ERR TAG "[E] %s(%i, %s): " fmt "\n", \
@@ -81,6 +84,7 @@ typedef struct _compat_htc_sdservice_msg_s{
 	compat_int_t resp_len;
 } compat_htc_sdservice_msg_t;
 
+/* ATS structure, total size 6 * uint32 = 24 bytes */
 typedef struct {
 	struct {
 		uint8_t func_id;
@@ -108,6 +112,11 @@ static long htc_sdservice_ioctl(struct file *file, unsigned int command, unsigne
 	htc_sdservice_msg_s hmsg;
 	htc_sec_ats_t amsg;
 	int ret = 0;
+    /*
+    struct qseecom_handle *l_QSEEComHandle = NULL;
+    struct qsc_send_cmd *send_cmd = NULL;
+    void *resp = NULL;
+    */
 
 	PDEBUG("command = %x", command);
 	switch (command) {
@@ -127,6 +136,46 @@ static long htc_sdservice_ioctl(struct file *file, unsigned int command, unsigne
 				PERR("copy_from_user error (sdkey)");
 				return -EFAULT;
 			}
+            /*
+            ret = qseecom_start_app(&l_QSEEComHandle, appname, 1024);
+            if (ret) {
+                PERR("Start app: fail");
+                return -1;
+            } else {
+                PDEBUG("Start app: pass");
+            }
+            if(l_QSEEComHandle == NULL) {
+                PERR("Failed to get QSEECOM handle\n");
+                return -1;
+            }
+
+            send_cmd = (struct qsc_send_cmd *)l_QSEEComHandle->sbuf;
+            resp = (struct qsc_send_cmd *)((uintptr_t)(l_QSEEComHandle->sbuf) + l_QSEEComHandle->sbuf_len/2);
+            memset(resp, 0, HTC_SDKEY_LEN);
+
+            send_cmd->cmd_id = ITEM_SD_KEY_ENCRYPT;
+            send_cmd->test_buf_size = HTC_SDKEY_LEN;
+            memcpy((uint8_t *)send_cmd + sizeof(struct qsc_send_cmd), htc_sdkey, HTC_SDKEY_LEN);
+
+            ret = qseecom_set_bandwidth(l_QSEEComHandle, true);
+            if (ret) {
+                PERR("qseecom_set_bandwidth fail(%d)", ret);
+                return -1;
+            }
+            ret = qseecom_send_command(l_QSEEComHandle, send_cmd, HTC_SDKEY_LEN, resp, HTC_SDKEY_LEN);
+            if (ret) {
+                PERR("qseecom_send_cmd fail(%d)", ret);
+                return -1;
+            }
+            ret = qseecom_set_bandwidth(l_QSEEComHandle, false);
+            if (ret) {
+                PERR("qseecom_set_bandwidth fail(%d)", ret);
+                return -1;
+            }
+            memcpy(htc_sdkey, resp, HTC_SDKEY_LEN);
+            ret = qseecom_shutdown_app(&l_QSEEComHandle);
+
+             */
 			scm_flush_range((uintptr_t)htc_sdkey, (uintptr_t)htc_sdkey + HTC_SDKEY_LEN);
 			ret = secure_access_item(0, ITEM_SD_KEY_ENCRYPT, hmsg.req_len, htc_sdkey);
 			if (ret)
@@ -147,6 +196,46 @@ static long htc_sdservice_ioctl(struct file *file, unsigned int command, unsigne
 				PERR("copy_from_user error (sdkey)");
 				return -EFAULT;
 			}
+            /*
+            ret = qseecom_start_app(&l_QSEEComHandle, appname, 1024);
+            if (ret) {
+                PERR("Start app: fail");
+                return -1;
+            } else {
+                PDEBUG("Start app: pass");
+            }
+            if(l_QSEEComHandle == NULL) {
+                PERR("Failed to get QSEECOM handle\n");
+                return -1;
+            }
+
+            send_cmd = (struct qsc_send_cmd *)l_QSEEComHandle->sbuf;
+            resp = (struct qsc_send_cmd *)((uintptr_t)(l_QSEEComHandle->sbuf) + l_QSEEComHandle->sbuf_len/2);
+            memset(resp, 0, HTC_SDKEY_LEN);
+
+            send_cmd->cmd_id = ITEM_SD_KEY_DECRYPT;
+            send_cmd->test_buf_size = HTC_SDKEY_LEN;
+            memcpy((uint8_t *)send_cmd + sizeof(struct qsc_send_cmd), htc_sdkey, HTC_SDKEY_LEN);
+
+            ret = qseecom_set_bandwidth(l_QSEEComHandle, true);
+            if (ret) {
+                PERR("qseecom_set_bandwidth fail(%d)", ret);
+                return -1;
+            }
+            ret = qseecom_send_command(l_QSEEComHandle, send_cmd, HTC_SDKEY_LEN, resp, HTC_SDKEY_LEN);
+            if (ret) {
+                PERR("qseecom_send_cmd fail(%d)", ret);
+                return -1;
+            }
+            ret = qseecom_set_bandwidth(l_QSEEComHandle, false);
+            if (ret) {
+                PERR("qseecom_set_bandwidth fail(%d)", ret);
+                return -1;
+            }
+            memcpy(htc_sdkey, resp, HTC_SDKEY_LEN);
+            ret = qseecom_shutdown_app(&l_QSEEComHandle);
+
+             */
 			scm_flush_range((uintptr_t)htc_sdkey, (uintptr_t)htc_sdkey + HTC_SDKEY_LEN);
 			ret = secure_access_item(0, ITEM_SD_KEY_DECRYPT, hmsg.req_len, htc_sdkey);
 			if (ret)
@@ -169,6 +258,14 @@ static long htc_sdservice_ioctl(struct file *file, unsigned int command, unsigne
 			PERR("invalid arguments");
 			return -ENOMEM;
 		}
+        /*
+		scm_flush_range((uint32_t)&amsg, (uint32_t)&amsg + sizeof(htc_sec_ats_t));
+		ret = secure_access_item(0, ITEM_SEC_ATS, sizeof(htc_sec_ats_t), (unsigned char *)&amsg);
+		if (ret) {
+			PERR("ATS service fail (%d)", ret);
+			return ret;
+		}
+        */
 
 		if (copy_to_user((void __user *)arg, &amsg, sizeof(htc_sec_ats_t))) {
 			PERR("copy_to_user error (msg)");
@@ -186,6 +283,11 @@ static long htc_sdservice_ioctl(struct file *file, unsigned int command, unsigne
 			return -EFAULT;
 		}
 		PDEBUG("func = %x, sizeof htc_sec_ats_t = %zd", amsg.func_info.func_id, sizeof(htc_sec_ats_t));
+        /*
+		ret = secure_access_item(1, ITEM_SEC_ATS, sizeof(htc_sec_ats_t), (unsigned char *)&amsg);
+		if (ret)
+			PERR("ATS service fail (%d)", ret);
+         */
 		break;
 
 	default:
@@ -282,14 +384,14 @@ static long compat_htc_sdservice_ioctl(struct file *file, unsigned int command, 
 		compat_hmsg_32 = compat_ptr(arg);
 		hmsg = compat_alloc_user_space(sizeof(*hmsg));
 
-		
+		/* Copy 32bit data to 64bit space */
 		err = compat_get_htc_sdservice_msg(compat_hmsg_32, hmsg);
 		if (err)
 			return err;
 
 		ret = htc_sdservice_ioctl(file, command, (unsigned long)hmsg);
 
-		
+		/* Copy 64bit data to 32bit space */
 		err = compat_put_htc_sdservice_msg(compat_hmsg_32, hmsg);
 
 		return ret ? ret : err;

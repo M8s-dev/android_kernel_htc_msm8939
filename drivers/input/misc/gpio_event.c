@@ -134,12 +134,12 @@ void gpio_event_resume(struct early_suspend *h)
 static void clear_hw_reset(uint32_t clear_gpio)
 {
 	int ret;
-	
-	
-	
-	
+	//uint32_t hw_clr_gpio_table[] = {
+	//	GPIO_CFG(clear_gpio, 0, GPIO_CFG_OUTPUT,
+	//		 GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+	//};
 
-	
+	//gpio_tlmm_config(hw_clr_gpio_table[0], GPIO_CFG_ENABLE);
 	KEY_LOGI("%s ++++++\n", __func__);
 	ret = gpio_direction_output(clear_gpio, 0);
 	msleep(100);
@@ -150,9 +150,18 @@ static void clear_hw_reset(uint32_t clear_gpio)
 static void setup_input_gpio(const struct gpio_event_direct_entry *cfg, size_t size)
 {
 	uint8_t i = 0;
+/*	uint32_t gpio_table[size];*/
 	int rc;
 	KEY_LOGD("DT:%s\n", __func__);
 	for (i = 0; i < size; i++) {
+/* No need since we have pinctrl.dtsi setting for initialization
+		if(cfg[i].pull == 1)
+			gpio_table[i] = GPIO_CFG(cfg[i].gpio, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_NO_PULL, GPIO_CFG_2MA);
+		else
+			gpio_table[i] = GPIO_CFG(cfg[i].gpio, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_UP, GPIO_CFG_2MA);
+*/
 #ifdef CONFIG_PINCTRL_MSM_TLMM_V3
 		rc = gpio_tlmm_config(gpio_table[i], GPIO_CFG_ENABLE);
 #else

@@ -28,6 +28,7 @@ struct attribute_status htc_cabc_level[] = {
 	{"cabc_level_ctl", 1, 1, 1},
 };
 
+//#define HUE_INDEX       0
 
 static void dimming_do_work(struct work_struct *work);
 static DECLARE_DELAYED_WORK(dimming_work, dimming_do_work);
@@ -65,14 +66,21 @@ static ssize_t dsi_cmd_write(
 	if (!ctrl_instance)
 		return count;
 
-	
+	/* end of string */
 	debug_buf[count] = 0;
 
-	
+	/* Format:
+	ex: echo 39 51 ff > dsi_cmd
+	     [type] space [addr] space [value]
+	     +--+--+-----+--+--+------+--+--+-
+	bit   0  1    2   3  4     5   6  7
+	ex:    39          51           ff
+	*/
+	/* Calc the count, min count = 9, format: type addr value */
 	cnt = (count) / 3 - 1;
 	debug_cmd.dchdr.dlen = cnt;
 
-	
+	/* Get the type */
 	sscanf(debug_buf, "%x", &type);
 
 	if (type == DTYPE_DCS_LWRITE)
@@ -84,7 +92,7 @@ static ssize_t dsi_cmd_write(
 
 	PR_DISP_INFO("%s: cnt=%d, type=0x%x\n", __func__, cnt, type);
 
-	
+	/* Get the cmd and value */
 	for (i = 0; i < cnt; i++) {
 		if (i >= DCS_MAX_CNT) {
 			PR_DISP_INFO("%s: DCS command count over DCS_MAX_CNT, Skip these commands.\n", __func__);
@@ -160,11 +168,46 @@ static ssize_t attrs_show(struct device *dev,
 			break;
 		}
 	}
+/*	for (i = 0 ; i < ARRAY_SIZE(htc_mdss_pp_pa); i++) {
+		if (strcmp(attr->attr.name, htc_mdss_pp_pa[i].title) == 0) {
+			sprintf(buf,"%d\n", htc_mdss_pp_pa[i].cur_value);
+		        ret = strlen(buf) + 1;
+			break;
+		}
+	}
+*/
 	return ret;
 }
 
+/*
+HTC native mipi command format :
 
-#define SLEEPMS_OFFSET(strlen) (strlen+1) 
+	"format string", < sleep ms >,  <cmd leng>, ['cmd bytes'...] ;
+
+	"format string" :
+		"DTYPE_DCS_WRITE"  : 0x05
+		"DTYPE_DCS_WRITE1" : 0x15
+		"DTYPE_DCS_LWRITE" : 0x39
+		"DTYPE_GEN_WRITE"  : 0x03
+		"DTYPE_GEN_WRITE1" : 0x13
+		"DTYPE_GEN_WRITE2" : 0x23
+		"DTYPE_GEN_LWRITE" : 0x29
+
+	Example :
+		htc-fmt,mdss-dsi-off-command =
+					"DTYPE_DCS_WRITE", <1>, <0x02>, [28 00],
+					"DTYPE_DCS_WRITE", <120>, <0x02>, [10 00];
+		htc-fmt,display-on-cmds = "DTYPE_DCS_WRITE", <0x0A>, <0x02>, [29 00];
+		htc-fmt,cabc-off-cmds = "DTYPE_DCS_LWRITE", <1>, <0x02>, [55 00];
+		htc-fmt,cabc-ui-cmds =
+			"DTYPE_DCS_LWRITE", <5>, <0x02>, [55 02],
+			"DTYPE_DCS_LWRITE", <1>, <0x02>, [5E 11],
+			"DTYPE_DCS_LWRITE", <1>, <0x0A>, [CA 2D 27 26 25 24 22 21 21 20],
+			"DTYPE_DCS_LWRITE", <1>, <0x23>, [CE 00 00 00 00 10 10 16 16 16 16 16 16 16 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00];
+
+*/
+
+#define SLEEPMS_OFFSET(strlen) (strlen+1) /* < sleep ms>, [cmd len ... */
 #define CMDLEN_OFFSET(strlen)  (SLEEPMS_OFFSET(strlen)+sizeof(const __be32))
 #define CMD_OFFSET(strlen)     (CMDLEN_OFFSET(strlen)+sizeof(const __be32))
 
@@ -208,7 +251,7 @@ int htc_mdss_dsi_parse_dcs_cmds(struct device_node *np,
 	if (!prop || !len || !(prop->length) || !(prop->value)) {
 		pr_err("%s: failed, key=%s  [%d : %d : %p]\n", __func__, cmd_key,
 			len, (prop ? prop->length : -1), (prop ? prop->value : 0) );
-		
+		//pr_err("%s: failed, key=%s\n", __func__, cmd_key);
 		return -ENOMEM;
 	}
 
@@ -225,7 +268,7 @@ int htc_mdss_dsi_parse_dcs_cmds(struct device_node *np,
 				break;
 			curcmdtype++;
 		};
-		if( !dsi_cmd_map[curcmdtype].cmdtype_strlen ) 
+		if( !dsi_cmd_map[curcmdtype].cmdtype_strlen ) /* no matching */
 			break;
 
 		i = be32_to_cpup((__be32 *)&data[CMDLEN_OFFSET(dsi_cmd_map[curcmdtype].cmdtype_strlen)]);
@@ -324,6 +367,13 @@ static ssize_t attr_store(struct device *dev, struct device_attribute *attr,
 			break;
 		}
 	}
+/*	for (i = 0 ; i < ARRAY_SIZE(htc_mdss_pp_pa); i++) {
+		if (strcmp(attr->attr.name, htc_mdss_pp_pa[i].title) == 0) {
+			htc_mdss_pp_pa[i].req_value = res;
+			break;
+		}
+	}
+*/
 err_out:
 	return count;
 }
@@ -358,7 +408,11 @@ void htc_reset_status(void)
 	for (i = 0 ; i < ARRAY_SIZE(htc_cabc_level); i++) {
 		htc_cabc_level[i].cur_value = htc_cabc_level[i].def_value;
 	}
-	
+/*	for (i = 0 ; i < ARRAY_SIZE(htc_mdss_pp_pa); i++) {
+		htc_mdss_pp_pa[i].cur_value = htc_mdss_pp_pa[i].def_value;
+	}
+*/
+	/* Delete dimming workqueue */
 	mutex_lock(&dimming_wq_lock);
 	cancel_delayed_work_sync(&dimming_work);
 	mutex_unlock(&dimming_wq_lock);
@@ -437,7 +491,7 @@ static void dimming_do_work(struct work_struct *work)
 
 	pdata = dev_get_platdata(&mfd_instance->pdev->dev);
 
-	
+	/* Check the brightness for no brightness case */
 	if (mfd_instance->bl_level == 0) {
 		mutex_lock(&mfd_instance->bl_lock);
 		MDSS_BRIGHT_TO_BL(mfd_instance->bl_level, DEFAULT_BRIGHTNESS,
@@ -499,7 +553,7 @@ void htc_set_pp_pa(struct mdss_mdp_ctl *ctl)
 	u32 opmode;
 	char __iomem *base;
 
-	
+	/* PP Picture Adjustment(PA) */
 	if (htc_mdss_pp_pa[HUE_INDEX].req_value == htc_mdss_pp_pa[HUE_INDEX].cur_value)
 		return;
 
@@ -512,12 +566,12 @@ void htc_set_pp_pa(struct mdss_mdp_ctl *ctl)
 
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
-	
+	/* Picture HUE Adjustment */
 	writel_relaxed(htc_mdss_pp_pa[HUE_INDEX].req_value, base + MDSS_MDP_REG_DSPP_PA_BASE);
 
-	
+	/* Picture Adjustment enable */
 	opmode = readl_relaxed(base);
-	opmode |= MDSS_MDP_DSPP_OP_PA_EN | MDSS_MDP_DSPP_OP_PA_HUE_MASK; 
+	opmode |= MDSS_MDP_DSPP_OP_PA_EN | MDSS_MDP_DSPP_OP_PA_HUE_MASK; /* PA_EN and PA_HUE_MASK */
 	writel_relaxed(opmode, base + MDSS_MDP_REG_DSPP_OP_MODE);
 
 	ctl->flush_bits |= BIT(13);

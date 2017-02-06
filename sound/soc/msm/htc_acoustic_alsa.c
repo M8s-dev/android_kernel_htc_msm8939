@@ -125,6 +125,7 @@ EXPORT_SYMBOL(HTC_AUD_HW_LIST);
 #if 0
 extern unsigned int system_rev;
 #endif
+//extern unsigned skuid;	//not implemented
 void htc_acoustic_register_spk_amp(enum SPK_AMP_TYPE type,int (*aud_spk_amp_f)(int, int), struct file_operations* ops)
 {
 	mutex_lock(&spk_amp_lock);
@@ -261,6 +262,8 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	if (_IOC_TYPE(cmd) != ACOUSTIC_IOCTL_MAGIC)
 		return -ENOTTY;
 
+//	if (_IOC_SIZE(cmd) > sizeof(struct tfa9895_i2c_buffer))
+//		return -EINVAL;
 
 	us32_size = _IOC_SIZE(cmd);
 
@@ -308,6 +311,8 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			s32_value = the_ops->get_htc_revision();
 		}
 		else {
+			/* return 1 means lastest hw using
+			 *              * default configuration */
 			s32_value = 1;
 		}
 		if(sizeof(s32_value) <= us32_size) {
@@ -539,7 +544,7 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	}
 	case  _IOC_NR(ACOUSTIC_ADSP_CMD): {
-			
+			//uint16_t cmd_size;
 			struct avcs_crash_params config;
 			config.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
 						APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
@@ -588,7 +593,7 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		memset((void *)&config, 0x0, sizeof(struct avcs_htc_adsp_oem_packet));
 			config.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
 							APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
-			config.hdr.pkt_size = sizeof(struct avcs_htc_adsp_oem_packet); 
+			config.hdr.pkt_size = sizeof(struct avcs_htc_adsp_oem_packet); //hdr+payload = packet size
 			config.hdr.src_port = 0;
 			config.hdr.dest_port = 0;
 			config.hdr.token = 0;
@@ -600,7 +605,7 @@ acoustic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			config.payload.param3 = 3;
 			config.payload.param4 = 4;
 
-			
+			//copy payload from userspace
 			rc = copy_from_user((void *)&(config.payload), argp, sizeof(avcs_htc_adsp_oem_payload_t));
 			pr_info("config.payload() = (%d, %d, %d, %d, %d, %d)\n", config.payload.version, config.payload.oem_cmd,
 				config.payload.param1, config.payload.param2, config.payload.param3, config.payload.param4);

@@ -83,8 +83,15 @@ static void process_lpm_workarounds(struct work_struct *w)
 	int ret = 0, status = 0;
 
 
+	/* MSM8952 have L1/L2 dynamic clock gating disabled in HW for
+	 * performance cluster cores. Enable it via SW to reduce power
+	 * impact.
+	 */
 	if (enable_dynamic_clock_gating) {
 
+		/* Skip enabling L1/L2 clock gating if perf l2 is not in low
+		 * power mode.
+		 */
 
 		status = (__raw_readl(l2_pwr_sts) & L2_HS_STS_SET)
 							== L2_HS_STS_SET;
@@ -125,6 +132,10 @@ static void process_lpm_workarounds(struct work_struct *w)
 	}
 }
 
+/*
+ * lpm_wa_skip_l2_spm: Dont program the l2 SPM as TZ is programming the
+ * L2 SPM as a workaround for SDI fix.
+ */
 bool lpm_wa_get_skip_l2_spm(void)
 {
 	return skip_l2_spm;
@@ -170,6 +181,11 @@ static int lpm_wa_probe(struct platform_device *pdev)
 	skip_l2_spm = of_property_read_bool(pdev->dev.of_node,
 					"qcom,lpm-wa-skip-l2-spm");
 
+	/*
+	 * Enabling L1/L2 tag ram clock gating requires core and L2 to be
+	 * in quiescent state. lpm-wa-dynamic-clock-gating flag specifies
+	 * WA implementation in SW for perf core0 and L2.
+	 */
 	enable_dynamic_clock_gating = of_property_read_bool(pdev->dev.of_node,
 					"qcom,lpm-wa-dynamic-clock-gating");
 	if (!enable_dynamic_clock_gating)

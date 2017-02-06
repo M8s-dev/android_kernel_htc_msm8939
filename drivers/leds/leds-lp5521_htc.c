@@ -608,7 +608,7 @@ static void multicolor_work_func(struct work_struct *work)
 		ret = i2c_write_block(client, 0x07, &data, 1);
 	}
 
-	if (ldata->Mode == 0) {
+	if (ldata->Mode == 0 || (!ldata->Red && !ldata->Green && !ldata->Blue)) {
 		lp5521_led_off(client);
 	} else if (ldata->Mode == 1) {  
 		mutex_lock(&led_mutex);

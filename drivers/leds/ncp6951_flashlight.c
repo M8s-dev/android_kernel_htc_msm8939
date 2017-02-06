@@ -36,17 +36,20 @@
 
 
 
+/*
+ *	Data sturctures
+ */
 enum NCP6951_FLT_REG
 {
-	REG_FLASH_SETTING = 0x0C,	
-	REG_REDUCED_CURRENT,		
-	REG_TORCH_CURRENT,			
-	REG_PROTECTION,				
-	REG_FLASH_TIMER,			
-	REG_RED_EYE,				
-	REG_FLASH_CONF,				
-	REG_FLASH_ENABLE,			
-	REG_FLASH_STATUS,			
+	REG_FLASH_SETTING = 0x0C,	/* Flash current settings	*/
+	REG_REDUCED_CURRENT,		/* Reduced Current register	*/
+	REG_TORCH_CURRENT,			/* Torch Current register	*/
+	REG_PROTECTION,				/* Boost peak current and UVLO	*/
+	REG_FLASH_TIMER,			/* Safety timer			*/
+	REG_RED_EYE,				/* Red eye Register		*/
+	REG_FLASH_CONF,				/* Flash Configuration		*/
+	REG_FLASH_ENABLE,			/* Flash Enable			*/
+	REG_FLASH_STATUS,			/* Flash Status Register	*/
 };
 
 enum NCP6951_FLT_SWITCH
@@ -108,6 +111,7 @@ enum NCP6951_FLT_REDUCED_REDEYE_CURRENT
 	FLASH_RD_RE_CURRENT_1500_mA,
 	FLASH_RD_RE_CURRENT_1600_mA,
 };
+//const uint16_t ncp6951_flt_reduced_redeye_current[] = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1000};
 
 enum NCP6951_FLT_TORCH_CURRENT
 {
@@ -166,21 +170,22 @@ struct ncp6951_flt_data {
 	struct mutex ncp6951_flt_mutex;
 	struct notifier_block reboot_notifier;
 
-	uint32_t flash_timeout_sw;	
-	uint32_t flash_timeout_hw;	
-	uint32_t flash_timeout_inhibit; 
-	uint32_t flash_timeout_inhibit_en;	
-	uint32_t flash_timeout_red_eye_en;	
+	uint32_t flash_timeout_sw;	/* ms, max sw flashing duration */
+	uint32_t flash_timeout_hw;	/* ms, max hw flashing duration */
+	uint32_t flash_timeout_inhibit; /* ms, min interval between 2 flashes */
+	uint32_t flash_timeout_inhibit_en;	/* switch of inhibit timer */
+	uint32_t flash_timeout_red_eye_en;	/* switch of pre-flash timeout protection */
 
-	uint32_t flash_current_max;	
-	uint32_t flash_current_reduced; 
-	uint32_t flash_current_red_eye; 
-	uint32_t torch_current_max;	
+	uint32_t flash_current_max;	/* mA, max flash current */
+	uint32_t flash_current_reduced; /* mA, reduced flash current */
+	uint32_t flash_current_red_eye; /* mA, pre-flash current */
+	uint32_t torch_current_max;	/* mA, max torch current */
 
-	uint32_t flash_count_red_eye;	
+	uint32_t flash_count_red_eye;	/* # of pre-flash */
 
-	uint32_t ncp6951_pin_flen;	
-	uint32_t ncp6951_pin_flsel;	
+	uint32_t ncp6951_pin_flen;	/* flash enable */
+	uint32_t ncp6951_pin_flsel;	/* flash in reduced current immediately
+					   when PA transmit burst (Optional) */
 };
 
 static struct ncp6951_flt_data *this_flt = NULL;
@@ -191,6 +196,9 @@ static u8 regdata	= 0x00;
 
 
 
+/*
+ *	Function prototypes
+ */
 extern int ncp6951_i2c_ex_write(uint8_t reg_addr, uint8_t data);
 extern int ncp6951_i2c_ex_read(uint8_t reg_addr, uint8_t *data);
 #ifdef CONFIG_HTC_NCP6951_POWER_RESET
@@ -202,6 +210,9 @@ int ncp6951_flt_flash(struct ncp6951_flt_data *, uint32_t);
 int ncp6951_flt_flashlight_control(struct ncp6951_flt_data *, uint8_t);
 static int ncp6951_flt_turn_off(struct ncp6951_flt_data *);
 
+/*
+ *	Notifier Callback Function
+ */
 static int reboot_notify_sys(struct notifier_block *this,
 			      unsigned long event,
 			      void *unused)
@@ -222,6 +233,9 @@ static int reboot_notify_sys(struct notifier_block *this,
 
 
 
+/*
+ *	Debug Attributes
+ */
 static ssize_t poweroff_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
@@ -403,6 +417,9 @@ static struct attribute_group ncp6951_flt_attr_group = {
 
 
 
+/*
+ *	Core Functions
+ */
 static int ncp6951_flt_turn_off(struct ncp6951_flt_data *flt)
 {
 	FLT_INFO_LOG("%s\n", __func__);
@@ -425,6 +442,7 @@ int ncp6951_flt_flash(struct ncp6951_flt_data *flt, uint32_t mA)
 	gpio_set_value_cansleep(flt->ncp6951_pin_flen, 0);
 	gpio_set_value_cansleep(flt->ncp6951_pin_flsel, 0);
 
+///TODO must remove!Start hard-code
 	if (mA == 0) {
 		en = 0;
 	} else if(mA > 0 && mA < 100) {
@@ -467,6 +485,7 @@ int ncp6951_flt_torch(struct ncp6951_flt_data *flt, uint32_t mA)
 	gpio_set_value_cansleep(flt->ncp6951_pin_flen, 0);
 	gpio_set_value_cansleep(flt->ncp6951_pin_flsel, 0);
 
+///TODO must remove!Start hard-code
 	if (mA == 0) {
 		en = 0;
 	} else if (mA > 0 && mA <= 533) {
@@ -557,32 +576,32 @@ static void ncp6951_flt_brightness_set(struct led_classdev *led_cdev,
 
 	if (brightness > 0 && brightness <= LED_HALF) {
 		if (brightness == (LED_HALF - 2))
-			mode = FL_MODE_TORCH_LEVEL_1;	
+			mode = FL_MODE_TORCH_LEVEL_1;	/* Torch mode LEVEL1 */
 		else if (brightness == (LED_HALF - 1))
-			mode = FL_MODE_TORCH_LEVEL_2;	
+			mode = FL_MODE_TORCH_LEVEL_2;	/* Torch mode LEVEL2 */
 		else
-			mode = FL_MODE_TORCH;		
+			mode = FL_MODE_TORCH;		/* Torch mode */
 	} else if (brightness > LED_HALF && brightness <= LED_FULL) {
 		if (brightness == (LED_HALF + 1))
-			mode = FL_MODE_PRE_FLASH;	
+			mode = FL_MODE_PRE_FLASH;	/* pre-flash mode */
 		else if (brightness == (LED_HALF + 3))
-			mode = FL_MODE_FLASH_LEVEL1;	
+			mode = FL_MODE_FLASH_LEVEL1;	/* Flashlight mode LEVEL1 */
 		else if (brightness == (LED_HALF + 4))
-			mode = FL_MODE_FLASH_LEVEL2;	
+			mode = FL_MODE_FLASH_LEVEL2;	/* Flashlight mode LEVEL2 */
 		else if (brightness == (LED_HALF + 5))
-			mode = FL_MODE_FLASH_LEVEL3;	
+			mode = FL_MODE_FLASH_LEVEL3;	/* Flashlight mode LEVEL3 */
 		else if (brightness == (LED_HALF + 6))
-			mode = FL_MODE_FLASH_LEVEL4;	
+			mode = FL_MODE_FLASH_LEVEL4;	/* Flashlight mode LEVEL4 */
 		else if (brightness == (LED_HALF + 7))
-			mode = FL_MODE_FLASH_LEVEL5;	
+			mode = FL_MODE_FLASH_LEVEL5;	/* Flashlight mode LEVEL5 */
 		else if (brightness == (LED_HALF + 8))
-			mode = FL_MODE_FLASH_LEVEL6;	
+			mode = FL_MODE_FLASH_LEVEL6;	/* Flashlight mode LEVEL6 */
 		else if (brightness == (LED_HALF + 9))
-			mode = FL_MODE_FLASH_LEVEL7;	
+			mode = FL_MODE_FLASH_LEVEL7;	/* Flashlight mode LEVEL7 */
 		else
-			mode = FL_MODE_FLASH;		
+			mode = FL_MODE_FLASH;		/* Flashlight mode */
 	} else
-		mode = FL_MODE_OFF;			
+		mode = FL_MODE_OFF;			/* off and else */
 
 	if ((mode != FL_MODE_OFF) && switch_state == 0){
 		FLT_INFO_LOG("%s flashlight is disabled by switch, mode = %d\n",__func__, mode);
@@ -635,13 +654,13 @@ int ncp6951_flt_reg_init(void)
 		FLT_INFO_LOG("%s: REG_PROTECTION failed(%d).\n", __func__, rc);
 		return rc;
 	}
-	rc = ncp6951_i2c_ex_write(REG_FLASH_TIMER, 0x05);	
+	rc = ncp6951_i2c_ex_write(REG_FLASH_TIMER, 0x05);	/* hw safety: 1024, inhibit: 512 */
 	if(rc<0)
 	{
 		FLT_INFO_LOG("%s: REG_FLASH_TIMER failed(%d).\n", __func__, rc);
 		return rc;
 	}
-	rc = ncp6951_i2c_ex_write(REG_RED_EYE, 0x05);	
+	rc = ncp6951_i2c_ex_write(REG_RED_EYE, 0x05);	/* protect: no, current:200, count:1 */
 	if(rc<0)
 	{
 		FLT_INFO_LOG("%s: REG_RED_EYE failed(%d).\n", __func__, rc);
@@ -671,21 +690,21 @@ static int ncp6951_flt_parse_dt(
 	struct ncp6951_flt_platform_data *pdata)
 {
 	const char *parser_st[] = {
-		"flash_timeout_sw",		
-		"flash_timeout_hw",		
-		"flash_timeout_inhibit",	
-		"flash_timeout_inhibit_en",	
-		"flash_timeout_red_eye_en",	
-		"flash_current_max",		
-		"flash_current_reduced",	
-		"flash_current_red_eye",	
-		"torch_current_max",		
-		"flash_count_red_eye",		
+		"flash_timeout_sw",		/* ms, max sw flashing duration */
+		"flash_timeout_hw",		/* ms, max hw flashing duration */
+		"flash_timeout_inhibit",	/* ms, min interval between 2 flashes */
+		"flash_timeout_inhibit_en",	/* switch of inhibit timer */
+		"flash_timeout_red_eye_en",	/* switch of pre-flash timeout protection */
+		"flash_current_max",		/* mA, max flash current */
+		"flash_current_reduced",	/* mA, reduced flash current */
+		"flash_current_red_eye",	/* mA, pre-flash current */
+		"torch_current_max",		/* mA, max torch current */
+		"flash_count_red_eye",		/* # of pre-flash */
 	};
 
 	const char *parser_pin_st[] = {
-		"ncp6951_pin_flen",	
-		"ncp6951_pin_flsel",	
+		"ncp6951_pin_flen",	/* flash enable */
+		"ncp6951_pin_flsel",	/* flash in reduced current immediately*/
 	};
 
 	int ret;
@@ -754,7 +773,7 @@ static int ncp6951_flt_probe(struct platform_device *pdev)
 		return -EACCES;
 	}
 
-	
+	/* allocate memory */
 	flt = kzalloc(sizeof(struct ncp6951_flt_data), GFP_KERNEL);
 	if (flt == NULL) {
 		FLT_ERR_LOG("%s fail to allocate flt\n", __func__);
@@ -774,7 +793,7 @@ static int ncp6951_flt_probe(struct platform_device *pdev)
 		goto platform_data_null;
 	}
 
-	
+	/* fetch and assign data */
 	if (pdev->dev.of_node) {
 		err = ncp6951_flt_parse_dt(pdev->dev.of_node, pdata);
 		if (err) {
@@ -866,7 +885,7 @@ static int ncp6951_flt_probe(struct platform_device *pdev)
 	if (flt->flash_count_red_eye > 3)
 		flt->flash_count_red_eye = 3;
 
-	
+	/* Create workqueue and  mutex */
 	INIT_DELAYED_WORK(&flt->ncp6951_flt_delayed_work, ncp6951_flt_turn_off_work);
 	ncp6951_flt_workqueue = create_singlethread_workqueue("ncp6951_flt_wq");
 	if (!ncp6951_flt_workqueue)
@@ -875,7 +894,7 @@ static int ncp6951_flt_probe(struct platform_device *pdev)
 	mutex_init(&flt->ncp6951_flt_mutex);
 	dev_set_drvdata(&pdev->dev, flt);
 
-	
+	/* Resigter a class devices, notifier & create attributes */
 	flt->cdev.name			= FLASHLIGHT_NAME;
 	flt->cdev.brightness_set	= ncp6951_flt_brightness_set;
 	err = led_classdev_register(&pdev->dev, &flt->cdev);
@@ -899,17 +918,28 @@ static int ncp6951_flt_probe(struct platform_device *pdev)
 		goto attributes_create_fail;
 	}
 
-	
+	/* Initialize NCP6951 flashlight */
 
+///TODO
 	flt->flash_timeout_sw = 600;
 	ncp6951_flt_reg_init();
 
-	if(0) {
+///TODO
+	if(/*err < */0) {
 		FLT_ERR_LOG("%s, Unable to initialize the chip, err: %d\n",
 				__func__, err);
 		goto chip_initial_fail;
 	}
 
+///TODO
+/*
+#ifdef CONFIG_LEDS_TRIGGERS
+	flt->enabler.name = "qpnp-vibrator";
+	flt->enabler.default_trigger = "vibrator";
+	flt->enabler.enable = qpnp_vib_trigger_enable;
+	flt->enabler.trigger_data = vib;
+	vib_trigger_enabler_register(&vib->enabler);
+#endif*/
 
 	this_flt = flt;
 

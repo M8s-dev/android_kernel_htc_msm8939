@@ -39,6 +39,7 @@
 #include <linux/jiffies.h>
 #include <linux/of_gpio.h>
 
+//htc audio ++
 #include <sound/htc_acoustic_alsa.h>
 #ifdef CONFIG_TI_TCA6418
 #include <linux/i2c/tca6418_ioexpander.h>
@@ -48,6 +49,7 @@
 #undef pr_err
 #define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
 #define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
 
 static struct i2c_client *tpa6130a2_client;
 struct delayed_work powerup_work;
@@ -57,7 +59,7 @@ static struct workqueue_struct *ramp_wq;
 static atomic_t modeID = ATOMIC_INIT(-1);
 
 #ifdef CONFIG_TI_TCA6418
-#define TPA6130A2_SD_GPIO_NUMBER 2 
+#define TPA6130A2_SD_GPIO_NUMBER 2 //shutdown pin gpio number
 #endif
 
 struct request_gpio {
@@ -69,6 +71,7 @@ struct hs_config {
 	struct request_gpio gpio;
 };
 
+/* This struct is used to save the context */
 struct tpa6130a2_data {
 	unsigned char initRegs[TPA6130A2_CACHEREGNUM];
 	struct regulator *supply;
@@ -88,6 +91,7 @@ static unsigned char tpa6130_curmode_value = 0x3f;
 static int tpa6130a2_opened;
 static struct mutex hp_amp_lock;
 
+//function to write (1 addr byte + 1 data byte) to tpa6130a2 I2C
 static int tpa6130a2_i2c_write(u8 reg, u8 value)
 {
 	int err;
@@ -97,15 +101,15 @@ static int tpa6130a2_i2c_write(u8 reg, u8 value)
 	chipdata = i2c_get_clientdata(tpa6130a2_client);
 
 	msg->addr = tpa6130a2_client->addr;
-	msg->flags = 0; 
-	msg->len = 2; 
+	msg->flags = 0; //write flag
+	msg->len = 2; // 1 addr byte + 1 data byte
 	msg->buf = data;
 	data[0] = reg;
 	data[1] = value;
 
 	pr_info("%s: write reg 0x%x val 0x%x\n",__func__,data[0],data[1]);
 
-	if (chipdata->power_state == 0) { 
+	if (chipdata->power_state == 0) { //off->on
 		pr_info("%s: write reg need power on first. Exit!\n",__func__);
 		return 0;
 	}
@@ -121,19 +125,20 @@ static int tpa6130a2_i2c_write(u8 reg, u8 value)
 
 }
 
+//function to read (1 data byte) from tpa6130a2 I2C
 static int tpa6130a2_read(unsigned char *rxData, unsigned char addr)
 {
 	int rc;
 	struct i2c_msg msgs[] = {
 		{
 		 .addr = tpa6130a2_client->addr,
-		 .flags = 0, 
+		 .flags = 0, //write flag
 		 .len = 1,
 		 .buf = rxData,
 		},
 		{
 		 .addr = tpa6130a2_client->addr,
-		 .flags = I2C_M_RD, 
+		 .flags = I2C_M_RD, //read flag
 		 .len = 1,
 		 .buf = rxData,
 		},
@@ -161,7 +166,7 @@ static int tpa6130a2_initialize(void)
 
 	pr_info("%s :\n", __func__);
 
-       
+       //write default value for tpa6130a2_initialize
 	ret = tpa6130a2_i2c_write(TPA6130A2_REG_CONTROL, 0);
 	ret = tpa6130a2_i2c_write(TPA6130A2_REG_VOL_MUTE, TPA6130A2_MUTE_R \
 		                                    |TPA6130A2_MUTE_L | tpa6130_curmode_value);
@@ -169,6 +174,13 @@ static int tpa6130a2_initialize(void)
 	return ret;
 }
 
+/*
+ * Enable or disable channel (left or right)
+ * The bit number for mute and amplifier are the same per channel:
+ * bit 6: Right channel
+ * bit 7: Left channel
+ * in both registers.
+ */
 static void tpa6130a2_channel_enable(int channel, int enable)
 {
 	unsigned char val;
@@ -176,25 +188,25 @@ static void tpa6130a2_channel_enable(int channel, int enable)
 	pr_info("%s : enable=%d\n", __func__, enable);
 
 	if (enable) {
-		
-		
+		/* Enable channel */
+		/* Enable amplifier */
 		ret = tpa6130a2_read(&val,TPA6130A2_REG_CONTROL);
 		val |= channel;
-		val &= ~TPA6130A2_SWS; 
+		val &= ~TPA6130A2_SWS; //set SWS bit to 0
 		tpa6130a2_i2c_write(TPA6130A2_REG_CONTROL, val);
 
-		
+		/* Unmute channel */
 		ret = tpa6130a2_read(&val,TPA6130A2_REG_VOL_MUTE);
 		val &= ~channel;
 		tpa6130a2_i2c_write(TPA6130A2_REG_VOL_MUTE, val);
 	} else {
-		
-		
+		/* Disable channel */
+		/* Mute channel */
 		ret = tpa6130a2_read(&val,TPA6130A2_REG_VOL_MUTE);
 		val |= channel;
 		tpa6130a2_i2c_write(TPA6130A2_REG_VOL_MUTE, val);
 
-		
+		/* Disable amplifier */
 		ret = tpa6130a2_read(&val,TPA6130A2_REG_CONTROL);
 		val &= ~channel;
 		tpa6130a2_i2c_write(TPA6130A2_REG_CONTROL, val);
@@ -209,10 +221,10 @@ static void tpa6130a2_poweron(struct work_struct *work)
 	pr_info("%s ++:\n", __func__);
 	data = i2c_get_clientdata(tpa6130a2_client);
 
-	if (data->power_state == 0) { 
+	if (data->power_state == 0) { //off->on
 		pr_info("%s : state=%d, start to poweron\n", __func__,data->power_state);
 
-		
+		//regulator_enable
 		ret = regulator_enable(data->supply);
 		if (ret != 0) {
 			pr_err("%s : Failed to enable supply: %d\n", __func__, ret);
@@ -222,7 +234,7 @@ static void tpa6130a2_poweron(struct work_struct *work)
 		msleep(10);
 
 #ifdef CONFIG_TI_TCA6418
-		
+		//control IO extender to pull up SD pin
 		ioexp_gpio_set_value(TPA6130A2_SD_GPIO_NUMBER, 1);
 #else
 		if(data->en_gpio_config.init)
@@ -231,7 +243,7 @@ static void tpa6130a2_poweron(struct work_struct *work)
 		msleep(10);
 
 		data->power_state = 1;
-		
+		//tpa6130a2_initialize
 		tpa6130a2_initialize();
 		tpa6130a2_channel_enable(TPA6130A2_HP_EN_R | TPA6130A2_HP_EN_L,1);
 	} else {
@@ -333,7 +345,7 @@ static int tpa6130a2_power(int power)
 		goto exit;
 
 	if (power) {
-		
+		//regulator_enable
 		ret = regulator_enable(data->supply);
 		if (ret != 0) {
 			pr_err("%s : Failed to enable supply: %d\n", __func__, ret);
@@ -342,7 +354,7 @@ static int tpa6130a2_power(int power)
 		msleep(10);
 
 #ifdef CONFIG_TI_TCA6418
-		
+		//pull up power_gpio
 		ioexp_gpio_set_value(TPA6130A2_SD_GPIO_NUMBER, 1);
 #else
 		if(data->en_gpio_config.init)
@@ -351,7 +363,7 @@ static int tpa6130a2_power(int power)
 		msleep(10);
 
 		data->power_state = 1;
-		
+		//tpa6130a2_initialize
 		ret = tpa6130a2_initialize();
 
 		if (ret < 0) {
@@ -362,7 +374,7 @@ static int tpa6130a2_power(int power)
 		}
 	} else {
 #ifdef CONFIG_TI_TCA6418
-		
+		//pull down power_gpio
 		ioexp_gpio_set_value(TPA6130A2_SD_GPIO_NUMBER, 0);
 #else
 		if(data->en_gpio_config.init)
@@ -370,7 +382,7 @@ static int tpa6130a2_power(int power)
 #endif
 		msleep(10);
 
-		
+		// 3 : regulator_disable
 		ret = regulator_disable(data->supply);
 		if (ret != 0) {
 			pr_err("%s: Failed to disable supply: %d\n", __func__, ret);
@@ -483,6 +495,10 @@ static long tpa6130a2_ioctl(struct file *file, unsigned int cmd,
 {
 	void __user *argp = (void __user *)arg;
 	int rc = 0, modeid = 0;
+//	int premode = 0;
+//	struct amp_ctrl ampctrl;
+//	struct rt5506_reg_data reg;
+//	enum AMP_GPIO_STATUS curgpiostatus;
 	pr_info("%s: tpa6130a2_ioctl: cmd:%d", __func__, cmd);
 	switch (cmd) {
 	case TPA6130_SET_MODE:
@@ -522,14 +538,14 @@ static long tpa6130a2_ioctl(struct file *file, unsigned int cmd,
 
 		pr_info("%s: update tpa6130 i2c commands #%d success.\n",
 				__func__, tpa6130_config_data.mode_num);
-		
-		
-                
-		
-		
-		
-		
-                
+		//dump_amp_acoustic_table(&tpa6130_config_data);
+		/* update default paramater from csv*/
+                //mutex_lock(&hp_amp_lock);
+		//update_amp_parameter(RT5501_MODE_OFF);
+		//update_amp_parameter(RT5501_MUTE);
+		//update_amp_parameter(RT5501_INIT);
+		//update_amp_parameter(RT5501_MODE_MFG);
+                //mutex_unlock(&hp_amp_lock);
 		rc = 0;
 		break;
 
@@ -567,6 +583,9 @@ static int tpa6130a2_dtparse_en_gpio(struct device *dev,
 		pr_err("%s: hs gpio name is null\n",__func__);
 		return 0;
 	}
+	/* IO expander chip is by platfrom, should use more common way for the
+	   architecture.
+	 */
 #ifdef CONFIG_TI_TCA6418
 	of_property_read_u32(dev->of_node,
 		pconfig->gpio.gpio_name, &pconfig->gpio.gpio_no);
@@ -610,6 +629,8 @@ static int tpa6130a2_probe(struct i2c_client *client,
 	const char *regulator;
 	int ret;
 
+//=====================================
+// get platform driver data
 
 	dev = &client->dev;
 
@@ -628,6 +649,7 @@ static int tpa6130a2_probe(struct i2c_client *client,
 	ret = misc_register(&tpa6130a2_device);
 	htc_acoustic_register_hs_amp(set_tpa6130a2_amp, &tpa6130a2_fops);
 
+//=====================================
 	mutex_init(&hp_amp_lock);
 
 	data->power_state = 0;

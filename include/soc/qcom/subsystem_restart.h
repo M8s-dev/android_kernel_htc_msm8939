@@ -32,6 +32,20 @@ enum {
 };
 #endif
 
+/**
+ * What voodoo is this? If we don't declare this one here,
+ * the build (using m8qlul_vz_defconfig) will fail, even
+ * though we did define CONFIG_HTC_DEBUG_SSR in the kernel
+ * config which seems to be the only prereq before the same
+ * thing is defined in device/soc/qcom/subsystem_restart.c.
+ *
+ * If you know it, let me know why why why whyyyyy.....
+ * --> mark@voidzero.net
+ */
+#ifndef SUBSYS_NAME_MAX_LENGTH
+#define SUBSYS_NAME_MAX_LENGTH 40
+#endif
+
 struct device;
 struct module;
 

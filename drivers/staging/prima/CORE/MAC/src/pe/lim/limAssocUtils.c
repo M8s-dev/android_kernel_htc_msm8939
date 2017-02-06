@@ -743,15 +743,12 @@ limCleanupRxPath(tpAniSirGlobal pMac, tpDphHashNode pStaDs,tpPESession psessionE
     pMac->lim.gLimNumRxCleanup++;
 #endif
 
-    /* Do DEL BSS or DEL STA only if ADD BSS was success */
-    if (!psessionEntry->addBssfailed)
-    {
-        if (psessionEntry->limSmeState == eLIM_SME_JOIN_FAILURE_STATE)
-           retCode = limDelBss( pMac, pStaDs,
-                          psessionEntry->bssIdx, psessionEntry);
-        else
-           retCode = limDelSta( pMac, pStaDs, true, psessionEntry);
+    if (psessionEntry->limSmeState == eLIM_SME_JOIN_FAILURE_STATE) {
+        retCode = limDelBss( pMac, pStaDs, psessionEntry->bssIdx, psessionEntry);
     }
+    else
+        retCode = limDelSta( pMac, pStaDs, true, psessionEntry);
+
     return retCode;
 
 } /*** end limCleanupRxPath() ***/
@@ -845,7 +842,6 @@ limSendDelStaCnf(tpAniSirGlobal pMac, tSirMacAddr staDsAddr,
                      (tANI_U8 *) staDsAddr,
                       sizeof(tSirMacAddr));
         mlmDisassocCnf.resultCode = statusCode;
-        mlmDisassocCnf.aid          = staDsAssocId;
         mlmDisassocCnf.disassocTrigger =
                                    mlmStaContext.cleanupTrigger;
         /* Update PE session Id*/
@@ -870,7 +866,6 @@ limSendDelStaCnf(tpAniSirGlobal pMac, tSirMacAddr staDsAddr,
                      (tANI_U8 *) staDsAddr,
                       sizeof(tSirMacAddr));
         mlmDeauthCnf.resultCode    = statusCode;
-        mlmDeauthCnf.aid           = staDsAssocId;
         mlmDeauthCnf.deauthTrigger =
                                    mlmStaContext.cleanupTrigger;
         /* PE session Id */
@@ -1855,7 +1850,7 @@ limPopulateOwnRateSet(tpAniSirGlobal pMac,
 
         limLog(pMac, LOG1, FL("MCS Rate Set Bitmap: "));
         for(i=0; i<SIR_MAC_MAX_SUPPORTED_MCS_SET; i++)
-            limLog(pMac, LOG2,FL("%x ") , pRates->supportedMCSSet[i]);
+            limLog(pMac, LOG1,FL("%x ") , pRates->supportedMCSSet[i]);
     }
 
 #ifdef WLAN_FEATURE_11AC
@@ -2007,7 +2002,7 @@ limPopulatePeerRateSet(tpAniSirGlobal pMac,
         }
         limLog(pMac, LOG1, FL("MCS Rate Set Bitmap: "));
         for(i=0; i<SIR_MAC_MAX_SUPPORTED_MCS_SET; i++)
-            limLog(pMac, LOG2,FL("%x ") , pRates->supportedMCSSet[i]);
+            limLog(pMac, LOG1,FL("%x ") , pRates->supportedMCSSet[i]);
     }
 #ifdef WLAN_FEATURE_11AC
     limPopulateVhtMcsSet(pMac, pRates , pVHTCaps,psessionEntry);
@@ -3734,8 +3729,7 @@ tSirRetStatus limStaSendAddBss( tpAniSirGlobal pMac, tpSirAssocRsp pAssocRsp,
             pAddBssParams->staContext.greenFieldCapable,
             pAddBssParams->staContext.lsigTxopProtection);
 #ifdef WLAN_FEATURE_11AC
-            if (psessionEntry->vhtCapability &&
-                IS_BSS_VHT_CAPABLE(pBeaconStruct->VHTCaps))
+            if (psessionEntry->vhtCapability && pBeaconStruct->VHTCaps.present)
             {
                 pAddBssParams->staContext.vhtCapable = 1;
                 if ((pAssocRsp->VHTCaps.suBeamFormerCap ||
@@ -4123,8 +4117,7 @@ tSirRetStatus limStaSendAddBssPreAssoc( tpAniSirGlobal pMac, tANI_U8 updateEntry
     limLog(pMac, LOG1, FL("currentOperChannel %d"),
     pAddBssParams->currentOperChannel);
 #ifdef WLAN_FEATURE_11AC
-    if (psessionEntry->vhtCapability &&
-        IS_BSS_VHT_CAPABLE(pBeaconStruct->VHTCaps))
+    if (psessionEntry->vhtCapability && ( pBeaconStruct->VHTCaps.present ))
     {
         pAddBssParams->vhtCapable = pBeaconStruct->VHTCaps.present;
         pAddBssParams->vhtTxChannelWidthSet = pBeaconStruct->VHTOperation.chanWidth; 
@@ -4177,8 +4170,7 @@ tSirRetStatus limStaSendAddBssPreAssoc( tpAniSirGlobal pMac, tANI_U8 updateEntry
             pAddBssParams->staContext.greenFieldCapable,
             pAddBssParams->staContext.lsigTxopProtection);
 #ifdef WLAN_FEATURE_11AC
-            if (psessionEntry->vhtCapability &&
-                IS_BSS_VHT_CAPABLE(pBeaconStruct->VHTCaps))
+            if (psessionEntry->vhtCapability && pBeaconStruct->VHTCaps.present)
             {
                 pAddBssParams->staContext.vhtCapable = 1;
                 if ((pBeaconStruct->VHTCaps.suBeamFormerCap ||

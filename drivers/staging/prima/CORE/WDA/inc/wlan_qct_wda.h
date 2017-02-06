@@ -124,8 +124,12 @@ typedef enum
   eWDA_AUTH_TYPE_WAPI_WAI_PSK,
   eWDA_AUTH_TYPE_CCKM_WPA,
   eWDA_AUTH_TYPE_CCKM_RSN,
-  eWDA_AUTH_TYPE_RSN_PSK_SHA256,
-  eWDA_AUTH_TYPE_RSN_8021X_SHA256,
+  eWDA_AUTH_TYPE_WPA_NONE,
+  eWDA_AUTH_TYPE_AUTOSWITCH,
+  eWDA_AUTH_TYPE_SHARED_KEY,
+  eWDA_NUM_OF_SUPPORT_AUTH_TYPE,
+  eWDA_AUTH_TYPE_FAILED = 0xff,
+  eWDA_AUTH_TYPE_UNKNOWN = eCSR_AUTH_TYPE_FAILED,
 }WDA_AuthType;
 
 #define IS_FW_IN_TX_PATH_FEATURE_ENABLE ((WDI_getHostWlanFeatCaps(FW_IN_TX_PATH)) & (WDA_getFwWlanFeatCaps(FW_IN_TX_PATH)))
@@ -431,18 +435,6 @@ typedef struct
    wpt_uint8            wdaAddSelfStaFailReason;
 } tWDA_AddSelfStaDebugParams;
 
-#define BMPS_IMPS_FAILURE_REPORT_THRESHOLD    10
-
-/* Continous Response failure counts */
-typedef struct
-{
-   wpt_uint8            enterBmpsFailureCount;
-   wpt_uint8            exitBmpsFailureCount;
-   wpt_uint8            enterImpsFailureCount;
-   wpt_uint8            exitImpsFailureCount;
-} tWDA_RespFailureCounts;
-
-
 typedef struct
 {
    v_PVOID_t            pVosContext;             /* global VOSS context*/
@@ -511,7 +503,7 @@ typedef struct
    vos_event_t          ftmStopDoneEvent;
 
    tWDA_AddSelfStaDebugParams wdaAddSelfStaParams;
-   tWDA_RespFailureCounts  failureCounts;
+
 } tWDA_CbContext ; 
 
 typedef struct
@@ -1014,7 +1006,6 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_DELBA_IND                  SIR_HAL_DELBA_IND
 #define WDA_DEL_BA_IND                 SIR_HAL_DEL_BA_IND
 #define WDA_MIC_FAILURE_IND            SIR_HAL_MIC_FAILURE_IND
-#define WDA_LOST_LINK_PARAMS_IND       SIR_HAL_LOST_LINK_PARAMS_IND
 
 //message from sme to initiate delete block ack session.
 #define WDA_DELBA_REQ                  SIR_HAL_DELBA_REQ
@@ -1259,8 +1250,6 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_SET_RTS_CTS_HTVHT                   SIR_HAL_SET_RTS_CTS_HTVHT
 #define WDA_MON_START_REQ                      SIR_HAL_MON_START_REQ
 #define WDA_MON_STOP_REQ                       SIR_HAL_MON_STOP_REQ
-#define WDA_START_RSSI_MONITOR_REQ             SIR_HAL_RSSI_MON_START_REQ
-#define WDA_STOP_RSSI_MONITOR_REQ              SIR_HAL_RSSI_MON_STOP_REQ
 
 tSirRetStatus wdaPostCtrlMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
 
@@ -1278,11 +1267,10 @@ eHalStatus WDA_SetRegDomain(void * clientCtxt, v_REGDOMAIN_t regId,
 #define WDA_EXTSCAN_SET_BSSID_HOTLIST_RSP      SIR_HAL_EXTSCAN_SET_BSS_HOTLIST_RSP
 #define WDA_EXTSCAN_RESET_BSSID_HOTLIST_REQ    SIR_HAL_EXTSCAN_RESET_BSS_HOTLIST_REQ
 #define WDA_EXTSCAN_RESET_BSSID_HOTLIST_RSP    SIR_HAL_EXTSCAN_RESET_BSS_HOTLIST_RSP
-#define WDA_EXTSCAN_SET_SSID_HOTLIST_REQ       SIR_HAL_EXTSCAN_SET_SSID_HOTLIST_REQ
-#define WDA_EXTSCAN_SET_SSID_HOTLIST_RSP       SIR_HAL_EXTSCAN_SET_SSID_HOTLIST_RSP
-#define WDA_EXTSCAN_RESET_SSID_HOTLIST_REQ     SIR_HAL_EXTSCAN_RESET_SSID_HOTLIST_REQ
-#define WDA_EXTSCAN_RESET_SSID_HOTLIST_RSP     SIR_HAL_EXTSCAN_RESET_SSID_HOTLIST_RSP
-
+#define WDA_EXTSCAN_SET_SIGNF_RSSI_CHANGE_REQ  SIR_HAL_EXTSCAN_SET_SIGNF_RSSI_CHANGE_REQ
+#define WDA_EXTSCAN_SET_SIGNF_RSSI_CHANGE_RSP  SIR_HAL_EXTSCAN_SET_SIGNF_RSSI_CHANGE_RSP
+#define WDA_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_REQ  SIR_HAL_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_REQ
+#define WDA_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_RSP  SIR_HAL_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_RSP
 #define WDA_EXTSCAN_GET_CACHED_RESULTS_REQ    SIR_HAL_EXTSCAN_GET_CACHED_RESULTS_REQ
 #define WDA_EXTSCAN_GET_CACHED_RESULTS_RSP    SIR_HAL_EXTSCAN_GET_CACHED_RESULTS_RSP
 
@@ -1290,7 +1278,7 @@ eHalStatus WDA_SetRegDomain(void * clientCtxt, v_REGDOMAIN_t regId,
 #define WDA_EXTSCAN_SCAN_AVAILABLE_IND      SIR_HAL_EXTSCAN_SCAN_AVAILABLE_IND
 #define WDA_EXTSCAN_SCAN_RESULT_IND         SIR_HAL_EXTSCAN_SCAN_RESULT_IND
 #define WDA_EXTSCAN_BSSID_HOTLIST_RESULT_IND SIR_HAL_EXTSCAN_HOTLIST_MATCH_IND
-#define WDA_EXTSCAN_SSID_HOTLIST_RESULT_IND  SIR_HAL_EXTSCAN_SSID_HOTLIST_MATCH_IND
+#define WDA_EXTSCAN_SIGNF_RSSI_RESULT_IND    SIR_HAL_EXTSCAN_SIGNF_WIFI_CHANGE_IND
 #endif /* WLAN_FEATURE_EXTSCAN */
 
 #define WDA_SPOOF_MAC_ADDR_REQ               SIR_HAL_SPOOF_MAC_ADDR_REQ
@@ -1298,24 +1286,6 @@ eHalStatus WDA_SetRegDomain(void * clientCtxt, v_REGDOMAIN_t regId,
 
 #define WDA_MGMT_LOGGING_INIT_REQ               SIR_HAL_MGMT_LOGGING_INIT_REQ
 #define WDA_GET_FRAME_LOG_REQ                   SIR_HAL_GET_FRAME_LOG_REQ
-#define WDA_SEND_LOG_DONE_IND                   SIR_HAL_SEND_LOG_DONE_IND
-
-#define WDA_FATAL_EVENT_LOGS_REQ                SIR_HAL_FATAL_EVENT_LOGS_REQ
-
-#define WDA_SEND_FREQ_RANGE_CONTROL_IND        SIR_HAL_SEND_FREQ_RANGE_CONTROL_IND
-
-#ifdef WLAN_FEATURE_EXTSCAN
-#define WDA_HIGH_PRIORITY_DATA_INFO_IND         SIR_HAL_HIGH_PRIORITY_DATA_INFO_IND
-#endif /* WLAN_FEATURE_EXTSCAN */
-
-#define WDA_FW_MEM_DUMP_REQ                  SIR_HAL_FW_MEM_DUMP_REQ
-
-#define WDA_WIFI_CONFIG_REQ                    SIR_HAL_WIFI_CONFIG_PARAMS
-
-#ifdef FEATURE_OEM_DATA_SUPPORT
-#define WDA_START_OEM_DATA_REQ_IND_NEW         SIR_HAL_START_OEM_DATA_REQ_IND_NEW
-#define WDA_START_OEM_DATA_RSP_IND_NEW         SIR_HAL_START_OEM_DATA_RSP_IND_NEW
-#endif
 
 #define HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME 0x40 // Bit 6 will be used to control BD rate for Management frames
 
@@ -2114,7 +2084,4 @@ void WDA_TrafficStatsTimerActivate(wpt_boolean activate);
 
 ===========================================================================*/
 void WDA_SetEnableSSR(v_BOOL_t enableSSR);
-
-
-void WDA_FWLoggingDXEdoneInd(v_U32_t logType);
 #endif

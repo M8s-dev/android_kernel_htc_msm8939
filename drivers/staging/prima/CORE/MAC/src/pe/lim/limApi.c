@@ -1055,7 +1055,6 @@ tSirRetStatus peOpen(tpAniSirGlobal pMac, tMacOpenParameters *pMacOpenParam)
 #ifdef LIM_TRACE_RECORD
     MTRACE(limTraceInit(pMac));
 #endif
-    lim_register_debug_callback();
     return eSIR_SUCCESS;
 }
 
@@ -1266,35 +1265,6 @@ limPostMsgApi(tpAniSirGlobal pMac, tSirMsgQ *pMsg)
 
 } /*** end limPostMsgApi() ***/
 
-/**
- * limPostMsgApiHighPri()
- *
- * FUNCTION:
- * This function is called from other thread while posting a
- * message to LIM message Queue gSirLimMsgQ.
- *
- * LOGIC:
- * NA
- *
- * ASSUMPTIONS:
- * NA
- *
- * NOTE:
- * NA
- *
- * @param  pMac - Pointer to Global MAC structure
- * @param  pMsg - Pointer to the message structure
- * @return None
- */
-
-tANI_U32
-limPostMsgApiHighPri(tpAniSirGlobal pMac, tSirMsgQ *pMsg)
-{
-    return  vos_mq_post_message_high_pri(VOS_MQ_ID_PE, (vos_msg_t *) pMsg);
-
-
-} /*** end limPostMsgApi() ***/
-
 
 /*--------------------------------------------------------------------------
 
@@ -1408,6 +1378,10 @@ VOS_STATUS peHandleMgmtFrame( v_PVOID_t pvosGCtx, v_PVOID_t vosBuff)
     PELOG1(limLog( pMac, LOG1,
        FL ( "RxBd=%p mHdr=%p Type: %d Subtype: %d  Sizes:FC%d Mgmt%d"),
        pRxPacketInfo, mHdr, mHdr->fc.type, mHdr->fc.subType, sizeof(tSirMacFrameCtl), sizeof(tSirMacMgmtHdr) );)
+
+    MTRACE(macTrace(pMac, TRACE_CODE_RX_MGMT, NO_SESSION, 
+                        LIM_TRACE_MAKE_RXMGMT(mHdr->fc.subType,  
+                        (tANI_U16) (((tANI_U16) (mHdr->seqControl.seqNumHi << 4)) | mHdr->seqControl.seqNumLo)));)
 
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
        if (WDA_GET_ROAMCANDIDATEIND(pRxPacketInfo))
@@ -2200,105 +2174,6 @@ void limHandleMissedBeaconInd(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
     return;
 }
 
-
-void limUpdateLostLinkParams(tpAniSirGlobal pMac,
-                     tpPESession psessionEntry, tANI_U8 *pRxPacketInfo)
-{
-    tpSirSmeLostLinkParamsInd pSmeLostLinkParams;
-    tSirMsgQ    mmhMsg;
-    if (NULL == pRxPacketInfo)
-    {
-        return;
-    }
-    pSmeLostLinkParams =
-    (tpSirSmeLostLinkParamsInd)vos_mem_malloc(sizeof(tSirSmeLostLinkParamsInd));
-    vos_mem_set(pSmeLostLinkParams, sizeof(tSirSmeLostLinkParamsInd), 0);
-    pSmeLostLinkParams->messageType = eWNI_SME_LOST_LINK_PARAMS_IND;
-    pSmeLostLinkParams->length = sizeof(tSirSmeLostLinkParamsInd);
-    pSmeLostLinkParams->sessionId = psessionEntry->smeSessionId;
-    pSmeLostLinkParams->info.bssIdx = psessionEntry->bssIdx;
-
-    /*
-     * Since FW adds 100 to RSSI, here also we are adding 100 so that
-     * HDD has common logic to subtract 100 from RSSI received
-     */
-    pSmeLostLinkParams->info.rssi = WDA_GET_RX_RSSI_DB(pRxPacketInfo) + 100;
-    vos_mem_copy(pSmeLostLinkParams->info.selfMacAddr,
-                 psessionEntry->selfMacAddr,
-                 sizeof(tSirMacAddr));
-    pSmeLostLinkParams->info.lastDataRate = 0;
-    pSmeLostLinkParams->info.linkFlCnt = 0;
-    pSmeLostLinkParams->info.linkFlTx = 0;
-    pSmeLostLinkParams->info.rsvd1 = 0;
-    pSmeLostLinkParams->info.rsvd2 = 0;
-
-    mmhMsg.type = eWNI_SME_LOST_LINK_PARAMS_IND;
-    mmhMsg.bodyptr = pSmeLostLinkParams;
-    mmhMsg.bodyval = 0;
-    limSysProcessMmhMsgApi(pMac, &mmhMsg, ePROT);
-}
-
-/** -----------------------------------------------------------------
-  \brief limProcessLostLinkParamsInd() - handles lost link params indication
-
-  This function process the SIR_HAL_LOST_LINK_PARAMS_IND message from HAL,
-
-  \param pMac - global mac structure
-  \return - none
-  \sa
-  ----------------------------------------------------------------- */
-
-void limProcessLostLinkParamsInd(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
-{
-    tpSirSmeLostLinkParamsInd pSmeLostLinkParamsInd;
-    tpSirSmeLostLinkParamsInd pLostLInkParamsInd = (tpSirSmeLostLinkParamsInd)pMsg->bodyptr;
-    tpPESession psessionEntry ;
-    tSirMsgQ    mmhMsg;
-
-    if (NULL == pLostLInkParamsInd)
-    {
-         limLog(pMac, LOGE,
-               FL("pLostLInkParamsInd is NULL"));
-         return;
-    }
-
-    psessionEntry = peFindSessionByBssIdx(pMac,pLostLInkParamsInd->info.bssIdx);
-    if (psessionEntry == NULL)
-    {
-         limLog(pMac, LOGE,
-               FL("session does not exist for bdssIdx : %d"),
-               pLostLInkParamsInd->info.bssIdx);
-
-         return;
-    }
-    pSmeLostLinkParamsInd = vos_mem_malloc(sizeof(tSirSmeLostLinkParamsInd));
-    if (pSmeLostLinkParamsInd == NULL)
-    {
-        limLog(pMac, LOGP,
-               FL("memory allocate failed for eWNI_SME_LOST_LINK_PARAMD_IND"));
-        return;
-    }
-    pSmeLostLinkParamsInd->messageType = eWNI_SME_LOST_LINK_PARAMS_IND;
-    pSmeLostLinkParamsInd->length = sizeof(tSirSmeLostLinkParamsInd);
-    pSmeLostLinkParamsInd->sessionId = psessionEntry->smeSessionId;
-    pSmeLostLinkParamsInd->info.bssIdx = pLostLInkParamsInd->info.bssIdx;
-    pSmeLostLinkParamsInd->info.rssi = pLostLInkParamsInd->info.rssi;
-    vos_mem_copy(pSmeLostLinkParamsInd->info.selfMacAddr,
-                pLostLInkParamsInd->info.selfMacAddr,
-                sizeof(tSirMacAddr));
-    pSmeLostLinkParamsInd->info.linkFlCnt = pLostLInkParamsInd->info.linkFlCnt;
-    pSmeLostLinkParamsInd->info.linkFlTx = pLostLInkParamsInd->info.linkFlTx;
-    pSmeLostLinkParamsInd->info.lastDataRate = pLostLInkParamsInd->info.lastDataRate;
-    pSmeLostLinkParamsInd->info.rsvd1 = pLostLInkParamsInd->info.rsvd1;
-    pSmeLostLinkParamsInd->info.rsvd2 = pLostLInkParamsInd->info.rsvd2;
-
-    mmhMsg.type = eWNI_SME_LOST_LINK_PARAMS_IND;
-    mmhMsg.bodyptr = pSmeLostLinkParamsInd;
-    mmhMsg.bodyval = 0;
-    limSysProcessMmhMsgApi(pMac, &mmhMsg, ePROT);
-    return;
-}
-
 /** -----------------------------------------------------------------
   \brief limMicFailureInd() - handles mic failure  indication
  
@@ -2371,158 +2246,12 @@ void limMicFailureInd(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
     mmhMsg.type = eWNI_SME_MIC_FAILURE_IND;
     mmhMsg.bodyptr = pSirSmeMicFailureInd;
     mmhMsg.bodyval = 0;
-    MTRACE(macTrace(pMac, TRACE_CODE_TX_SME_MSG, sessionId, mmhMsg.type));
+    MTRACE(macTraceMsgTx(pMac, sessionId, mmhMsg.type));
     limSysProcessMmhMsgApi(pMac, &mmhMsg, ePROT);
     return;
 }
 
-#ifdef WLAN_FEATURE_11W
-/** --------------------------------------------------------------------
- * lim_is_assoc_req_for_drop()- function to decides to drop assoc\reassoc
- *  frames.
- * @mac: pointer to global mac structure
- * @rx_pkt_info: rx packet meta information
- *
- * This function is called before enqueuing the frame to PE queue to
- * drop flooded assoc/reassoc frames getting into PE Queue.
- *
- * Return: true for dropping the frame otherwise false
-----------------------------------------------------------------------*/
 
-bool lim_is_assoc_req_for_drop(tpAniSirGlobal pMac, uint8_t *rx_pkt_info)
-{
-    tANI_U8 session_id;
-    tANI_U16 aid;
-    tpPESession session_entry;
-    tpSirMacMgmtHdr pMacHdr;
-    tpDphHashNode sta_ds;
-
-    pMacHdr = WDA_GET_RX_MAC_HEADER(rx_pkt_info);
-    session_entry = peFindSessionByBssid(pMac, pMacHdr->bssId, &session_id);
-    if (!session_entry)
-    {
-       PELOG1(limLog(pMac, LOG1,
-       FL("session does not exist for given STA [%pM]"),
-       pMacHdr->sa););
-       return false;
-    }
-    sta_ds = dphLookupHashEntry(pMac, pMacHdr->sa, &aid,
-                       &session_entry->dph.dphHashTable);
-    if (!sta_ds)
-    {
-       PELOG1(limLog(pMac, LOG1, FL("pStaDs is NULL")););
-       return false;
-    }
-
-    if (!sta_ds->rmfEnabled)
-       return false;
-
-    if (sta_ds->pmfSaQueryState == DPH_SA_QUERY_IN_PROGRESS)
-       return true;
-
-    if (sta_ds->last_assoc_received_time &&
-       ((vos_timer_get_system_time() -
-         sta_ds->last_assoc_received_time) < 1000))
-       return true;
-
-    sta_ds->last_assoc_received_time = vos_timer_get_system_time();
-    return false;
-}
-#endif
-
-/** ----------------------------------------------------------------------
- *\brief limIsDeauthDiassocForDrop()..decides to drop deauth\diassoc frames.
- *This function is called before enqueuing the frame to PE queue.
- *This prevents deauth/diassoc frames getting into PE Queue.
-
------------------------------------------------------------------------- */
-
-
-boolean limIsDeauthDiassocForDrop(tpAniSirGlobal pMac,
-                                          tANI_U8 *pRxPacketInfo)
-{
-    tANI_U8         sessionId;
-    tANI_U16          aid;
-    tpPESession     psessionEntry;
-    tpSirMacMgmtHdr pMacHdr;
-    tpDphHashNode     pStaDs;
-    eHalStatus lock_status = eHAL_STATUS_SUCCESS;
-    boolean ret = FALSE;
-
-    pMacHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
-    psessionEntry = peFindSessionByBssid(pMac,pMacHdr->bssId,&sessionId);
-    if (!psessionEntry)
-    {
-        PELOG1(sysLog(pMac, LOG1,
-               FL("session does not exist for given STA [%pM]"),
-                  pMacHdr->sa););
-        return TRUE;
-    }
-
-    lock_status =  pe_AcquireGlobalLock(&pMac->lim);
-    if (lock_status != eHAL_STATUS_SUCCESS)
-    {
-        limLog(pMac, LOGE, FL("pe_AcquireGlobalLock error"));
-        return TRUE;
-    }
-
-    pStaDs = dphLookupHashEntry(pMac, pMacHdr->sa, &aid,
-                               &psessionEntry->dph.dphHashTable);
-    if (!pStaDs)
-    {
-        PELOG1(sysLog(pMac, LOG1,FL("pStaDs is NULL")););
-        ret = TRUE;
-        goto end;
-    }
-#ifdef WLAN_FEATURE_11W
-    if (psessionEntry->limRmfEnabled)
-    {
-        if ((WDA_GET_RX_DPU_FEEDBACK(pRxPacketInfo) &
-                               DPU_FEEDBACK_UNPROTECTED_ERROR))
-        {
-            /* It may be possible that deauth/diassoc frames from a spoofy
-             * AP is received. So if all further deauth/diassoc frmaes are
-             * dropped, then it may result in lossing deauth/diassoc frames
-             * from genuine AP. So process all deauth/diassoc frames with
-             * a time difference of 1 sec.
-             */
-            if (vos_timer_get_system_time() - pStaDs->last_unprot_deauth_disassoc < 1000)
-            {
-                ret = TRUE;
-                goto end;
-            }
-            pStaDs->last_unprot_deauth_disassoc =
-                              vos_timer_get_system_time();
-        }
-/* PMF enabed, Management frames are protected */
-        else
-        {
-            if (pStaDs->proct_deauh_disassoc_cnt)
-            {
-                ret = TRUE;
-                goto end;
-            }
-            else
-                pStaDs->proct_deauh_disassoc_cnt++;
-        }
-    }
-    else
-#endif
-/* PMF disabled */
-    {
-        if (pStaDs->isDisassocDeauthInProgress)
-        {
-            ret = TRUE;
-            goto end;
-        }
-         else
-            pStaDs->isDisassocDeauthInProgress++;
-    }
-
-end:
-    pe_ReleaseGlobalLock(&pMac->lim);
-    return ret;
-}
 /** -----------------------------------------------------------------
   \brief limIsPktCandidateForDrop() - decides whether to drop the frame or not
 
@@ -2598,12 +2327,6 @@ tMgmtFrmDropReason limIsPktCandidateForDrop(tpAniSirGlobal pMac, tANI_U8 *pRxPac
         return eMGMT_DROP_NO_DROP;
 #endif
 
-#ifdef WLAN_FEATURE_11W
-    if ((subType == SIR_MAC_MGMT_ASSOC_REQ ||
-         subType == SIR_MAC_MGMT_REASSOC_REQ) &&
-         lim_is_assoc_req_for_drop(pMac, pRxPacketInfo))
-        return eMGMT_DROP_SPURIOUS_FRAME;
-#endif
     //Drop INFRA Beacons and Probe Responses in IBSS Mode
     if( (subType == SIR_MAC_MGMT_BEACON) ||
         (subType == SIR_MAC_MGMT_PROBE_RSP))

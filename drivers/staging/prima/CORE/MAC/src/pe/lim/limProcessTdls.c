@@ -434,16 +434,13 @@ static tANI_U32 limPrepareTdlsFrameHeader(tpAniSirGlobal pMac, tANI_U8* pFrame,
     tANI_U32 header_offset = 0 ;
     tANI_U8 *addr1 = NULL ;
     tANI_U8 *addr3 = NULL ;
-    tpDphHashNode pStaDs = NULL;
-    tANI_U16      aid = 0;
-    tANI_U8       qosMode = 0;
-
     tANI_U8 toDs = (tdlsLinkType == TDLS_LINK_AP) 
                                        ? ANI_TXDIR_TODS :ANI_TXDIR_IBSS  ;
     tANI_U8 *peerMac = (reqType == TDLS_INITIATOR) 
                                        ? link_iden->RespStaAddr : link_iden->InitStaAddr; 
     tANI_U8 *staMac = (reqType == TDLS_INITIATOR) 
                                        ? link_iden->InitStaAddr : link_iden->RespStaAddr; 
+   
     pMacHdr = (tpSirMacDataHdr3a) (pFrame);
 
     /* 
@@ -460,18 +457,7 @@ static tANI_U32 limPrepareTdlsFrameHeader(tpAniSirGlobal pMac, tANI_U8* pFrame,
      */ 
     pMacHdr->fc.protVer = SIR_MAC_PROTOCOL_VERSION;
     pMacHdr->fc.type    = SIR_MAC_DATA_FRAME ;
-
-    pStaDs = dphLookupHashEntry(pMac, peerMac, &aid,
-                                     &psessionEntry->dph.dphHashTable);
-    if (pStaDs)
-    {
-        qosMode = pStaDs->qosMode;
-    }
-
-    pMacHdr->fc.subType = ((IS_QOS_ENABLED(psessionEntry) &&
-                           (tdlsLinkType == TDLS_LINK_AP)) ||
-                           ((tdlsLinkType == TDLS_LINK_DIRECT) && qosMode))
-                           ? SIR_MAC_DATA_QOS_DATA : SIR_MAC_DATA_DATA;
+    pMacHdr->fc.subType = IS_QOS_ENABLED(psessionEntry) ? SIR_MAC_DATA_QOS_DATA : SIR_MAC_DATA_DATA;
 
     /*
      * TL is not setting up below fields, so we are doing it here
@@ -503,8 +489,7 @@ static tANI_U32 limPrepareTdlsFrameHeader(tpAniSirGlobal pMac, tANI_U8* pFrame,
     //printMacAddr(pMacHdr->sa) ;
     //printMacAddr(pMacHdr->da) ;
 
-    if (((tdlsLinkType == TDLS_LINK_AP) && (IS_QOS_ENABLED(psessionEntry))) ||
-        ((tdlsLinkType == TDLS_LINK_DIRECT) && qosMode))
+    if (IS_QOS_ENABLED(psessionEntry))
     {
         pMacHdr->qosControl.tid = tid;
         header_offset += sizeof(tSirMacDataHdr3a);
@@ -532,6 +517,7 @@ static tANI_U32 limPrepareTdlsFrameHeader(tpAniSirGlobal pMac, tANI_U8* pFrame,
  eHalStatus limMgmtTXComplete(tpAniSirGlobal pMac,
                                    void *pData)
 {
+    tpPESession psessionEntry = NULL ;
     tANI_U32 txCompleteSuccess = 0;
     tpSirTxBdStatus pTxBdStatus = NULL;
 
@@ -556,8 +542,14 @@ static tANI_U32 limPrepareTdlsFrameHeader(tpAniSirGlobal pMac, tANI_U8* pFrame,
 
     if (0xff != pMac->lim.mgmtFrameSessionId)
     {
-        limSendSmeMgmtTXCompletion(pMac, pMac->lim.mgmtFrameSessionId,
-                                   txCompleteSuccess);
+        psessionEntry = peFindSessionBySessionId(pMac, pMac->lim.mgmtFrameSessionId);
+        if (NULL == psessionEntry)
+        {
+            limLog(pMac, LOGE, FL("sessionID %d is not found"),
+                               pMac->lim.mgmtFrameSessionId);
+            return eHAL_STATUS_FAILURE;
+        }
+        limSendSmeMgmtTXCompletion(pMac, psessionEntry, txCompleteSuccess);
         pMac->lim.mgmtFrameSessionId = 0xff;
     }
     return eHAL_STATUS_SUCCESS;
@@ -746,7 +738,7 @@ tSirRetStatus limSendTdlsDisReqFrame(tpAniSirGlobal pMac, tSirMacAddr peer_mac,
         limLog(pMac, LOGE, FL("could not send TDLS Discovery Request frame"));
         return eSIR_FAILURE;
     }
-    pMac->lim.mgmtFrameSessionId = psessionEntry->smeSessionId;
+    pMac->lim.mgmtFrameSessionId = psessionEntry->peSessionId;
 
     return eSIR_SUCCESS;
 
@@ -792,8 +784,7 @@ static void PopulateDot11fTdlsHtVhtCap(tpAniSirGlobal pMac, uint32 selfDot11Mode
         IS_FEATURE_SUPPORTED_BY_FW(DOT11AC))
     {
         /* Include VHT Capability IE */
-        PopulateDot11fVHTCaps( pMac, vhtCap,
-                 psessionEntry->currentOperChannel, eSIR_FALSE );
+        PopulateDot11fVHTCaps( pMac, vhtCap, eSIR_FALSE );
     }
     else
     {
@@ -1024,7 +1015,7 @@ static tSirRetStatus limSendTdlsDisRspFrame(tpAniSirGlobal pMac,
         limLog(pMac, LOGE, FL("could not send TDLS Discovery Response frame!"));
         return eSIR_FAILURE;
     }
-    pMac->lim.mgmtFrameSessionId = psessionEntry->smeSessionId;
+    pMac->lim.mgmtFrameSessionId = psessionEntry->peSessionId;
 
     return eSIR_SUCCESS;
 
@@ -1147,7 +1138,7 @@ tSirRetStatus limSendTdlsLinkSetupReqFrame(tpAniSirGlobal pMac,
                      ((pMac->lim.gLimTDLSUapsdMask & 0x08) >> 3);
 
         if(wlan_cfgGetInt(pMac, WNI_CFG_MAX_SP_LENGTH, &val) != eSIR_SUCCESS)
-           limLog(pMac, LOGE, FL("could not retrieve Max SP Length"));
+           limLog(pMac, LOGE, FL("could not retrieve Max SP Length \n"));
 
         tdlsSetupReq.WMMInfoStation.max_sp_length = (tANI_U8)val;
         tdlsSetupReq.WMMInfoStation.present = 1;
@@ -1262,9 +1253,7 @@ tSirRetStatus limSendTdlsLinkSetupReqFrame(tpAniSirGlobal pMac,
     /* fill out the buffer descriptor */
 
     header_offset = limPrepareTdlsFrameHeader(pMac, pFrame,
-                          LINK_IDEN_ADDR_OFFSET(tdlsSetupReq),
-                          TDLS_LINK_AP, TDLS_INITIATOR,
-                          TID_AC_VI, psessionEntry) ;
+                     LINK_IDEN_ADDR_OFFSET(tdlsSetupReq), TDLS_LINK_AP, TDLS_INITIATOR, TID_AC_BK, psessionEntry) ;
 
 #ifdef FEATURE_WLAN_TDLS_NEGATIVE
     if(pMac->lim.gLimTdlsNegativeBehavior & LIM_TDLS_NEGATIVE_WRONG_BSSID_IN_SETUP_REQ)
@@ -1320,7 +1309,7 @@ tSirRetStatus limSendTdlsLinkSetupReqFrame(tpAniSirGlobal pMac,
     halstatus = halTxFrameWithTxComplete( pMac, pPacket, ( tANI_U16 ) nBytes,
                             HAL_TXRX_FRM_802_11_DATA,
                             ANI_TXDIR_TODS,
-                            TID_AC_VI,
+                            TID_AC_BK,
                             limTxComplete, pFrame,
                             limMgmtTXComplete,
                             HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME,
@@ -1332,7 +1321,7 @@ tSirRetStatus limSendTdlsLinkSetupReqFrame(tpAniSirGlobal pMac,
         limLog(pMac, LOGE, FL("could not send TDLS Setup Request frame!"));
         return eSIR_FAILURE;
     }
-    pMac->lim.mgmtFrameSessionId = psessionEntry->smeSessionId;
+    pMac->lim.mgmtFrameSessionId = psessionEntry->peSessionId;
 
     return eSIR_SUCCESS;
 
@@ -1356,11 +1345,6 @@ tSirRetStatus limSendTdlsTeardownFrame(tpAniSirGlobal pMac,
 #ifndef NO_PAD_TDLS_MIN_8023_SIZE
     tANI_U32            padLen = 0;
 #endif
-    tpDphHashNode       pStaDs = NULL;
-    tANI_U16            aid = 0;
-    tANI_U8             qosMode = 0;
-    tANI_U8             tdlsLinkType = 0;
-
     /*
      * The scheme here is to fill out a 'tDot11fProbeRequest' structure
      * and then hand it off to 'dot11fPackProbeRequest' (for
@@ -1396,17 +1380,7 @@ tSirRetStatus limSendTdlsTeardownFrame(tpAniSirGlobal pMac,
      * 89-0d.
      * 8 bytes of RFC 1042 header
      */
-    pStaDs = dphLookupHashEntry(pMac, peerMac, &aid,
-                                     &psessionEntry->dph.dphHashTable);
-    if (pStaDs)
-    {
-        qosMode = pStaDs->qosMode;
-    }
-    tdlsLinkType = (reason == eSIR_MAC_TDLS_TEARDOWN_PEER_UNREACHABLE)
-                              ? TDLS_LINK_AP : TDLS_LINK_DIRECT;
-    nBytes = nPayload + (((IS_QOS_ENABLED(psessionEntry) &&
-                          (tdlsLinkType == TDLS_LINK_AP)) ||
-                          ((tdlsLinkType == TDLS_LINK_DIRECT) && qosMode))
+    nBytes = nPayload + ((IS_QOS_ENABLED(psessionEntry))
                               ? sizeof(tSirMacDataHdr3a) : sizeof(tSirMacMgmtHdr))
                       + sizeof( eth_890d_header )
                       + PAYLOAD_TYPE_TDLS_SIZE
@@ -1541,7 +1515,7 @@ tSirRetStatus limSendTdlsTeardownFrame(tpAniSirGlobal pMac,
         return eSIR_FAILURE;
 
     }
-    pMac->lim.mgmtFrameSessionId = psessionEntry->smeSessionId;
+    pMac->lim.mgmtFrameSessionId = psessionEntry->peSessionId;
     return eSIR_SUCCESS;
 
 }
@@ -1625,7 +1599,7 @@ static tSirRetStatus limSendTdlsSetupRspFrame(tpAniSirGlobal pMac,
                      ((pMac->lim.gLimTDLSUapsdMask & 0x08) >> 3);
 
         if(wlan_cfgGetInt(pMac, WNI_CFG_MAX_SP_LENGTH, &val) != eSIR_SUCCESS)
-           limLog(pMac, LOGE, FL("could not retrieve Max SP Length"));
+           limLog(pMac, LOGE, FL("could not retrieve Max SP Length \n"));
 
         tdlsSetupRsp.WMMInfoStation.max_sp_length = (tANI_U8)val;
         tdlsSetupRsp.WMMInfoStation.present = 1;
@@ -1736,7 +1710,7 @@ static tSirRetStatus limSendTdlsSetupRspFrame(tpAniSirGlobal pMac,
     header_offset = limPrepareTdlsFrameHeader(pMac, pFrame, 
                                  LINK_IDEN_ADDR_OFFSET(tdlsSetupRsp), 
                                        TDLS_LINK_AP, TDLS_RESPONDER,
-                                       TID_AC_VI, psessionEntry) ;
+                                       TID_AC_BK, psessionEntry) ;
 
 #ifdef FEATURE_WLAN_TDLS_NEGATIVE
     if(pMac->lim.gLimTdlsNegativeBehavior & LIM_TDLS_NEGATIVE_WRONG_BSSID_IN_SETUP_RSP)
@@ -1791,7 +1765,7 @@ static tSirRetStatus limSendTdlsSetupRspFrame(tpAniSirGlobal pMac,
                             HAL_TXRX_FRM_802_11_DATA,
                             ANI_TXDIR_TODS,
                             //ANI_TXDIR_IBSS,
-                            TID_AC_VI,
+                            TID_AC_BK,
                             limTxComplete, pFrame,
                             limMgmtTXComplete,
                             HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME,
@@ -1802,7 +1776,7 @@ static tSirRetStatus limSendTdlsSetupRspFrame(tpAniSirGlobal pMac,
         limLog(pMac, LOGE, FL("could not send TDLS Setup Response"));
         return eSIR_FAILURE;
     }
-    pMac->lim.mgmtFrameSessionId = psessionEntry->smeSessionId;
+    pMac->lim.mgmtFrameSessionId = psessionEntry->peSessionId;
 
     return eSIR_SUCCESS;
 
@@ -1861,8 +1835,7 @@ tSirRetStatus limSendTdlsLinkSetupCnfFrame(tpAniSirGlobal pMac, tSirMacAddr peer
      /* Check peer is VHT capable*/
     if (CHECK_BIT(peerCapability, TDLS_PEER_VHT_CAP))
     {
-       PopulateDot11fVHTOperation( pMac, &tdlsSetupCnf.VHTOperation,
-                                      psessionEntry->currentOperChannel);
+       PopulateDot11fVHTOperation( pMac, &tdlsSetupCnf.VHTOperation);
        PopulateDot11fHTInfo( pMac, &tdlsSetupCnf.HTInfo, psessionEntry );
     }
     else if (CHECK_BIT(peerCapability, TDLS_PEER_HT_CAP)) /* Check peer is HT capable */
@@ -2054,7 +2027,7 @@ tSirRetStatus limSendTdlsLinkSetupCnfFrame(tpAniSirGlobal pMac, tSirMacAddr peer
         return eSIR_FAILURE;
 
     }
-    pMac->lim.mgmtFrameSessionId = psessionEntry->smeSessionId;
+    pMac->lim.mgmtFrameSessionId = psessionEntry->peSessionId;
 
     return eSIR_SUCCESS;
 }
@@ -2592,8 +2565,7 @@ static void limTdlsUpdateHashNodeInfo(tpAniSirGlobal pMac, tDphHashNode *pStaDs,
                                           &psessionEntry->dph.dphHashTable) ;
 
     /* Lets enable QOS parameter */
-    pStaDs->qosMode = (pTdlsAddStaReq->capability & CAPABILITIES_QOS_OFFSET) ||
-                       pTdlsAddStaReq->htcap_present;
+    pStaDs->qosMode    = 1;
     pStaDs->wmeEnabled = 1;
     pStaDs->lleEnabled = 0;
     /*  TDLS Dummy AddSTA does not have qosInfo , is it OK ??
@@ -3873,62 +3845,3 @@ tSirRetStatus limProcessSmeSetTdls2040BSSCoexReq(tpAniSirGlobal pMac,
     return eSIR_SUCCESS;
 }
 
-tSirRetStatus limProcessSmeDelAllTdlsPeers(tpAniSirGlobal pMac,
-                                                 tANI_U32 *pMsgBuf)
-{
-    tSirDelAllTdlsPeers *pMsg = NULL;
-    tpDphHashNode pStaDs = NULL ;
-    tpPESession psessionEntry = NULL;
-    uint8_t sessionId;
-    int i, aid;
-    pMsg = (tSirDelAllTdlsPeers*) pMsgBuf ;
-
-    if (pMsg == NULL) {
-        limLog(pMac, LOGE, FL("NULL pMsg"));
-        return eSIR_FAILURE;
-    }
-
-    psessionEntry = peFindSessionByBssid(pMac, pMsg->bssid, &sessionId);
-    if (NULL == psessionEntry)
-    {
-        limLog(pMac, LOGE, FL("NULL psessionEntry"));
-        return eSIR_FAILURE;
-    }
-
-    /* Check all the set bit in peerAIDBitmap and delete the
-     * peer (with that aid) entry from the hash table and add
-     * the aid in free pool
-     */
-    for (i = 0; i < sizeof(psessionEntry->peerAIDBitmap)/sizeof(tANI_U32); i++)
-    {
-        for (aid = 0; aid < (sizeof(tANI_U32) << 3); aid++)
-        {
-            if (CHECK_BIT(psessionEntry->peerAIDBitmap[i], aid))
-            {
-                pStaDs = dphGetHashEntry(pMac,
-                                         (aid + i*(sizeof(tANI_U32) << 3)),
-                                         &psessionEntry->dph.dphHashTable);
-                if (NULL != pStaDs)
-                {
-                    limLog(pMac, LOGE, FL("Deleting "MAC_ADDRESS_STR),
-                           MAC_ADDR_ARRAY(pStaDs->staAddr));
-
-                    limSendDeauthMgmtFrame(pMac,
-                                           eSIR_MAC_DEAUTH_LEAVING_BSS_REASON,
-                                           pStaDs->staAddr, psessionEntry,
-                                           FALSE);
-
-                    limTdlsDelSta(pMac, pStaDs->staAddr, psessionEntry);
-
-                    dphDeleteHashEntry(pMac, pStaDs->staAddr, pStaDs->assocId,
-                                       &psessionEntry->dph.dphHashTable);
-                }
-                limReleasePeerIdx(pMac, (aid + i*(sizeof(tANI_U32) << 3)),
-                                  psessionEntry) ;
-                CLEAR_BIT(psessionEntry->peerAIDBitmap[i], aid);
-            }
-        }
-    }
-
-    return eSIR_SUCCESS;
-}

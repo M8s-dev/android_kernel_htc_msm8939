@@ -357,7 +357,7 @@ static void hdd_wmm_disable_tl_uapsd (hdd_wmm_qos_context_t* pQosContext)
 static void hdd_wmm_free_context (hdd_wmm_qos_context_t* pQosContext)
 {
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {
@@ -420,7 +420,7 @@ static void hdd_wmm_notify_app (hdd_wmm_qos_context_t* pQosContext)
    union iwreq_data wrqu;
    char buf[MAX_NOTIFY_LEN+1];
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {
@@ -550,7 +550,7 @@ void hdd_wmm_inactivity_timer_cb( v_PVOID_t pUserData )
     v_U32_t currentTrafficCnt = 0;
     WLANTL_ACEnumType acType = 0;
     v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-    hdd_context_t *pHddCtx = NULL;
+    hdd_context_t *pHddCtx;
 
     ENTER();
     if (NULL == pVosContext)
@@ -734,7 +734,7 @@ static eHalStatus hdd_wmm_sme_callback (tHalHandle hHal,
    hdd_wmm_ac_status_t *pAc;
    VOS_STATUS status;
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {
@@ -1429,7 +1429,7 @@ static void __hdd_wmm_do_implicit_qos(struct work_struct *work)
 #endif
    sme_QosWmmTspecInfo qosInfo;
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
    int ret = 0;
 
    if (NULL == pVosContext)
@@ -1796,7 +1796,7 @@ VOS_STATUS hdd_wmm_adapter_close ( hdd_adapter_t* pAdapter )
 {
    hdd_wmm_qos_context_t* pQosContext;
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {
@@ -1990,8 +1990,6 @@ v_VOID_t hdd_wmm_classify_pkt ( hdd_adapter_t* pAdapter,
       }
       else
       {
-          v_BOOL_t toggleArpBDRates =
-                        (WLAN_HDD_GET_CTX(pAdapter))->cfg_ini->toggleArpBDRates;
           // default
 #ifdef HDD_WMM_DEBUG
           VOS_TRACE(VOS_MODULE_ID_HDD, WMM_TRACE_LEVEL_WARN,
@@ -2001,11 +1999,6 @@ v_VOID_t hdd_wmm_classify_pkt ( hdd_adapter_t* pAdapter,
           //Give the highest priority to 802.1x packet
           if (pHdr->eth_II.h_proto == htons(HDD_ETHERTYPE_802_1_X))
               tos = 0xC0;
-          else if (toggleArpBDRates &&
-                   pHdr->eth_II.h_proto == htons(HDD_ETHERTYPE_ARP))
-          {
-              tos = TID3;
-          }
           else
               tos = 0;
       }
@@ -2082,14 +2075,7 @@ v_VOID_t hdd_wmm_classify_pkt ( hdd_adapter_t* pAdapter,
 
   @return         : Qdisc queue index
   ===========================================================================*/
-v_U16_t hdd_hostapd_select_queue(struct net_device * dev, struct sk_buff *skb
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0))
-                                 , void *accel_priv
-#endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-                                 , select_queue_fallback_t fallbac
-#endif
-)
+v_U16_t hdd_hostapd_select_queue(struct net_device * dev, struct sk_buff *skb)
 {
    WLANTL_ACEnumType ac;
    sme_QosWmmUpType up = SME_QOS_WMM_UP_BE;
@@ -2098,32 +2084,31 @@ v_U16_t hdd_hostapd_select_queue(struct net_device * dev, struct sk_buff *skb
    hdd_adapter_t *pAdapter = (hdd_adapter_t *)netdev_priv(dev);
    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
    v_U8_t STAId;
+   v_U8_t *pSTAId = (v_U8_t *)(((v_U8_t *)(skb->data)) - 1);
    v_CONTEXT_t pVosContext = ( WLAN_HDD_GET_CTX(pAdapter))->pvosContext;
    ptSapContext pSapCtx = NULL;
-   int status = 0;
 
-   status = wlan_hdd_validate_context(pHddCtx);
-   if (status !=0 )
-   {
-       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                  FL("called during WDReset/unload"));
+   if (vos_is_logp_in_progress(VOS_MODULE_ID_HDD, NULL)) {
+       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_WARN,
+                  FL("called during WDReset"));
        skb->priority = SME_QOS_WMM_UP_BE;
        return HDD_LINUX_AC_BE;
    }
 
    pSapCtx = VOS_GET_SAP_CB(pVosContext);
    if(pSapCtx == NULL){
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                  FL("psapCtx is NULL"));
-       STAId = HDD_WLAN_INVALID_STA_ID;
+       *pSTAId = HDD_WLAN_INVALID_STA_ID;
        goto done;
    }
    /*Get the Station ID*/
-   STAId = hdd_sta_id_find_from_mac_addr(pAdapter, pDestMacAddress);
-   if (STAId == HDD_WLAN_INVALID_STA_ID) {
-       VOS_TRACE( VOS_MODULE_ID_HDD_SOFTAP, VOS_TRACE_LEVEL_INFO,
-                 "%s: Failed to find right station", __func__);
-       goto done;
+   if (VOS_STATUS_SUCCESS != hdd_softap_GetStaId(pAdapter, pDestMacAddress, &STAId))
+   {
+      VOS_TRACE( VOS_MODULE_ID_HDD_SOFTAP, VOS_TRACE_LEVEL_INFO,
+            "%s: Failed to find right station", __func__);
+      *pSTAId = HDD_WLAN_INVALID_STA_ID;
+      goto done;
    }
 
    spin_lock_bh( &pSapCtx->staInfo_lock );
@@ -2132,7 +2117,7 @@ v_U16_t hdd_hostapd_select_queue(struct net_device * dev, struct sk_buff *skb
       VOS_TRACE( VOS_MODULE_ID_HDD_SOFTAP, VOS_TRACE_LEVEL_INFO,
                    "%s: Station MAC address does not matching", __func__);
 
-      STAId = HDD_WLAN_INVALID_STA_ID;
+      *pSTAId = HDD_WLAN_INVALID_STA_ID;
       goto release_lock;
    }
    if (pSapCtx->aStaInfo[STAId].isUsed && pSapCtx->aStaInfo[STAId].isQosEnabled && (HDD_WMM_USER_MODE_NO_QOS != pHddCtx->cfg_ini->WmmMode))
@@ -2148,6 +2133,7 @@ v_U16_t hdd_hostapd_select_queue(struct net_device * dev, struct sk_buff *skb
          ac = hddWmmUpToAcMap[up];
       }
    }
+   *pSTAId = STAId;
 
 release_lock:
     spin_unlock_bh( &pSapCtx->staInfo_lock );
@@ -2181,11 +2167,10 @@ v_U16_t hdd_wmm_select_queue(struct net_device * dev, struct sk_buff *skb)
    sme_QosWmmUpType up = SME_QOS_WMM_UP_BE;
    v_USHORT_t queueIndex;
    hdd_adapter_t *pAdapter =  WLAN_HDD_GET_PRIV_PTR(dev);
-   hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
-   int status = 0;
 
-   status = wlan_hdd_validate_context(pHddCtx);
-   if (status !=0) {
+   if (vos_is_logp_in_progress(VOS_MODULE_ID_HDD, NULL)) {
+       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_WARN,
+                  FL("called during WDReset"));
        skb->priority = SME_QOS_WMM_UP_BE;
        return HDD_LINUX_AC_BE;
    }
@@ -2193,19 +2178,23 @@ v_U16_t hdd_wmm_select_queue(struct net_device * dev, struct sk_buff *skb)
    /*Get the Station ID*/
    if (WLAN_HDD_IBSS == pAdapter->device_mode)
    {
+       v_U8_t *pSTAId = (v_U8_t *)(((v_U8_t *)(skb->data)) - 1);
        v_MACADDR_t *pDestMacAddress = (v_MACADDR_t*)skb->data;
-       v_U8_t STAId;
 
-       STAId = hdd_sta_id_find_from_mac_addr(pAdapter, pDestMacAddress);
-       if ((STAId == HDD_WLAN_INVALID_STA_ID) &&
-            !vos_is_macaddr_broadcast( pDestMacAddress ) &&
-            !vos_is_macaddr_group(pDestMacAddress))
+       if ( VOS_STATUS_SUCCESS !=
+            hdd_Ibss_GetStaId(&pAdapter->sessionCtx.station,
+                               pDestMacAddress, pSTAId))
        {
-           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+          *pSTAId = HDD_WLAN_INVALID_STA_ID;
+          if ( !vos_is_macaddr_broadcast( pDestMacAddress ) &&
+                             !vos_is_macaddr_group(pDestMacAddress))
+          {
+              VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                      "%s: Failed to find right station pDestMacAddress: "
                      MAC_ADDRESS_STR , __func__,
                      MAC_ADDR_ARRAY(pDestMacAddress->bytes));
-           goto done;
+              goto done;
+          }
        }
    }
    /* All traffic will get equal opportuniy to transmit data frames. */
@@ -2377,7 +2366,7 @@ VOS_STATUS hdd_wmm_acquire_access( hdd_adapter_t* pAdapter,
    pQosContext->qosFlowId = 0;
    pQosContext->handle = HDD_WMM_HANDLE_IMPLICIT;
    pQosContext->magic = HDD_WMM_CTX_MAGIC;
-   vos_init_work(&pQosContext->wmmAcSetupImplicitQos,
+   INIT_WORK(&pQosContext->wmmAcSetupImplicitQos,
              hdd_wmm_do_implicit_qos);
 
    VOS_TRACE(VOS_MODULE_ID_HDD, WMM_TRACE_LEVEL_INFO,
@@ -2738,7 +2727,7 @@ hdd_wlan_wmm_status_e hdd_wmm_addts( hdd_adapter_t* pAdapter,
 #endif
    v_BOOL_t found = VOS_FALSE;
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {
@@ -2937,7 +2926,7 @@ hdd_wlan_wmm_status_e hdd_wmm_delts( hdd_adapter_t* pAdapter,
    sme_QosStatusType smeStatus;
 #endif
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {
@@ -3062,7 +3051,7 @@ hdd_wlan_wmm_status_e hdd_wmm_checkts( hdd_adapter_t* pAdapter,
    hdd_wmm_qos_context_t *pQosContext;
    hdd_wlan_wmm_status_e status = HDD_WLAN_WMM_STATUS_LOST;
    v_CONTEXT_t pVosContext = vos_get_global_context( VOS_MODULE_ID_HDD, NULL );
-   hdd_context_t *pHddCtx = NULL;
+   hdd_context_t *pHddCtx;
 
    if (NULL == pVosContext)
    {

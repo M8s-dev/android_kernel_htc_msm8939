@@ -197,7 +197,7 @@ tpPESession peCreateSession(tpAniSirGlobal pMac, tANI_U8 *bssid , tANI_U8* sessi
             return(&pMac->lim.gpSession[i]);
         }
     }
-    limLog(pMac, LOGE, FL("Session can not be created.. Reached Max permitted sessions "));
+    limLog(pMac, LOGE, FL("Session can not be created.. Reached Max permitted sessions \n "));
     return NULL;
 }
 
@@ -230,7 +230,7 @@ tpPESession peFindSessionByBssid(tpAniSirGlobal pMac,  tANI_U8*  bssid,    tANI_
         }
     }
 
-    limLog(pMac, LOG4, FL("Session lookup fails for BSSID: "));
+    limLog(pMac, LOG4, FL("Session lookup fails for BSSID: \n "));
     limPrintMacAddr(pMac, bssid, LOG4);
     return(NULL);
 
@@ -279,13 +279,14 @@ tpPESession peFindSessionByBssIdx(tpAniSirGlobal pMac,  tANI_U8 bssIdx)
 {
     if(sessionId >=  pMac->lim.maxBssId)
     {
-        limLog(pMac, LOGE, FL("Invalid sessionId: %d "), sessionId);
+        limLog(pMac, LOGE, FL("Invalid sessionId: %d \n "), sessionId);
         return(NULL);
     }
     if((pMac->lim.gpSession[sessionId].valid == TRUE))
     {
         return(&pMac->lim.gpSession[sessionId]);
     }
+    limLog(pMac, LOG1, FL("Session %d  not active\n "), sessionId);
     return(NULL);
 
 }
@@ -346,7 +347,6 @@ void peDeleteSession(tpAniSirGlobal pMac, tpPESession psessionEntry)
     tANI_U16 i = 0;
     tANI_U16 n;
     TX_TIMER *timer_ptr;
-    eHalStatus lock_status = eHAL_STATUS_SUCCESS;
 
     limLog(pMac, LOGW, FL("Trying to delete a session %d Opmode %d BssIdx %d"
            " BSSID: " MAC_ADDRESS_STR), psessionEntry->peSessionId,
@@ -401,16 +401,11 @@ void peDeleteSession(tpAniSirGlobal pMac, tpPESession psessionEntry)
         psessionEntry->pLimMlmJoinReq = NULL;
     }
 
-    lock_status =  pe_AcquireGlobalLock(&pMac->lim);
-    if (eHAL_STATUS_SUCCESS == lock_status)
+    if(psessionEntry->dph.dphHashTable.pHashTable != NULL)
     {
-         if (psessionEntry->dph.dphHashTable.pHashTable != NULL)
-         {
-             vos_mem_vfree(psessionEntry->dph.dphHashTable.pHashTable);
-             psessionEntry->dph.dphHashTable.pHashTable = NULL;
-         }
+        vos_mem_vfree(psessionEntry->dph.dphHashTable.pHashTable);
+        psessionEntry->dph.dphHashTable.pHashTable = NULL;
     }
-    pe_ReleaseGlobalLock(&pMac->lim);
 
     if(psessionEntry->dph.dphHashTable.pDphNodeArray != NULL)
     {
@@ -529,7 +524,7 @@ tpPESession peFindSessionByPeerSta(tpAniSirGlobal pMac,  tANI_U8*  sa,    tANI_U
       }
    }   
 
-   limLog(pMac, LOG1, FL("Session lookup fails for Peer StaId: "));
+   limLog(pMac, LOG1, FL("Session lookup fails for Peer StaId: \n "));
    limPrintMacAddr(pMac, sa, LOG1);
    return NULL;
 }

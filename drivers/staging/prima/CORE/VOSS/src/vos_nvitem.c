@@ -187,7 +187,7 @@ static CountryInfoTable_t countryInfoTable =
       {REGDOMAIN_FCC, {'I', 'D'}},  //INDONESIA
       {REGDOMAIN_ETSI, {'I', 'E'}}, //IRELAND
       {REGDOMAIN_ETSI, {'I', 'L'}}, //ISRAEL
-      {REGDOMAIN_APAC, {'I', 'N'}}, //INDIA
+      {REGDOMAIN_ETSI, {'I', 'N'}}, //INDIA
       {REGDOMAIN_ETSI, {'I', 'R'}}, //IRAN, ISLAMIC REPUBLIC OF
       {REGDOMAIN_ETSI, {'I', 'S'}}, //ICELNAD
       {REGDOMAIN_ETSI, {'I', 'T'}}, //ITALY
@@ -1201,7 +1201,7 @@ VOS_STATUS vos_nv_open(void)
                    "readEncodeBufSize %d",nvReadEncodeBufSize);
 
         if (VOS_STATUS_SUCCESS == status) {
-           VOS_TRACE(VOS_MODULE_ID_VOSS,  VOS_TRACE_LEVEL_INFO,
+           VOS_TRACE(VOS_MODULE_ID_VOSS,  VOS_TRACE_LEVEL_ERROR,
                        "Embedded NV parsed success !!productId %d couple Type %d wlan RevId %d",
                         pnvData->fields.productId,
                         pnvData->fields.couplerType,
@@ -2766,6 +2766,7 @@ static int create_crda_regulatory_entry(struct wiphy *wiphy,
           continue;
        if (wiphy->bands[i] == NULL)
        {
+          pr_info("error: wiphy->bands[i] is NULL, i = %d\n", i);
           return -1;
        }
        // internal channels[] is one continous array for both 2G and 5G bands
@@ -3204,56 +3205,6 @@ v_BOOL_t vos_is_nv_country_non_zero()
     return status ;
 }
 
-v_BOOL_t vos_is_channel_valid_for_vht80(v_U32_t chan)
-{
-    v_CONTEXT_t pVosContext = NULL;
-    hdd_context_t *pHddCtx = NULL;
-    v_U16_t freq;
-    v_U32_t i, band;
-    struct wiphy *wiphy;
-
-    pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
-
-    if (NULL != pVosContext)
-    {
-        pHddCtx = vos_get_context(VOS_MODULE_ID_HDD, pVosContext);
-        if (NULL == pHddCtx)
-        {
-           VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                       ("Invalid pHddCtx pointer") );
-           return VOS_FALSE;
-        }
-    }
-    else
-    {
-       VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                  ("Invalid pVosContext pointer") );
-       return VOS_FALSE;
-    }
-    /* no 80Mhz in 2.4 GHz*/
-    if (chan <= RF_CHAN_14)
-        return VOS_FALSE;
-
-    band = IEEE80211_BAND_5GHZ;
-    freq = vos_chan_to_freq(chan);
-    wiphy = pHddCtx->wiphy;
-
-    for (i = 0; i < wiphy->bands[band]->n_channels; i++)
-    {
-        if (freq ==
-             wiphy->bands[band]->channels[i].center_freq)
-        {
-          if (wiphy->bands[band]->channels[i].flags &
-                                 IEEE80211_CHAN_NO_80MHZ)
-          {
-             return VOS_FALSE;
-          }
-          return VOS_TRUE;
-        }
-    }
-    return VOS_FALSE;
-}
-
 #ifdef CONFIG_ENABLE_LINUX_REG
 
 static int bw20_ch_index_to_bw40_plus_minus_ch_index(int k,
@@ -3591,7 +3542,7 @@ int vos_update_nv_table_from_wiphy_band(void *hdd_ctx,
         if (wiphy->bands[i] == NULL)
         {
 
-            VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+            VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
                       "error: wiphy->bands is NULL, i = %d", i);
             continue;
         }
@@ -3641,11 +3592,7 @@ int vos_update_nv_table_from_wiphy_band(void *hdd_ctx,
                  * will not change channel to active.
                  */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-                if  (!(wiphy->regulatory_flags & REGULATORY_STRICT_REG))
-#else
                 if  (!(wiphy->flags & WIPHY_FLAG_STRICT_REGULATORY ))
-#endif
                 {
                     if (!(reg_rule->flags & NL80211_RRF_PASSIVE_SCAN))
                     {
@@ -4197,11 +4144,7 @@ VOS_STATUS vos_init_wiphy_from_nv_bin(void)
         /* default country is world roaming */
 
         reg_domain = REGDOMAIN_WORLD;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-        wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG;
-#else
         wiphy->flags |= WIPHY_FLAG_CUSTOM_REGULATORY;
-#endif
     }
     else if (REGDOMAIN_WORLD ==
 	     pnvEFSTable->halnv.tables.defaultCountryTable.regDomain) {
@@ -4211,11 +4154,7 @@ VOS_STATUS vos_init_wiphy_from_nv_bin(void)
     else {
 
         reg_domain = pnvEFSTable->halnv.tables.defaultCountryTable.regDomain;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-        wiphy->regulatory_flags |= REGULATORY_STRICT_REG;
-#else
         wiphy->flags |= WIPHY_FLAG_STRICT_REGULATORY;
-#endif
     }
 
     temp_reg_domain = cur_reg_domain = reg_domain;
@@ -4226,6 +4165,7 @@ VOS_STATUS vos_init_wiphy_from_nv_bin(void)
 
         if (wiphy->bands[i] == NULL)
         {
+            pr_info("error: wiphy->bands[i] is NULL, i = %d\n", i);
             continue;
         }
 
@@ -4631,7 +4571,7 @@ int __wlan_hdd_crda_reg_notifier(struct wiphy *wiphy,
          {
              if (NULL == wiphy->bands[i])
              {
-                 VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+                 VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
                            "error: wiphy->bands[i] is NULL, i = %d", i);
                  continue;
              }

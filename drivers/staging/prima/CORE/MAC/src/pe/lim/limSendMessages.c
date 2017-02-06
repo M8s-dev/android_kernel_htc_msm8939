@@ -734,7 +734,7 @@ tSirRetStatus limSendHT40OBSSStopScanInd(tpAniSirGlobal pMac,
     bssIdx = psessionEntry->bssIdx;
 
     VOS_TRACE (VOS_MODULE_ID_PE,VOS_TRACE_LEVEL_INFO,
-               " Sending STOP OBSS cmd, bssid %d staid %d ",
+               " Sending STOP OBSS cmd, bssid %d staid %d \n",
                psessionEntry->bssIdx, psessionEntry->staId);
 
     msgQ.type = WDA_HT40_OBSS_STOP_SCAN_IND;

@@ -99,9 +99,6 @@
 /*----------------------------------------------------------------------------
  * Externalized Function Definitions
  * -------------------------------------------------------------------------*/
-#ifdef FEATURE_WLAN_CH_AVOID
-   extern safeChannelType safeChannels[];
-#endif /* FEATURE_WLAN_CH_AVOID */
 
 /*----------------------------------------------------------------------------
  * Function Declarations and Documentation
@@ -164,19 +161,6 @@ void sapSetOperatingChannel(ptSapContext psapContext, v_U8_t operChannel)
                    BAND(2.4GHz) as 2.4 channels are available in all the
                    countries*/
                    psapContext->channel = SAP_DEFAULT_CHANNEL;
-
-#ifdef FEATURE_WLAN_CH_AVOID
-                for( i = 0; i < NUM_20MHZ_RF_CHANNELS; i++ )
-                {
-                    if((NV_CHANNEL_ENABLE ==
-                        vos_nv_getChannelEnabledState(safeChannels[i].channelNumber))
-                            && (VOS_TRUE == safeChannels[i].isSafe))
-                    {
-                        psapContext->channel = safeChannels[i].channelNumber;
-                        break;
-                    }
-                }
-#endif
             }
         }
         else
@@ -814,7 +798,7 @@ eHalStatus sapCheck40Mhz24G(tHalHandle halHandle, ptSapContext psapCtx,
     if ( NULL == pBeaconStruct )
     {
         VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
-                   FL("Unable to allocate memory "));
+                   FL("Unable to allocate memory \n"));
         return halStatus;
     }
 
@@ -1156,18 +1140,13 @@ WLANSAP_RoamCallback
     VOS_STATUS  vosStatus = VOS_STATUS_SUCCESS;
     eHalStatus halStatus = eHAL_STATUS_SUCCESS;
 
-    VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                      FL("Before switch on roamStatus = %d"),
-                                 roamStatus);
+    VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, before switch on roamStatus = %d\n", __func__, roamStatus);
     switch(roamStatus)
     {
         case eCSR_ROAM_SESSION_OPENED:
         {
             /* tHalHandle */
             tHalHandle hHal = VOS_GET_HAL_CB(sapContext->pvosGCtx);
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                           "eCSR_ROAM_SESSION_OPENED", roamStatus);
 
             if (NULL == hHal)
             {
@@ -1188,9 +1167,8 @@ WLANSAP_RoamCallback
         }
 
         case eCSR_ROAM_INFRA_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                           "eCSR_ROAM_INFRA_IND", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                      __func__, "eCSR_ROAM_INFRA_IND", roamStatus);
             if(roamResult == eCSR_ROAM_RESULT_INFRA_START_FAILED)
             {
                 /* Fill in the event structure */ 
@@ -1209,21 +1187,18 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_LOSTLINK:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_LOSTLINK", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                       __func__, "eCSR_ROAM_LOSTLINK", roamStatus);
             break;
 
         case eCSR_ROAM_MIC_ERROR_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_MIC_ERROR_IND", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                __func__, "eCSR_ROAM_MIC_ERROR_IND", roamStatus);
             break;
 
         case eCSR_ROAM_SET_KEY_COMPLETE:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_SET_KEY_COMPLETE", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                __func__, "eCSR_ROAM_SET_KEY_COMPLETE", roamStatus);
             if (roamResult == eCSR_ROAM_RESULT_FAILURE )
             {
                 /* Format the SET KEY complete information pass to HDD... */
@@ -1232,9 +1207,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_REMOVE_KEY_COMPLETE:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_REMOVE_KEY_COMPLETE", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                        __func__, "eCSR_ROAM_REMOVE_KEY_COMPLETE", roamStatus);
             if (roamResult == eCSR_ROAM_RESULT_FAILURE )
             {
                 /* Format the SET KEY complete information pass to HDD... */
@@ -1243,9 +1217,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_ASSOCIATION_COMPLETION:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_ASSOCIATION_COMPLETION", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                       __func__, "eCSR_ROAM_ASSOCIATION_COMPLETION", roamStatus);
             if (roamResult == eCSR_ROAM_RESULT_FAILURE )
             {
                 /* Format the SET KEY complete information pass to HDD... */
@@ -1254,9 +1227,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_DISASSOCIATED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_DISASSOCIATED", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                       __func__, "eCSR_ROAM_DISASSOCIATED", roamStatus);
             if (roamResult == eCSR_ROAM_RESULT_MIC_FAILURE)
             {
                 /* Format the MIC failure event to return... */
@@ -1265,31 +1237,21 @@ WLANSAP_RoamCallback
             break;
                         
         case eCSR_ROAM_WPS_PBC_PROBE_REQ_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_WPS_PBC_PROBE_REQ_IND", roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamStatus = %s (%d)\n",
+                       __func__, "eCSR_ROAM_WPS_PBC_PROBE_REQ_IND", roamStatus);
             break;        
 
         case eCSR_ROAM_INDICATE_MGMT_FRAME:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_INDICATE_MGMT_FRAME", roamStatus);
             sapSignalHDDevent(sapContext, pCsrRoamInfo, 
                               eSAP_INDICATE_MGMT_FRAME, 
                               (v_PVOID_t) eSAP_STATUS_SUCCESS);
             break;
         case eCSR_ROAM_REMAIN_CHAN_READY:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_REMAIN_CHAN_READY", roamStatus);
             sapSignalHDDevent(sapContext, pCsrRoamInfo, 
                               eSAP_REMAIN_CHAN_READY, 
                               (v_PVOID_t) eSAP_STATUS_SUCCESS);
             break;
         case eCSR_ROAM_SEND_ACTION_CNF:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_SEND_ACTION_CNF", roamStatus);
             sapSignalHDDevent(sapContext, pCsrRoamInfo, 
                             eSAP_SEND_ACTION_CNF, 
                             (v_PVOID_t)((eSapStatus)((roamResult == eCSR_ROAM_RESULT_NONE)
@@ -1297,17 +1259,13 @@ WLANSAP_RoamCallback
             break;
 
        case eCSR_ROAM_DISCONNECT_ALL_P2P_CLIENTS:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                        "eCSR_ROAM_DISCONNECT_ALL_P2P_CLIENTS", roamStatus);
             sapSignalHDDevent(sapContext, pCsrRoamInfo, 
                             eSAP_DISCONNECT_ALL_P2P_CLIENT, 
                             (v_PVOID_t) eSAP_STATUS_SUCCESS );
             break;
             
        case eCSR_ROAM_SEND_P2P_STOP_BSS:
-           VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                             FL("Received stopbss"));
+           VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, Received stopbss", __func__);
            sapSignalHDDevent(sapContext, pCsrRoamInfo, 
                             eSAP_MAC_TRIG_STOP_BSS_EVENT, 
                             (v_PVOID_t) eSAP_STATUS_SUCCESS );
@@ -1315,9 +1273,9 @@ WLANSAP_RoamCallback
 
 #ifdef WLAN_FEATURE_AP_HT40_24G
         case eCSR_ROAM_2040_COEX_INFO_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                        FL("CSR roamStatus = %s (%d)"),
-                           "eCSR_ROAM_2040_COEX_INFO_IND",
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO,
+                           "In %s, CSR roamStatus = %s (%d)\n",
+                           __func__, "eCSR_ROAM_2040_COEX_INFO_IND",
                            roamStatus);
 
            sapCheckHT2040CoexAction(sapContext, pCsrRoamInfo->pSmeHT2040CoexInfoInd);
@@ -1325,20 +1283,19 @@ WLANSAP_RoamCallback
 #endif
 
         default:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
-                         FL("CSR roamStatus not handled roamStatus = %s (%d)"),
-                         get_eRoamCmdStatus_str(roamStatus), roamStatus);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR, "In %s, CSR roamStatus not handled roamStatus = %s (%d)\n",
+                       __func__, get_eRoamCmdStatus_str(roamStatus), roamStatus);
             break;
     }
 
+    VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, before switch on roamResult = %d\n",
+               __func__, roamResult);
 
     switch (roamResult)
     {
         case eCSR_ROAM_RESULT_INFRA_ASSOCIATION_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                         FL( "CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_INFRA_ASSOCIATION_IND",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_INFRA_ASSOCIATION_IND", roamResult);
             sapContext->nStaWPARSnReqIeLength = pCsrRoamInfo->rsnIELen;
              
             if(sapContext->nStaWPARSnReqIeLength)
@@ -1361,9 +1318,8 @@ WLANSAP_RoamCallback
                 if(!VOS_IS_STATUS_SUCCESS(vosStatus))
                 {
                    VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
-                             FL("CSR roamResult = (%d) MAC ("
-                             MAC_ADDRESS_STR") fail"),
-                             roamResult,
+                             "In %s, CSR roamResult = (%d) MAC ("
+                             MAC_ADDRESS_STR") fail", __func__, roamResult,
                              MAC_ADDR_ARRAY(pCsrRoamInfo->peerMac));
                     halStatus = eHAL_STATUS_FAILURE;
                 }
@@ -1371,9 +1327,8 @@ WLANSAP_RoamCallback
             else
             {
                 VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_WARN,
-                          FL("CSR roamResult = (%d) MAC ("
-                          MAC_ADDRESS_STR") not allowed"),
-                          roamResult,
+                          "In %s, CSR roamResult = (%d) MAC ("
+                          MAC_ADDRESS_STR") not allowed", __func__, roamResult,
                           MAC_ADDR_ARRAY(pCsrRoamInfo->peerMac));
                 halStatus = eHAL_STATUS_FAILURE;
             } 
@@ -1381,10 +1336,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_INFRA_ASSOCIATION_CNF:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_INFRA_ASSOCIATION_CNF",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                        __func__, "eCSR_ROAM_RESULT_INFRA_ASSOCIATION_CNF", roamResult);
 
             sapContext->nStaWPARSnReqIeLength = pCsrRoamInfo->rsnIELen;
             if (sapContext->nStaWPARSnReqIeLength)
@@ -1415,10 +1368,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_DISASSOC_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_DISASSOC_IND",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                        __func__, "eCSR_ROAM_RESULT_DISASSOC_IND", roamResult);
 #ifdef WLAN_FEATURE_AP_HT40_24G
             sapRemoveHT40IntolerantSta(sapContext, pCsrRoamInfo);
 #endif
@@ -1431,10 +1382,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_DEAUTH_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_DEAUTH_IND",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_DEAUTH_IND", roamResult);
 #ifdef WLAN_FEATURE_AP_HT40_24G
             sapRemoveHT40IntolerantSta(sapContext, pCsrRoamInfo);
 #endif
@@ -1448,10 +1397,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_MIC_ERROR_GROUP:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_MIC_ERROR_GROUP",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                        __func__, "eCSR_ROAM_RESULT_MIC_ERROR_GROUP", roamResult);
             /* Fill in the event structure */
             //TODO: support for group key MIC failure event to be handled
             vosStatus = sapSignalHDDevent( sapContext, pCsrRoamInfo, eSAP_STA_MIC_FAILURE_EVENT,(v_PVOID_t) NULL);
@@ -1462,10 +1409,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_MIC_ERROR_UNICAST: 
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_MIC_ERROR_UNICAST",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_MIC_ERROR_UNICAST", roamResult);
             /* Fill in the event structure */
             //TODO: support for unicast key MIC failure event to be handled
             vosStatus = sapSignalHDDevent( sapContext, pCsrRoamInfo, eSAP_STA_MIC_FAILURE_EVENT,(v_PVOID_t) NULL);
@@ -1476,10 +1421,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_AUTHENTICATED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_AUTHENTICATED",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_AUTHENTICATED", roamResult);
             /* Fill in the event structure */
             sapSignalHDDevent( sapContext, pCsrRoamInfo,eSAP_STA_SET_KEY_EVENT, (v_PVOID_t)eSAP_STATUS_SUCCESS);
             if(!VOS_IS_STATUS_SUCCESS(vosStatus))
@@ -1489,19 +1432,15 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_ASSOCIATED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_ASSOCIATED",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_ASSOCIATED", roamResult);
             /* Fill in the event structure */
             sapSignalHDDevent( sapContext, pCsrRoamInfo,eSAP_STA_REASSOC_EVENT, (v_PVOID_t)eSAP_STATUS_SUCCESS);
             break;
 
         case eCSR_ROAM_RESULT_INFRA_STARTED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_INFRA_STARTED",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_INFRA_STARTED", roamResult);
             /* Fill in the event structure */ 
             sapEvent.event = eSAP_MAC_START_BSS_SUCCESS;
             sapEvent.params = pCsrRoamInfo;
@@ -1517,10 +1456,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_INFRA_STOPPED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_INFRA_STOPPED",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_INFRA_STOPPED", roamResult);
             /* Fill in the event structure */ 
             sapEvent.event = eSAP_MAC_READY_FOR_CONNECTIONS;
             sapEvent.params = pCsrRoamInfo;
@@ -1536,10 +1473,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_WPS_PBC_PROBE_REQ_IND:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_WPS_PBC_PROBE_REQ_IND",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                        __func__, "eCSR_ROAM_RESULT_WPS_PBC_PROBE_REQ_IND", roamResult);
             /* Fill in the event structure */
             //TODO: support for group key MIC failure event to be handled
             vosStatus = sapSignalHDDevent( sapContext, pCsrRoamInfo, eSAP_WPS_PBC_PROBE_REQ_EVENT,(v_PVOID_t) NULL);
@@ -1550,10 +1485,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_FORCED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_FORCED",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                       __func__, "eCSR_ROAM_RESULT_FORCED", roamResult);
 #ifdef WLAN_FEATURE_AP_HT40_24G
             sapRemoveHT40IntolerantSta(sapContext, pCsrRoamInfo);
 #endif
@@ -1563,10 +1496,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_NONE:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_NONE",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                    __func__, "eCSR_ROAM_RESULT_NONE", roamResult);
             //This event can be used to inform hdd about user triggered disassoc event
             /* Fill in the event structure */
             if ( roamStatus == eCSR_ROAM_SET_KEY_COMPLETE)
@@ -1580,10 +1511,8 @@ WLANSAP_RoamCallback
             break;
 
         case eCSR_ROAM_RESULT_MAX_ASSOC_EXCEEDED:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH,
-                          FL("CSR roamResult = %s (%d)"),
-                             "eCSR_ROAM_RESULT_MAX_ASSOC_EXCEEDED",
-                              roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_HIGH, "In %s, CSR roamResult = %s (%d)\n",
+                    __func__, "eCSR_ROAM_RESULT_MAX_ASSOC_EXCEEDED", roamResult);
             /* Fill in the event structure */
             vosStatus = sapSignalHDDevent(sapContext, pCsrRoamInfo, eSAP_MAX_ASSOC_EXCEEDED, (v_PVOID_t)NULL);
             if(!VOS_IS_STATUS_SUCCESS(vosStatus))
@@ -1593,10 +1522,8 @@ WLANSAP_RoamCallback
 
             break;
         default:
-            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
-                          FL("CSR roamResult = %s (%d) not handled"),
-                             get_eCsrRoamResult_str(roamResult),
-                             roamResult);
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR, "In %s, CSR roamResult = %s (%d) not handled\n",
+                       __func__,get_eCsrRoamResult_str(roamResult),roamResult);
             break;
     }
 

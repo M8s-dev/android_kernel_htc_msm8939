@@ -76,7 +76,7 @@
 #define VPKT_SIZE_BUFFER  ((30 * 128) + 32)
 
 /* Transport channel count to report DIAG */
-#define WPT_NUM_TRPT_CHANNEL      8
+#define WPT_NUM_TRPT_CHANNEL      5
 /* Transport channel name string size */
 #define WPT_TRPT_CHANNEL_NAME     4
 
@@ -429,39 +429,4 @@ void wpalLogPktSerialize
 (
    wpt_packet *pFrame
 );
-
-
-/*---------------------------------------------------------------------------
-    wpalFwLogPktSerialize - Serialize Logging data to logger thread
-
-    Param:
-    wpt_packet pFrame - The packet which contains the logging data.
-                        This packet has to be a VALID packet, as this
-                        API will not do any checks on the validity of
-                        the packet.
-
-    Return:
-        NONE
-
----------------------------------------------------------------------------*/
-void wpalFwLogPktSerialize
-(
-   wpt_packet *pFrame, wpt_uint32 pktType
-);
-
-/*---------------------------------------------------------------------------
-    wpalPerPktSerialize - Serialize perpkt data to logger thread
-
-    Param:
-
-
-    Return:
-        NONE
-
----------------------------------------------------------------------------*/
-void wpalPerPktSerialize
-(
-   void *perPktStat
-);
-
 #endif // __WLAN_QCT_PAL_PACKET_H

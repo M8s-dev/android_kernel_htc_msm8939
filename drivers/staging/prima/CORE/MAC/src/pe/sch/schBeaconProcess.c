@@ -131,8 +131,7 @@ ap_beacon_process(
                 if (((!(pBcnStruct->erpPresent)) && 
                       !(pBcnStruct->HTInfo.present))|| 
                     //if erp not present then  11B AP overlapping
-                    (!pMac->roam.configParam.ignorePeerErpInfo &&
-                      pBcnStruct->erpPresent &&
+                    (pBcnStruct->erpPresent &&
                     (pBcnStruct->erpIEInfo.useProtection ||
                     pBcnStruct->erpIEInfo.nonErpPresent)))
                 {
@@ -159,8 +158,7 @@ ap_beacon_process(
               if (((!(pBcnStruct->erpPresent)) && 
                     !(pBcnStruct->HTInfo.present))|| 
                   //if erp not present then  11B AP overlapping
-                  (!pMac->roam.configParam.ignorePeerErpInfo &&
-                    pBcnStruct->erpPresent &&
+                  (pBcnStruct->erpPresent &&
                   (pBcnStruct->erpIEInfo.useProtection ||
                   pBcnStruct->erpIEInfo.nonErpPresent)))
               {
@@ -202,8 +200,7 @@ ap_beacon_process(
                   //then we need to enable protection from 11g station. 
                   //we don't need protection from 11b because if that's needed then our operating
                   //mode would have already been set to legacy in the previous blocks.
-                  if(eSIR_HT_OP_MODE_OVERLAP_LEGACY == pBcnStruct->HTInfo.opMode
-                     && !pMac->roam.configParam.ignorePeerHTopMode)
+                  if(eSIR_HT_OP_MODE_OVERLAP_LEGACY == pBcnStruct->HTInfo.opMode)
                   {
                       if((eSIR_HT_OP_MODE_MIXED != pMac->lim.gHTOperMode) &&
                           (eSIR_HT_OP_MODE_OVERLAP_LEGACY != pMac->lim.gHTOperMode))
@@ -493,7 +490,7 @@ static void __schBeaconProcessForSession( tpAniSirGlobal      pMac,
         /* Update the channel bonding mode only if channel bonding
          * mode is enabled in INI.
          */
-        if ( (pStaDs != NULL) && (HAL_STA_INVALID_IDX != pStaDs->staIndex ) &&
+        if ( (pStaDs != NULL) &&
               (WNI_CFG_CHANNEL_BONDING_MODE_DISABLE != channelBondingMode) )
         {
            /* Following check is related to HT40 on 2.4GHz mode*/
@@ -540,7 +537,7 @@ static void __schBeaconProcessForSession( tpAniSirGlobal      pMac,
        /* Update the channel bonding mode only if channel bonding
         * mode is enabled in INI.
         */
-       if ( (NULL != pStaDs) && (HAL_STA_INVALID_IDX != pStaDs->staIndex ) &&
+       if ( (NULL != pStaDs)  &&
             (WNI_CFG_CHANNEL_BONDING_MODE_DISABLE != channelBondingMode) )
        {
           if (psessionEntry->vhtCapability && pBeacon->OperatingMode.present )
@@ -644,6 +641,7 @@ static void __schBeaconProcessForSession( tpAniSirGlobal      pMac,
     /* Obtain the Max Tx power for the current regulatory  */
     regMax = cfgGetRegulatoryMaxTransmitPower( pMac, psessionEntry->currentOperChannel );
 #endif
+    MTRACE(macTrace(pMac, TRACE_CODE_RX_MGMT_PROCESS, 0, 2 );)
 #if defined WLAN_FEATURE_VOWIFI
     {
         tPowerdBm  localRRMConstraint = 0;
@@ -748,6 +746,7 @@ void schBeaconProcess(tpAniSirGlobal pMac, tANI_U8* pRxPacketInfo, tpPESession p
 
         return;
     }
+    MTRACE(macTrace(pMac, TRACE_CODE_RX_MGMT_PROCESS, 0, 1 );)
     if (beaconStruct.ssidPresent)
     {
         beaconStruct.ssId.ssId[beaconStruct.ssId.length] = 0;

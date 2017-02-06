@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -565,8 +565,7 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
                 pAddBssParams->staContext.txChannelWidthSet = WNI_CFG_CHANNEL_BONDING_MODE_DISABLE;
             }                                                           
 #ifdef WLAN_FEATURE_11AC
-            if (pftSessionEntry->vhtCapability &&
-                        IS_BSS_VHT_CAPABLE(pBeaconStruct->VHTCaps))
+            if (pftSessionEntry->vhtCapability && pBeaconStruct->VHTCaps.present)
             {
                 pAddBssParams->staContext.vhtCapable = 1;
                 if ((pBeaconStruct->VHTCaps.suBeamFormerCap ||
@@ -574,12 +573,6 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
                      pftSessionEntry->txBFIniFeatureEnabled)
                 {
                     pAddBssParams->staContext.vhtTxBFCapable = 1;
-                }
-                if (pBeaconStruct->VHTCaps.muBeamformerCap &&
-                                    pftSessionEntry->txMuBformee )
-                {
-                    pAddBssParams->staContext.vhtTxMUBformeeCapable = 1;
-                    limLog(pMac, LOG1, FL("Enabling MUBformee for peer"));
                 }
             }
 #endif
@@ -752,60 +745,16 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
     wlan_cfgGetInt(pMac, WNI_CFG_DOT11_MODE, &selfDot11Mode);
     limLog(pMac, LOG1, FL("selfDot11Mode %d"),selfDot11Mode );
     pftSessionEntry->dot11mode = selfDot11Mode;
-    pftSessionEntry->vhtCapability =
-               (IS_DOT11_MODE_VHT(pftSessionEntry->dot11mode)
-                && IS_BSS_VHT_CAPABLE(pBeaconStruct->VHTCaps));
+    pftSessionEntry->vhtCapability = (IS_DOT11_MODE_VHT(pftSessionEntry->dot11mode)
+                                     && pBeaconStruct->VHTCaps.present);
     pftSessionEntry->htCapability = (IS_DOT11_MODE_HT(pftSessionEntry->dot11mode)
                                      && pBeaconStruct->HTCaps.present);
 #ifdef WLAN_FEATURE_11AC
-    if (IS_BSS_VHT_CAPABLE(pBeaconStruct->VHTCaps)
-                    && pBeaconStruct->VHTOperation.present)
+    if ( pBeaconStruct->VHTCaps.present && pBeaconStruct->VHTOperation.present)
     {
        pftSessionEntry->vhtCapabilityPresentInBeacon = 1;
        pftSessionEntry->apCenterChan = pBeaconStruct->VHTOperation.chanCenterFreqSeg1;
        pftSessionEntry->apChanWidth = pBeaconStruct->VHTOperation.chanWidth;
-
-       pftSessionEntry->txBFIniFeatureEnabled =
-                                      pMac->roam.configParam.txBFEnable;
-
-       limLog(pMac, LOG1, FL("txBFIniFeatureEnabled=%d"),
-                pftSessionEntry->txBFIniFeatureEnabled);
-
-       if (pftSessionEntry->txBFIniFeatureEnabled)
-       {
-           if (cfgSetInt(pMac, WNI_CFG_VHT_SU_BEAMFORMEE_CAP,
-                             pftSessionEntry->txBFIniFeatureEnabled)
-                                                          != eSIR_SUCCESS)
-           {
-               limLog(pMac, LOGE, FL("could not set  "
-                              "WNI_CFG_VHT_SU_BEAMFORMEE_CAP at CFG"));
-           }
-           limLog(pMac, LOG1, FL("txBFCsnValue=%d"),
-                    pMac->roam.configParam.txBFCsnValue);
-
-           if (cfgSetInt(pMac, WNI_CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED,
-                                     pMac->roam.configParam.txBFCsnValue)
-                                                             != eSIR_SUCCESS)
-           {
-               limLog(pMac, LOGE, FL("could not set "
-                    "WNI_CFG_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED at CFG"));
-           }
-
-           if (IS_MUMIMO_BFORMEE_CAPABLE)
-               pftSessionEntry->txMuBformee =
-                                            pMac->roam.configParam.txMuBformee;
-        }
-
-        limLog(pMac, LOG1, FL("txMuBformee = %d"),
-                                       pftSessionEntry->txMuBformee);
-
-        if (cfgSetInt(pMac, WNI_CFG_VHT_MU_BEAMFORMEE_CAP,
-                                          pftSessionEntry->txMuBformee)
-                                                             != eSIR_SUCCESS)
-        {
-           limLog(pMac, LOGE, FL("could not set "
-                                  "WNI_CFG_VHT_MU_BEAMFORMEE_CAP at CFG"));
-        }
     }
     else
     {
@@ -1177,8 +1126,7 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     tANI_U8 sessionId;
     tpSirBssDescription  pbssDescription;
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
-    limDiagEventReport(pMac, WLAN_PE_DIAG_ROAM_AUTH_COMP_EVENT,
-                       psessionEntry, status, eSIR_SUCCESS);
+    limDiagEventReport(pMac, WLAN_PE_DIAG_PRE_AUTH_RSP_EVENT, psessionEntry, (tANI_U16)status, 0);
 #endif
 
     // Save the status of pre-auth

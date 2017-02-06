@@ -1519,13 +1519,6 @@ typedef enum
 #define CFG_OBSS_HT40_SCAN_WIDTH_TRIGGER_INTERVAL_MAX             ( 900 )
 #define CFG_OBSS_HT40_SCAN_WIDTH_TRIGGER_INTERVAL_DEFAULT         ( 200 )
 
-/* RPS configurations */
-#define CFG_RPS_CPU_MAP_MIN                        (0)
-#define CFG_RPS_CPU_MAP_MAX                        (0xff)
-
-#define CFG_RPS_CPU_MAP_NAME                       "rps_mask"
-#define CFG_RPS_CPU_MAP_DEFAULT                    (0x00)
-
 #define CFG_MULTICAST_HOST_FW_MSGS          "gMulticastHostMsgs"
 #define CFG_MULTICAST_HOST_FW_MSGS_MIN      (0)
 #define CFG_MULTICAST_HOST_FW_MSGS_MAX      (1)
@@ -1940,7 +1933,7 @@ static __inline tANI_U32 defHddRateToDefCfgRate( tANI_U32 defRateIndex )
 #define CFG_EXTSCAN_ENABLE                  "gEnableEXTScan"
 #define CFG_EXTSCAN_ENABLE_MIN              (0)
 #define CFG_EXTSCAN_ENABLE_MAX              (1)
-#define CFG_EXTSCAN_ENABLE_DEFAULT          (1)
+#define CFG_EXTSCAN_ENABLE_DEFAULT          (0)
 #endif
 
 #ifdef WLAN_ACTIVEMODE_OFFLOAD_FEATURE
@@ -2213,16 +2206,6 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_BTC_FAST_WLAN_CONN_PREF_MIN         ( 0 )
 #define CFG_BTC_FAST_WLAN_CONN_PREF_MAX         ( 5 )
 
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_WLAN_LEN             "gBtcStaticOppWlanIdleWlanLen"
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_WLAN_LEN_DEFAULT     ( 40000 )
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_WLAN_LEN_MIN         ( 0 )
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_WLAN_LEN_MAX         ( 250000 )
-
-
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_BT_LEN             "gBtcStaticOppWlanIdleBtLen"
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_BT_LEN_DEFAULT     ( 40000 )
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_BT_LEN_MIN         ( 0 )
-#define CFG_BTC_STATIC_OPP_WLAN_IDLE_BT_LEN_MAX         ( 250000 )
 /*
  * Connection related log Enable/Disable.
  * 0x1 - Enable mgmt pkt logs (no probe req/rsp).
@@ -2279,30 +2262,7 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_WLAN_LOGGING_NUM_BUF_MIN      ( 4  )
 #define CFG_WLAN_LOGGING_NUM_BUF_MAX      ( 64 )
 #define CFG_WLAN_LOGGING_NUM_BUF_DEFAULT  ( 32 )
-
-//Number of buffers to be used for WLAN logging
-#define CFG_WLAN_PKT_STATS_NUM_BUF_NAME     "wlanPerPktStatsNumBuf"
-#define CFG_WLAN_PKT_STATS_NUM_BUF_MIN      ( 4  )
-#define CFG_WLAN_PKT_STATS_NUM_BUF_MAX      ( 64 )
-#define CFG_WLAN_PKT_STATS_NUM_BUF_DEFAULT  ( 16 )
-
 #endif //WLAN_LOGGING_SOCK_SVC_ENABLE
-
-//Enable PerPKT stats Logging
-#define CFG_WLAN_PKT_STATS_LOGGING_NAME            "wlanPerPktStatsLogEnable"
-#define CFG_WLAN_PKT_STATS_LOGGING_ENABLE          ( 1 )
-#define CFG_WLAN_PKT_STATS_LOGGING_DISABLE         ( 0 )
-#define CFG_WLAN_PKT_STATS_LOGGING_DEFAULT         ( 1 )
-
-#define CFG_IGNORE_PEER_ERP_INFO_NAME      "gIgnorePeerErpInfo"
-#define CFG_IGNORE_PEER_ERP_INFO_MIN       ( 0 )
-#define CFG_IGNORE_PEER_ERP_INFO_MAX       ( 1 )
-#define CFG_IGNORE_PEER_ERP_INFO_DEFAULT   ( 0 )
-
-#define CFG_IGNORE_PEER_HT_MODE_NAME       "gIgnorePeerHTopMode"
-#define CFG_IGNORE_PEER_HT_MODE_MIN        ( 0 )
-#define CFG_IGNORE_PEER_HT_MODE_MAX        ( 1 )
-#define CFG_IGNORE_PEER_HT_MODE_DEFAULT    ( 0 )
 
 #define CFG_INITIAL_DWELL_TIME_NAME            "gInitialDwellTime"
 #define CFG_INITIAL_DWELL_TIME_DEFAULT         (0)
@@ -2359,27 +2319,10 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_ENABLE_DEAUTH_BEFORE_CONNECTION_MAX              (1)
 #define CFG_ENABLE_DEAUTH_BEFORE_CONNECTION_DEFAULT          (0)
 
-/* gEnableMacAddrSpoof = 0 => disable mac spoofing
-                       = 1 => enable mac spoofing in both HOST and FW
-                       = 2 => enable mac spoofing in FW and
-                              disable mac spoofing in HOST
- */
 #define CFG_ENABLE_MAC_ADDR_SPOOFING                         "gEnableMacAddrSpoof"
 #define CFG_ENABLE_MAC_ADDR_SPOOFING_MIN                     (0)
-#define CFG_ENABLE_MAC_ADDR_SPOOFING_MAX                     (2)
+#define CFG_ENABLE_MAC_ADDR_SPOOFING_MAX                     (1)
 #define CFG_ENABLE_MAC_ADDR_SPOOFING_DEFAULT                 (0)
-
-/* Disable Mac Spoof for p2p Scan */
-#define CFG_DISABLE_P2P_MAC_ADDR_SPOOFING              "gDisableP2PMacAddrSpoof"
-#define CFG_DISABLE_P2P_MAC_ADDR_SPOOFING_MIN          (0)
-#define CFG_DISABLE_P2P_MAC_ADDR_SPOOFING_MAX          (1)
-#define CFG_DISABLE_P2P_MAC_ADDR_SPOOFING_DEFAULT      (0)
-
-#define CFG_ENABLE_FATAL_EVENT_TRIGGER                 "gEnableFatalEvent"
-#define CFG_ENABLE_FATAL_EVENT_TRIGGER_MIN             (0)
-#define CFG_ENABLE_FATAL_EVENT_TRIGGER_MAX             (1)
-#define CFG_ENABLE_FATAL_EVENT_TRIGGER_DEFAULT         (1)
-
 
 #define CFG_ENABLE_MGMT_LOGGING                         "gEnableMgmtLogging"
 #define CFG_ENABLE_MGMT_LOGGING_MIN                     (0)
@@ -2390,31 +2333,6 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_ENABLE_BMUHW_TRACING_MIN                     (0)
 #define CFG_ENABLE_BMUHW_TRACING_MAX                     (1)
 #define CFG_ENABLE_BMUHW_TRACING_DEFAULT                 (1)
-
-#define CFG_ENABLE_FW_LOGGING                            "gEnableFWLogging"
-#define CFG_ENABLE_FW_LOGGING_MIN                        (0)
-#define CFG_ENABLE_FW_LOGGING_MAX                        (1)
-#define CFG_ENABLE_FW_LOGGING_DEFAULT                    (1)
-
-// firmware will wakeup the host to send logs always
-#define CFG_ENABLE_FW_CONTINIOUS_LOGGING                 "gEnableContFWLogging"
-#define CFG_ENABLE_FW_CONTINIOUS_LOGGING_MIN             (0)
-#define CFG_ENABLE_FW_CONTINIOUS_LOGGING_MAX             (1)
-#define CFG_ENABLE_FW_CONTINIOUS_LOGGING_DEFAULT         (0)
-
-/* when firmware log reaches this threshold and
- * if host is awake it will push the logs.
- */
-#define CFG_MIN_LOGGING_BUFFER_SIZE                      "gMinLoggingBufferSize"
-#define CFG_MIN_LOGGING_BUFFER_SIZE_MIN                  (0)
-#define CFG_MIN_LOGGING_BUFFER_SIZE_MAX                  (6)
-#define CFG_MIN_LOGGING_BUFFER_SIZE_DEFAULT              (1)
-
-// Max ring size in firmware to log msgs when host is suspended state
-#define CFG_MAX_LOGGING_BUFFER_SIZE                      "gMaxLoggingBufferSize"
-#define CFG_MAX_LOGGING_BUFFER_SIZE_MIN                  (0)
-#define CFG_MAX_LOGGING_BUFFER_SIZE_MAX                  (6)
-#define CFG_MAX_LOGGING_BUFFER_SIZE_DEFAULT              (6)
 
 #define CFG_ENABLE_CH_AVOID                                  "gEnableChannelAvoidance"
 #define CFG_ENABLE_CH_AVOID_MIN                              ( 0 )
@@ -2531,61 +2449,6 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_DXE_SSR_ENABLE_DEFAULT   ( 1 )
 #define CFG_DXE_SSR_ENABLE_MIN       ( 0 )
 #define CFG_DXE_SSR_ENABLE_MAX       ( 1 )
-
-#define CFG_TOGGLE_ARP_BDRATES_NAME       "gToggleArpBDRates"
-#define CFG_TOGGLE_ARP_BDRATES_MIN         0
-#define CFG_TOGGLE_ARP_BDRATES_MAX         2
-#define CFG_TOGGLE_ARP_BDRATES_DEFAULT     0
-
-/*
- * gExtScanConcMode is used to manage EXT Scan during concurrency
- * This can be useful during WFD session. To avoid glitches during WFD
- * either ext scan has to be disabled or use split scan
- * 0: Disable EXT Scan
- * 1: Use Split scan
- * 2: Enable EXT Scan
- */
-#define CFG_EXT_SCAN_CONC_MODE                             "gExtScanConcMode"
-#define CFG_EXT_SCAN_CONC_MODE_MIN                          (0)
-#define CFG_EXT_SCAN_CONC_MODE_MAX                          (2)
-#define CFG_EXT_SCAN_CONC_MODE_DEFAULT                      (1)
-
-/*
- * If within gLinkFailTimeout period(values is mentioned in msec) if FW
- * doesn't receive acks for gLinkFailTxCnt number of packets, then link will
- * be disconnected.
- */
-
-#define CFG_LINK_FAIL_TIMEOUT_NAME    "gLinkFailTimeout"
-#define CFG_LINK_FAIL_TIMEOUT_MIN     ( 1000 )
-#define CFG_LINK_FAIL_TIMEOUT_MAX     ( 60000 )
-#define CFG_LINK_FAIL_TIMEOUT_DEF     ( 6000 )
-
-#define CFG_LINK_FAIL_TX_CNT_NAME    "gLinkFailTxCnt"
-#define CFG_LINK_FAIL_TX_CNT_MIN     ( 50 )
-#define CFG_LINK_FAIL_TX_CNT_MAX     ( 1000 )
-#define CFG_LINK_FAIL_TX_CNT_DEF     ( 200 )
-
-#define CFG_OPTIMIZE_CA_EVENT_NAME       "gOptimizeCAevent"
-#define CFG_OPTIMIZE_CA_EVENT_DISABLE    ( 0 )
-#define CFG_OPTIMIZE_CA_EVENT_ENABLE     ( 1 )
-#define CFG_OPTIMIZE_CA_EVENT_DEFAULT    ( 0 )
-
-#define CFG_FWR_MEM_DUMP_NAME       "gEnableFwrMemDump"
-#define CFG_FWR_MEM_DUMP_MAX        ( 1 )
-#define CFG_FWR_MEM_DUMP_MIN        ( 0 )
-#define CFG_FWR_MEM_DUMP_DEF        ( 1 )
-
-#define CFG_ACTIVE_PASSIVE_CHAN_CONV_NAME "gActivePassiveChCon"
-#define CFG_ACTIVE_PASSIVE_CHAN_CONV_MIN  (0)
-#define CFG_ACTIVE_PASSIVE_CHAN_CONV_MAX  (1)
-#define CFG_ACTIVE_PASSIVE_CHAN_CONV_DEF  (1)
-
-#define CFG_WIFI_CONFIG_ENABLE                  "gEnableWifiConfig"
-#define CFG_WIFI_CONFIG_MIN                          (0)
-#define CFG_WIFI_CONFIG_MAX                          (1)
-#define CFG_WIFI_CONFIG_DEFAULT                      (1)
-
 
 /*--------------------------------------------------------------------------- 
   Type declarations
@@ -3046,10 +2909,8 @@ typedef struct
    v_U32_t                     wlanLoggingEnable;
    v_U32_t                     wlanLoggingFEToConsole;
    v_U32_t                     wlanLoggingNumBuf;
-   v_U32_t                     wlanPerPktStatsLogEnable;
-   v_U32_t                     wlanPerPktStatsNumBuf;
 #endif
-   v_BOOL_t                    ignorePeerErpInfo;
+
    v_BOOL_t                    initialScanSkipDFSCh;
    v_U32_t                     cfgBtcFatalHidnSniffBlkGuidance;
    v_U32_t                     cfgBtcCriticalHidnSniffBlkGuidance;
@@ -3062,15 +2923,9 @@ typedef struct
 #endif
    v_U32_t                     deferImpsTime;
    v_BOOL_t                    sendDeauthBeforeCon;
-   v_U8_t                      enableMacSpoofing;
-   v_BOOL_t                    disableP2PMacSpoofing;
-   v_BOOL_t                    enableFatalEvent;
+   v_BOOL_t                    enableMacSpoofing;
    v_BOOL_t                    enableMgmtLogging;
    v_BOOL_t                    enableBMUHWtracing;
-   v_BOOL_t                    enableFWLogging;
-   v_BOOL_t                    enableContFWLogging;
-   v_U8_t                      minLoggingBufferSize;
-   v_U8_t                      maxLoggingBufferSize;
    v_BOOL_t                    fenableCHAvoidance;
    v_U8_t                      gMaxConcurrentActiveSessions;
 
@@ -3096,20 +2951,7 @@ typedef struct
    v_U32_t                     dxeReplenishRXTimerVal;
    v_U32_t                     dxeSSREnable;
    v_U8_t                      multicast_host_msgs;
-   v_BOOL_t                    toggleArpBDRates;
-   v_U32_t                     btcStaticOppWlanIdleWlanLen;
-   v_U32_t                     btcStaticOppWlanIdleBtLen;
-   v_U32_t                     linkFailTimeout;
-   v_U32_t                     linkFailTxCnt;
-   v_BOOL_t                    ignorePeerHTopMode;
-   v_U8_t                      gOptimizeCAevent;
-   v_BOOL_t                    enableFwrMemDump;
-   v_U8_t                      gActivePassiveChCon;
-   v_U32_t                     cfgExtScanConcMode;
-   v_U16_t                     rps_mask;
-   v_BOOL_t                    fEnableWifiConfig;
 } hdd_config_t;
-
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
   -------------------------------------------------------------------------*/ 

@@ -139,20 +139,6 @@ void WDA_TLI_FastHwFwdDataFrame
 }
 #endif /*WLAN_PERF*/
 
-void WDA_DS_RxLogCallback(v_U8_t logType)
-{
-  vos_msg_t vosMessage;
-
-  vosMessage.bodyval = (v_U32_t)logType;
-  vosMessage.reserved = 0;
-  vosMessage.type = WDA_SEND_LOG_DONE_IND;
-  if (VOS_STATUS_SUCCESS != vos_mq_post_message( VOS_MQ_ID_WDA, &vosMessage )) {
-     VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
-               "WLAN WDA:Posting DXE logging done indication failed" );
-  }
-  return;
-}
-
 /*==========================================================================
   FUNCTION    WDA_DS_Register
 
@@ -249,7 +235,6 @@ VOS_STATUS WDA_DS_Register
                                (WDI_DS_TxCompleteCallback)WDA_DS_TxCompleteCB,
                                (WDI_DS_RxPacketCallback)pfnRxPacketCallback,
                                WDA_DS_TxFlowControlCallback,
-                               WDA_DS_RxLogCallback,
                                pvosGCtx );
 
   if ( WDI_STATUS_SUCCESS != wdiStatus )

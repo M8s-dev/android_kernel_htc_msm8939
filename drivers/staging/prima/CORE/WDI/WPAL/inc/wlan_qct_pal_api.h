@@ -388,5 +388,4 @@ int  wpalIsDxeSSREnable(void);
 
 wpt_uint8 wpalIsFwLoggingEnabled(void);
 wpt_uint8 wpalIsFwLoggingSupported(void);
-wpt_uint8 wpalIsFwEvLoggingEnabled(void);
 #endif // __WLAN_QCT_PAL_API_H

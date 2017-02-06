@@ -75,7 +75,6 @@
 #include "wlan_nlink_common.h"
 #include "wlan_btc_svc.h"
 #include <bap_hdd_main.h>
-#include "wlan_hdd_tdls.h"
 #include "wlan_hdd_p2p.h"
 #include "cfgApi.h"
 #include "wniCfg.h"
@@ -446,10 +445,6 @@ static int hdd_hostapd_driver_command(hdd_adapter_t *pAdapter,
        hdd_tx_rx_pkt_cnt_stat_timer_handler(pHddCtx);
        sme_SetMiracastMode(pHddCtx->hHal, pHddCtx->drvr_miracast);
    }
-   else if (strncasecmp(command, "DISABLE_CA_EVENT", 16) == 0)
-   {
-       ret = hdd_enable_disable_ca_event(pHddCtx, command, 16);
-   }
 
 exit:
    if (command)
@@ -811,7 +806,6 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
     struct iw_michaelmicfailure msg;
     v_CONTEXT_t pVosContext = NULL;
     ptSapContext pSapCtx = NULL;
-    hdd_config_t *cfg_param;
 
     dev = (struct net_device *)usrDataForCallback;
     pHostapdAdapter = netdev_priv(dev);
@@ -835,8 +829,6 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
     sapEvent = pSapEvent->sapHddEventCode;
     memset(&wrqu, '\0', sizeof(wrqu));
     pHddCtx = (hdd_context_t*)(pHostapdAdapter->pHddCtx);
-    cfg_param = pHddCtx->cfg_ini;
-
 
     switch(sapEvent)
     {
@@ -848,27 +840,14 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
 
             pHostapdState->vosStatus = pSapEvent->sapevt.sapStartBssCompleteEvent.status;
             vos_status = vos_event_set(&pHostapdState->vosEvent);
-
+   
             if (!VOS_IS_STATUS_SUCCESS(vos_status) || pHostapdState->vosStatus)
-            {
+            {     
                 VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, ("ERROR: startbss event failed!!"));
                 goto stopbss;
             }
             else
-            {
-                if (pHostapdAdapter->device_mode == WLAN_HDD_P2P_GO)
-                {
-                    if ((cfg_param->dynSplitscan) &&
-                            (!pHddCtx->issplitscan_enabled))
-                    {
-                        pHddCtx->issplitscan_enabled = TRUE;
-                        sme_enable_disable_split_scan(
-                                WLAN_HDD_GET_HAL_CTX(pHostapdAdapter),
-                                cfg_param->nNumStaChanCombinedConc,
-                                cfg_param->nNumP2PChanCombinedConc);
-                    }
-                }
-
+            {                
                 pHddApCtx->uBCStaId = pSapEvent->sapevt.sapStartBssCompleteEvent.staId;
                 //@@@ need wep logic here to set privacy bit
                 vos_status = hdd_softap_Register_BC_STA(pHostapdAdapter, pHddApCtx->uPrivacy);
@@ -878,7 +857,7 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
                     hdd_stop_bss_link(pHostapdAdapter, usrDataForCallback);
                 }
             }
-
+            
             if (0 != (WLAN_HDD_GET_CTX(pHostapdAdapter))->cfg_ini->nAPAutoShutOff)
             {
                 // AP Inactivity timer init and start
@@ -945,11 +924,17 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
 
             pHddApCtx->operatingChannel = 0; //Invalidate the channel info.
 
-            if (pHostapdAdapter->device_mode == WLAN_HDD_P2P_GO)
+            if ((TRUE == pHddCtx->cfg_ini->fEnableTDLSSupport) &&
+                    (TRUE == sme_IsFeatureSupportedByFW(TDLS)))
             {
-                hddLog(LOG1,
-                       FL("P2P Go is getting removed and we are trying to re-enable TDLS"));
-                wlan_hdd_tdls_reenable(pHddCtx);
+                if (pHostapdAdapter->device_mode == WLAN_HDD_P2P_GO)
+                {
+                    /* Enable TDLS support Once P2P session ends since
+                     * upond detection of concurrency TDLS would be disabled
+                     */
+                    hddLog(LOG1, FL("Enable TDLS support"));
+                    wlan_hdd_tdls_set_mode(pHddCtx, eTDLS_SUPPORT_ENABLED, FALSE);
+                }
             }
 
             goto stopbss;
@@ -1036,15 +1021,6 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
                                      vos_status, MAC_ADDR_ARRAY(wrqu.addr.sa_data));
             }
 
-            staId =
-                pSapEvent->sapevt.sapStationAssocReassocCompleteEvent.staId;
-            if (VOS_IS_STATUS_SUCCESS(vos_status))
-            {
-
-                pSapCtx->aStaInfo[staId].rate_flags =
-                pSapEvent->sapevt.sapStationAssocReassocCompleteEvent.rate_flags;
-            }
-
             // Stop AP inactivity timer
             if (pHddApCtx->hdd_ap_inactivity_timer.state == VOS_TIMER_STATE_RUNNING)
             {
@@ -1055,13 +1031,9 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
 #ifdef WLAN_OPEN_SOURCE
             if (wake_lock_active(&pHddCtx->sap_wake_lock))
             {
-               vos_wake_lock_release(&pHddCtx->sap_wake_lock,
-                                      WIFI_POWER_EVENT_WAKELOCK_SAP);
+               wake_unlock(&pHddCtx->sap_wake_lock);
             }
-            vos_wake_lock_timeout_release(&pHddCtx->sap_wake_lock,
-                                          HDD_SAP_WAKE_LOCK_DURATION,
-                                          WIFI_POWER_EVENT_WAKELOCK_SAP);
-
+            wake_lock_timeout(&pHddCtx->sap_wake_lock, msecs_to_jiffies(HDD_SAP_WAKE_LOCK_DURATION));
 #endif
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
             {
@@ -1972,15 +1944,6 @@ static __iw_softap_setparam(struct net_device *dev,
                 }
                 break;
             }
-        case QCSAP_PARAM_GET_FRAME_LOGS:
-            {
-                if (wlan_hdd_get_frame_logs(pHostapdAdapter, set_value)
-                         != VOS_STATUS_SUCCESS)
-                {
-                    ret = -EINVAL;
-                }
-                break;
-            }
 
         default:
             hddLog(LOGE, FL("Invalid setparam command %d value %d"),
@@ -2703,13 +2666,6 @@ static __iw_softap_disassoc_sta(struct net_device *dev,
     int ret = 0;
 
     ENTER();
-
-    if (!capable(CAP_NET_ADMIN)) {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  FL("permission check failed"));
-        return -EPERM;
-    }
-
     pHostapdAdapter = (netdev_priv(dev));
     if (NULL == pHostapdAdapter)
     {
@@ -2810,163 +2766,6 @@ static __iw_softap_ap_stats(struct net_device *dev,
     EXIT();
     return 0;
 }
-int
-static __iw_softap_ap_get_stats(struct net_device *dev,
-                          struct iw_request_info *info,
-                          union iwreq_data *wrqu, char *extra)
-{
-    hdd_adapter_t *pAdapter;
-    hdd_tx_rx_stats_t *pStats;
-
-    ENTER();
-    pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-    if (NULL == pAdapter)
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: Adapter is NULL",__func__);
-        return -EINVAL;
-    }
-
-    pStats = &pAdapter->hdd_stats.hddTxRxStats;
-    snprintf(extra, QCSAP_MAX_STR_LEN,
-                     "\nTransmit"
-                     "\ncalled %u, dropped %u, backpressured %u, queued %u"
-                     "\n      dropped BK %u, BE %u, VI %u, VO %u"
-                     "\n   classified BK %u, BE %u, VI %u, VO %u"
-                     "\nbackpressured BK %u, BE %u, VI %u, VO %u"
-                     "\n       queued BK %u, BE %u, VI %u, VO %u"
-                     "\nfetched %u, empty %u, lowres %u, deqerr %u"
-                     "\ndequeued %u, depressured %u, deque-depressured %u,\
-                        completed %u, flushed %u"
-                     "\n      fetched BK %u, BE %u, VI %u, VO %u"
-                     "\n     dequeued BK %u, BE %u, VI %u, VO %u"
-                     "\n  depressured BK %u, BE %u, VI %u, VO %u"
-                     "\nDeque depressured BK %u, BE %u, VI %u, VO %u"
-                     "\n      flushed BK %u, BE %u, VI %u, VO %u"
-                     "\n\nReceive"
-                     "\nchains %u, packets %u, dropped %u, delivered %u, refused %u"
-                     "\n\nResetsStats"
-                     "\n",
-                     pStats->txXmitCalled,
-                     pStats->txXmitDropped,
-                     pStats->txXmitBackPressured,
-                     pStats->txXmitQueued,
-
-                     pStats->txXmitDroppedAC[WLANTL_AC_BK],
-                     pStats->txXmitDroppedAC[WLANTL_AC_BE],
-                     pStats->txXmitDroppedAC[WLANTL_AC_VI],
-                     pStats->txXmitDroppedAC[WLANTL_AC_VO],
-
-                     pStats->txXmitClassifiedAC[WLANTL_AC_BK],
-                     pStats->txXmitClassifiedAC[WLANTL_AC_BE],
-                     pStats->txXmitClassifiedAC[WLANTL_AC_VI],
-                     pStats->txXmitClassifiedAC[WLANTL_AC_VO],
-
-                     pStats->txXmitBackPressuredAC[WLANTL_AC_BK],
-                     pStats->txXmitBackPressuredAC[WLANTL_AC_BE],
-                     pStats->txXmitBackPressuredAC[WLANTL_AC_VI],
-                     pStats->txXmitBackPressuredAC[WLANTL_AC_VO],
-
-                     pStats->txXmitQueuedAC[WLANTL_AC_BK],
-                     pStats->txXmitQueuedAC[WLANTL_AC_BE],
-                     pStats->txXmitQueuedAC[WLANTL_AC_VI],
-                     pStats->txXmitQueuedAC[WLANTL_AC_VO],
-
-                     pStats->txFetched,
-                     pStats->txFetchEmpty,
-                     pStats->txFetchLowResources,
-                     pStats->txFetchDequeueError,
-
-                     pStats->txFetchDequeued,
-                     pStats->txFetchDePressured,
-                     pStats->txDequeDePressured,
-                     pStats->txCompleted,
-                     pStats->txFlushed,
-
-                     pStats->txFetchedAC[WLANTL_AC_BK],
-                     pStats->txFetchedAC[WLANTL_AC_BE],
-                     pStats->txFetchedAC[WLANTL_AC_VI],
-                     pStats->txFetchedAC[WLANTL_AC_VO],
-
-                     pStats->txFetchDequeuedAC[WLANTL_AC_BK],
-                     pStats->txFetchDequeuedAC[WLANTL_AC_BE],
-                     pStats->txFetchDequeuedAC[WLANTL_AC_VI],
-                     pStats->txFetchDequeuedAC[WLANTL_AC_VO],
-
-                     pStats->txFetchDePressuredAC[WLANTL_AC_BK],
-                     pStats->txFetchDePressuredAC[WLANTL_AC_BE],
-                     pStats->txFetchDePressuredAC[WLANTL_AC_VI],
-                     pStats->txFetchDePressuredAC[WLANTL_AC_VO],
-
-                     pStats->txDequeDePressuredAC[WLANTL_AC_BK],
-                     pStats->txDequeDePressuredAC[WLANTL_AC_BE],
-                     pStats->txDequeDePressuredAC[WLANTL_AC_VI],
-                     pStats->txDequeDePressuredAC[WLANTL_AC_VO],
-
-                     pStats->txFlushedAC[WLANTL_AC_BK],
-                     pStats->txFlushedAC[WLANTL_AC_BE],
-                     pStats->txFlushedAC[WLANTL_AC_VI],
-                     pStats->txFlushedAC[WLANTL_AC_VO],
-
-                     pStats->rxChains,
-                     pStats->rxPackets,
-                     pStats->rxDropped,
-                     pStats->rxDelivered,
-                     pStats->rxRefused
-                     );
-
-    wrqu->data.length = strlen(extra) + 1;
-
-   return 0;
-}
-
-int
-static __iw_softap_ap_clear_stats(struct net_device *dev,
-                          struct iw_request_info *info,
-                          union iwreq_data *wrqu, char *extra)
-{
-    hdd_adapter_t *pAdapter;
-
-    ENTER();
-
-    pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-    if (NULL == pAdapter)
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: Adapter is NULL",__func__);
-        return -EINVAL;
-    }
-
-    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,"%s: clearing", __func__);
-    memset(&pAdapter->stats, 0, sizeof(pAdapter->stats));
-    memset(&pAdapter->hdd_stats, 0, sizeof(pAdapter->hdd_stats));
-    return 0;
-}
-
-
-int
-static iw_softap_get_stats(struct net_device *dev,
-                          struct iw_request_info *info,
-                          union iwreq_data *wrqu, char *extra)
-{
-   int ret;
-   vos_ssr_protect(__func__);
-   ret = __iw_softap_ap_get_stats(dev, info, wrqu, extra);
-   vos_ssr_unprotect(__func__);
-   return ret;
-}
-
-int
-static iw_softap_clear_stats(struct net_device *dev,
-                          struct iw_request_info *info,
-                          union iwreq_data *wrqu, char *extra)
-{
-   int ret;
-   vos_ssr_protect(__func__);
-   ret = __iw_softap_ap_clear_stats(dev, info, wrqu, extra);
-   vos_ssr_unprotect(__func__);
-   return ret;
-}
 
 int
 static iw_softap_ap_stats(struct net_device *dev,
@@ -2997,13 +2796,6 @@ static int __iw_softap_set_channel_range(struct net_device *dev,
     int ret = 0; /* success */
 
     ENTER();
-
-    if (!capable(CAP_NET_ADMIN))
-    {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  FL("permission check failed"));
-        return -EPERM;
-    }
 
     pHostapdAdapter = (netdev_priv(dev));
     if (NULL == pHostapdAdapter)
@@ -3909,13 +3701,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
 
    ENTER();
 
-   if (!capable(CAP_NET_ADMIN))
-   {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 FL("permission check failed"));
-       return -EPERM;
-   }
-
    pHostapdAdapter = (netdev_priv(dev));
    if (NULL == pHostapdAdapter)
    {
@@ -3979,8 +3764,9 @@ static int __iw_softap_setwpsie(struct net_device *dev,
          case DOT11F_EID_WPA: 
             if (wps_genie[1] < 2 + 4)
             {
-               ret = -EINVAL;
-               goto exit;
+               vos_mem_free(pSap_WPSIe); 
+               kfree(fwps_genie);
+               return -EINVAL;
             }
             else if (memcmp(&wps_genie[2], "\x00\x50\xf2\x04", 4) == 0) 
             {
@@ -4038,11 +3824,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2; 
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length > sizeof(pSap_WPSIe->sapwpsie.sapWPSBeaconIE.UUID_E))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSBeaconIE.UUID_E, pos, length);
                       pSap_WPSIe->sapwpsie.sapWPSBeaconIE.FieldPresent |= WPS_BEACON_UUIDE_PRESENT; 
                       pos += length;
@@ -4057,8 +3838,9 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                    
                    default:
                       hddLog (LOGW, "UNKNOWN TLV in WPS IE(%x)", (*pos<<8 | *(pos+1)));
-                      ret = -EINVAL;
-                      goto exit;
+                      vos_mem_free(pSap_WPSIe);
+                      kfree(fwps_genie);
+                      return -EINVAL; 
                 }
               }  
             }
@@ -4070,8 +3852,9 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                  
          default:
             hddLog (LOGE, "%s Set UNKNOWN IE %X",__func__, wps_genie[0]);
-            ret = -EINVAL;
-            goto exit;
+            vos_mem_free(pSap_WPSIe);
+            kfree(fwps_genie);
+            return 0;
       }
     } 
     else if( wps_genie[0] == eQC_WPS_PROBE_RSP_IE)
@@ -4083,8 +3866,9 @@ static int __iw_softap_setwpsie(struct net_device *dev,
          case DOT11F_EID_WPA: 
             if (wps_genie[1] < 2 + 4)
             {
-                ret = -EINVAL;
-                goto exit;
+               vos_mem_free(pSap_WPSIe); 
+               kfree(fwps_genie);
+               return -EINVAL;
             }
             else if (memcmp(&wps_genie[2], "\x00\x50\xf2\x04", 4) == 0) 
             {
@@ -4148,11 +3932,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2; 
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length > (sizeof(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.UUID_E)))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.UUID_E, pos, length);
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.FieldPresent |= WPS_PROBRSP_UUIDE_PRESENT;
                       pos += length;
@@ -4162,11 +3941,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2;
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length >  (sizeof(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.Manufacture.name)))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.Manufacture.num_name = length;
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.Manufacture.name, pos, length);
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.FieldPresent |= WPS_PROBRSP_MANUFACTURE_PRESENT;
@@ -4177,11 +3951,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2;
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length > (sizeof(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.ModelName.text)))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.ModelName.num_text = length;
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.ModelName.text, pos, length);
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.FieldPresent |= WPS_PROBRSP_MODELNAME_PRESENT;
@@ -4191,11 +3960,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2;
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length > (sizeof(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.ModelNumber.text)))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.ModelNumber.num_text = length;
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.ModelNumber.text, pos, length);
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.FieldPresent |= WPS_PROBRSP_MODELNUMBER_PRESENT;
@@ -4205,11 +3969,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2;
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length > (sizeof(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.SerialNumber.text)))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.SerialNumber.num_text = length;
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.SerialNumber.text, pos, length);
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.FieldPresent |= WPS_PROBRSP_SERIALNUMBER_PRESENT;
@@ -4233,11 +3992,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
                       pos += 2;
                       length = *pos<<8 | *(pos+1);
                       pos += 2;
-                      if (length > (sizeof(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.DeviceName.text)))
-                      {
-                          ret = -EINVAL;
-                          goto exit;
-                      }
                       pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.DeviceName.num_text = length;
                       vos_mem_copy(pSap_WPSIe->sapwpsie.sapWPSProbeRspIE.DeviceName.text, pos, length);
                       pos += length;
@@ -4269,8 +4023,6 @@ static int __iw_softap_setwpsie(struct net_device *dev,
       } // switch
     }
     halStatus = WLANSAP_Set_WpsIe(pVosContext, pSap_WPSIe);
-    if (halStatus != eHAL_STATUS_SUCCESS)
-        ret = -EINVAL;
     pHostapdState = WLAN_HDD_GET_HOSTAP_STATE_PTR(pHostapdAdapter);
     if( pHostapdState->bCommit && WPSIeType == eQC_WPS_PROBE_RSP_IE)
     {
@@ -4279,11 +4031,10 @@ static int __iw_softap_setwpsie(struct net_device *dev,
         WLANSAP_Update_WpsIe ( pVosContext );
     }
  
-exit:
     vos_mem_free(pSap_WPSIe);   
     kfree(fwps_genie);
     EXIT();
-    return ret;
+    return halStatus;
 }
 
 static int iw_softap_setwpsie(struct net_device *dev,
@@ -4834,8 +4585,6 @@ static const struct iw_priv_args hostapd_private_args[] = {
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 2, 0, "setparam" },
   { QCSAP_IOCTL_SETPARAM,
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0, "" },
-  { QCSAP_PARAM_GET_FRAME_LOGS,
-      IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0, "getFrameLogs" },
   { QCSAP_PARAM_MAX_ASSOC,
       IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0, "setMaxAssoc" },
    { QCSAP_PARAM_HIDE_SSID,
@@ -4877,9 +4626,6 @@ static const struct iw_priv_args hostapd_private_args[] = {
         IW_PRIV_TYPE_BYTE | IW_PRIV_SIZE_FIXED | 6 , 0, "disassoc_sta" },
   { QCSAP_IOCTL_AP_STATS, 0,
         IW_PRIV_TYPE_CHAR | QCSAP_MAX_WSC_IE, "ap_stats" },
-  { QCSAP_IOCTL_GET_STATS, 0,
-        IW_PRIV_TYPE_CHAR | QCSAP_MAX_STR_LEN, "getStats"},
-  { QCSAP_IOCTL_CLR_STATS, 0, 0, "clearStats" },
   { QCSAP_IOCTL_PRIV_GET_SOFTAP_LINK_SPEED,
         IW_PRIV_TYPE_CHAR | 18,
         IW_PRIV_TYPE_CHAR | 5, "getLinkSpeed" },
@@ -4980,8 +4726,6 @@ static const iw_handler hostapd_private[] = {
    [QCSAP_IOCTL_SET_MAX_TX_POWER - SIOCIWFIRSTPRIV]   = iw_softap_set_max_tx_power,
    [QCSAP_IOCTL_DATAPATH_SNAP_SHOT - SIOCIWFIRSTPRIV]  =   iw_display_data_path_snapshot,
    [QCSAP_IOCTL_SET_TRAFFIC_MONITOR - SIOCIWFIRSTPRIV]  =  iw_softap_set_trafficmonitor,
-   [QCSAP_IOCTL_GET_STATS - SIOCIWFIRSTPRIV]  =  iw_softap_get_stats,
-   [QCSAP_IOCTL_CLR_STATS - SIOCIWFIRSTPRIV]  =  iw_softap_clear_stats,
 };
 const struct iw_handler_def hostapd_handler_def = {
    .num_standard     = sizeof(hostapd_handler) / sizeof(hostapd_handler[0]),
@@ -5049,9 +4793,6 @@ VOS_STATUS hdd_init_ap_mode( hdd_adapter_t *pAdapter )
        // Allocate the Wireless Extensions state structure
     phostapdBuf = WLAN_HDD_GET_HOSTAP_STATE_PTR( pAdapter );
 
-    spin_lock_init(&pAdapter->sta_hash_lock);
-    pAdapter->is_sta_id_hash_initialized = VOS_FALSE;
-
     sme_SetCurrDeviceMode(pHddCtx->hHal, pAdapter->device_mode);
 
 #ifdef FEATURE_WLAN_CH_AVOID
@@ -5085,6 +4826,8 @@ VOS_STATUS hdd_init_ap_mode( hdd_adapter_t *pAdapter )
          return status;
     }
     
+    init_completion(&pAdapter->session_close_comp_var);
+    init_completion(&pAdapter->session_open_comp_var);
 
     sema_init(&(WLAN_HDD_GET_AP_CTX_PTR(pAdapter))->semWpsPBCOverlapInd, 1);
  
@@ -5123,11 +4866,8 @@ hdd_adapter_t* hdd_wlan_create_ap_dev( hdd_context_t *pHddCtx, tSirMacAddr macAd
     hdd_adapter_t *pHostapdAdapter = NULL;
     v_CONTEXT_t pVosContext= NULL;
 
-    pWlanHostapdDev = alloc_netdev_mq(sizeof(hdd_adapter_t), iface_name,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0))
-                                      NET_NAME_UNKNOWN,
-#endif
-                                      ether_setup, NUM_TX_QUEUES);
+   pWlanHostapdDev = alloc_netdev_mq(sizeof(hdd_adapter_t), iface_name, ether_setup, NUM_TX_QUEUES);
+
     if (pWlanHostapdDev != NULL)
     {
         pHostapdAdapter = netdev_priv(pWlanHostapdDev);
@@ -5161,6 +4901,13 @@ hdd_adapter_t* hdd_wlan_create_ap_dev( hdd_context_t *pHddCtx, tSirMacAddr macAd
         pWlanHostapdDev->ieee80211_ptr = &pHostapdAdapter->wdev ;
         pHostapdAdapter->wdev.wiphy = pHddCtx->wiphy;  
         pHostapdAdapter->wdev.netdev =  pWlanHostapdDev;
+        init_completion(&pHostapdAdapter->tx_action_cnf_event);
+        init_completion(&pHostapdAdapter->cancel_rem_on_chan_var);
+        init_completion(&pHostapdAdapter->rem_on_chan_ready_event);
+        init_completion(&pHostapdAdapter->ula_complete);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
+        init_completion(&pHostapdAdapter->offchannel_tx_event);
+#endif
 
         SET_NETDEV_DEV(pWlanHostapdDev, pHddCtx->parent_dev);
     }

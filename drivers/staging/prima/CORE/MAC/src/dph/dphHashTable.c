@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -133,12 +133,6 @@ tpDphHashNode dphLookupHashEntry(tpAniSirGlobal pMac, tANI_U8 staAddr[], tANI_U1
 {
     tpDphHashNode ptr = NULL;
     tANI_U16 index = hashFunction(pMac, staAddr, pDphHashTable->size);
-
-    if (!pDphHashTable->pHashTable)
-    {
-        limLog(pMac, LOGE, FL(" pHashTable is NULL "));
-        return ptr;
-    }
 
     for (ptr = pDphHashTable->pHashTable[index]; ptr; ptr = ptr->next)
         {
@@ -292,9 +286,6 @@ tpDphHashNode dphInitStaState(tpAniSirGlobal pMac, tSirMacAddr staAddr,
     pStaDs->acMode[0] = pStaDs->acMode[1] = pStaDs->acMode[2] = pStaDs->acMode[3] =  0;
 #endif /* WMM_APSD */
     pStaDs->isDisassocDeauthInProgress = 0;
-#ifdef WLAN_FEATURE_11W
-    pStaDs->last_assoc_received_time = 0;
-#endif
     pStaDs->valid = 1;
     return pStaDs;
 }
@@ -440,10 +431,6 @@ tSirRetStatus dphDeleteHashEntry(tpAniSirGlobal pMac, tSirMacAddr staAddr, tANI_
          prev->next = ptr->next;
       ptr->added = 0;
       ptr->isDisassocDeauthInProgress = 0;
-#ifdef WLAN_FEATURE_11W
-      ptr->last_assoc_received_time = 0;
-#endif
-
       ptr->next = 0;
     }
   else

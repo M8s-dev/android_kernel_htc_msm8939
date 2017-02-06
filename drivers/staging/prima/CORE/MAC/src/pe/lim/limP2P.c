@@ -891,7 +891,6 @@ void limSetHtCaps(tpAniSirGlobal pMac, tpPESession psessionEntry, tANI_U8 *pIeSt
     tDot11fIEHTCaps     dot11HtCap;
 
     PopulateDot11fHTCaps(pMac, psessionEntry, &dot11HtCap);
-
     pIe = limGetIEPtr(pMac,pIeStartPtr, nBytes,
                                        DOT11F_EID_HTCAPS,ONE_BYTE);
     limLog( pMac, LOG2, FL("pIe %p dot11HtCap.supportedMCSSet[0]=0x%x"),
@@ -1126,7 +1125,7 @@ void limSendP2PActionFrame(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
             if (pMac->lim.gpLimRemainOnChanReq == NULL)
             {
                 limLog( pMac, LOGE,
-                        FL("Failed to Send Action frame"));
+                        FL("Failed to Send Action frame \n"));
                 limSendSmeRsp(pMac, eWNI_SME_ACTION_FRAME_SEND_CNF,
                               eHAL_STATUS_FAILURE, pMbMsg->sessionId, 0);
                 return;
@@ -1195,7 +1194,7 @@ void limSendP2PActionFrame(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
         else
         {
             limLog(pMac, LOGE,
-                FL("Dropping SA Query frame - Unable to find PE Session "));
+                FL("Dropping SA Query frame - Unable to find PE Session \n"));
             limSendSmeRsp(pMac, eWNI_SME_ACTION_FRAME_SEND_CNF,
                     eHAL_STATUS_FAILURE, pMbMsg->sessionId, 0);
             palPktFree( pMac->hHdd, HAL_TXRX_FRM_802_11_MGMT,

@@ -760,20 +760,6 @@ v_BOOL_t gRoamDelayCurrentIndex = 0;
 #define VOS_QOS_DATA_VALUE                              ( 0x88 )
 #define VOS_NON_QOS_DATA_VALUE                          ( 0x80 )
 
-//802.11 header wil have 24 byte excluding qos
-#define VOS_802_11_HEADER_SIZE ( 24 )
-#define VOS_QOS_SIZE ( 2 )
-#define VOS_LLC_HEADER_SIZE   (8)
-#define VOS_IP_HEADER_SIZE    (20)
-#define VOS_TCP_MIN_HEADER_SIZE   (20)
-#define VOS_DEF_PKT_STATS_LEN_TO_COPY \
-       (VOS_802_11_HEADER_SIZE + VOS_LLC_HEADER_SIZE \
-       + VOS_IP_HEADER_SIZE + VOS_TCP_MIN_HEADER_SIZE)
-// DHCP Port number
-#define VOS_DHCP_SOURCE_PORT 0x4400
-#define VOS_DHCP_DESTINATION_PORT 0x4300
-
-
 
 // Frame Type definitions
 #define VOS_MAC_MGMT_FRAME    0x0
@@ -791,13 +777,15 @@ v_BOOL_t vos_skb_is_eapol(struct sk_buff *skb,
 {
     void       *pBuffer   = NULL;
     v_BOOL_t   fEAPOL     = VOS_FALSE;
-
+    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "enter vos_skb_is_eapol");
+    //vos_trace_hex_dump( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, &skb->data[0], skb->len);
     // Validate the skb
     if (unlikely(NULL == skb))
     {
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                     "vos_skb_is_eapol [%d]: NULL skb", __LINE__);
-        return VOS_FALSE;
+        return VOS_STATUS_E_INVAL;
+        VOS_ASSERT(0);
     }
     // check for overflow
     if (unlikely((pktOffset + numBytes) > skb->len))
@@ -805,7 +793,7 @@ v_BOOL_t vos_skb_is_eapol(struct sk_buff *skb,
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                   "vos_skb_is_eapol [%d]: Packet overflow, offset %d size %d len %d",
                   __LINE__, pktOffset, numBytes, skb->len);
-        return VOS_FALSE;
+        return VOS_STATUS_E_INVAL;
     }
     //check for the Qos Data, if Offset length is more 12.
     //it means it will 802.11 header skb
@@ -820,6 +808,7 @@ v_BOOL_t vos_skb_is_eapol(struct sk_buff *skb,
     {
       fEAPOL = VOS_TRUE;
     }
+    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "exit vos_skb_is_eapol fEAPOL = %d", fEAPOL);
     return fEAPOL;
 }
 
@@ -1478,65 +1467,4 @@ void vos_dump_roam_time_log_service(void)
     VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
          "||== END ====================="
          "===============================||\n");
-}
-
-v_U32_t vos_copy_80211_data(void *pBuff, v_U8_t *dst, v_U8_t frametype)
-{
-    vos_pkt_t *vos_pkt = NULL;
-    struct sk_buff *skb = NULL;
-    v_U32_t length_to_copy;
-
-    vos_pkt = (vos_pkt_t *)pBuff;
-
-    if(!vos_pkt || !dst)
-    {
-       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 "vos_pkt/dst is null");
-       return 0;
-    }
-    skb = vos_pkt->pSkb;
-    if(!skb)
-    {
-       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                   " skb is null");
-       return 0;
-    }
-    if (VOS_MAC_MGMT_FRAME == frametype)
-    {
-      length_to_copy = skb->len;
-    }
-    else
-    {
-        length_to_copy = VOS_DEF_PKT_STATS_LEN_TO_COPY;
-           if(skb->data[0] == VOS_QOS_DATA_VALUE)
-              length_to_copy += VOS_QOS_SIZE;
-
-        /* Copy whole skb data if DHCP or EAPOL pkt.Here length_to_copy
-         * will give the pointer to IP header and adding VOS_IP_HEADER_SIZE
-         * to it will give the DHCP port number.
-         */
-        if (((skb->len > (length_to_copy + VOS_IP_HEADER_SIZE)) &&
-             ((*((u16*)((u8*)skb->data + length_to_copy + VOS_IP_HEADER_SIZE))
-              == VOS_DHCP_SOURCE_PORT) ||
-             (*((u16*)((u8*)skb->data + length_to_copy + VOS_IP_HEADER_SIZE))
-              == VOS_DHCP_DESTINATION_PORT)))  ||
-             vos_skb_is_eapol(skb,
-             VOS_ETHERTYPE_802_1_X_FRAME_OFFSET_IN_802_11_PKT,
-             VOS_ETHERTYPE_802_1_X_SIZE))
-        {
-           length_to_copy = skb->len;
-        }
-    }
-
-    if (length_to_copy > skb->len)
-    {
-        length_to_copy = skb->len;
-    }
-    if (length_to_copy > MAX_PKT_STAT_DATA_LEN)
-    {
-        length_to_copy = MAX_PKT_STAT_DATA_LEN;
-    }
-
-    vos_mem_copy(dst, skb->data, length_to_copy);
-    return length_to_copy;
 }

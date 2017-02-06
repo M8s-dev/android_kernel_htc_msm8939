@@ -286,6 +286,9 @@ static void nl_srv_rcv_msg (struct sk_buff *skb, struct nlmsghdr *nlh)
       return;
    }
 
+   VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+      "NLINK: Received NL msg type [%d]", type);
+
    // turn type into dispatch table offset
    type -= WLAN_NL_MSG_BASE;
 
@@ -388,7 +391,7 @@ void nl_srv_nl_close_indication
 }
 #endif /* WLAN_KD_READY_NOTIFIER */
 
-/*
+/**
  * nl_srv_is_initialized() - This function is used check if the netlink
  * service is initialized
  *

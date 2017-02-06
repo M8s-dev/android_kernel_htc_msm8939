@@ -1600,9 +1600,7 @@ limDisassocCnfSerDes(tpAniSirGlobal pMac, tpSirSmeDisassocCnf pDisassocCnf, tANI
     pBuf += sizeof(tSirMacAddr);
 
     vos_mem_copy( pDisassocCnf->peerMacAddr, pBuf, sizeof(tSirMacAddr));
-    pBuf += sizeof(tSirMacAddr);
 
-    pDisassocCnf->assocId = limGetU16(pBuf);
 
     return eSIR_SUCCESS;
 } /*** end limDisassocCnfSerDes() ***/

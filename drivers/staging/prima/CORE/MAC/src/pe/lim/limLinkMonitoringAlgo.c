@@ -226,14 +226,14 @@ limDeleteStaContext(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
                         eSIR_MAC_DISASSOC_DUE_TO_INACTIVITY_REASON;
                     pStaDs->mlmStaContext.cleanupTrigger = eLIM_LINK_MONITORING_DEAUTH;
 
-                    if (pStaDs->isDisassocDeauthInProgress)
-                    {
-                        limLog(pMac, LOGE, FL("No need to cleanup as already"
-                               "disassoc or deauth in progress"));
-                        return;
-                    }
-                    else
-                        pStaDs->isDisassocDeauthInProgress++;
+                   /** Set state to mlm State to eLIM_MLM_WT_DEL_STA_RSP_STATE
+                    * This is to address the issue of race condition between
+                    * disconnect request from the HDD and deauth from
+                    * Tx inactivity timer by FWR. This will make sure that we will not
+                    * process disassoc if deauth is in progress for the station
+                    * and thus mlmStaContext.cleanupTrigger will not be overwritten.
+                    */
+                    pStaDs->mlmStaContext.mlmState   = eLIM_MLM_WT_DEL_STA_RSP_STATE;
 
                     // Issue Deauth Indication to SME.
                     vos_mem_copy((tANI_U8 *) &mlmDeauthInd.peerMacAddr,
@@ -346,8 +346,7 @@ limTriggerSTAdeletion(tpAniSirGlobal pMac, tpDphHashNode pStaDs, tpPESession pse
     msgLength += sizeof(tSirMacAddr);
 
     //reasonCode 
-    limCopyU16((tANI_U8*)pBuf,
-            (tANI_U16)eSIR_MAC_DISASSOC_DUE_TO_INACTIVITY_REASON);
+    limCopyU16((tANI_U8*)pBuf, (tANI_U16)eLIM_LINK_MONITORING_DISASSOC);
     pBuf += sizeof(tANI_U16);
     msgLength += sizeof(tANI_U16);
 

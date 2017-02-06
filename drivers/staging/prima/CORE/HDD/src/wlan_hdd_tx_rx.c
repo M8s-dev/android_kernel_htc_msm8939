@@ -90,13 +90,6 @@ const v_U8_t hdd_QdiscAcToTlAC[] = {
 #define HDD_TX_STALL_SSR_THRESHOLD        5
 #define HDD_TX_STALL_SSR_THRESHOLD_HIGH   13
 #define HDD_TX_STALL_RECOVERY_THRESHOLD HDD_TX_STALL_SSR_THRESHOLD - 2
-#define HDD_TX_STALL_FATAL_EVENT_THRESHOLD 2
-#define EAPOL_MASK 0x8013
-#define EAPOL_M1_BIT_MASK 0x8000
-#define EAPOL_M2_BIT_MASK 0x0001
-#define EAPOL_M3_BIT_MASK 0x8013
-#define EAPOL_M4_BIT_MASK 0x0003
-
 
 int gRatefromIdx[] = {
  10,20,55,100,
@@ -653,7 +646,8 @@ void hdd_dump_dhcp_pkt(struct sk_buff *skb, int path)
         return NETDEV_TX_OK;
     }
 
-     STAId = hdd_sta_id_find_from_mac_addr(pAdapter, pDestMacAddress);
+     STAId = *(v_U8_t *)(((v_U8_t *)(skb->data)) - 1);
+
      if ((STAId == HDD_WLAN_INVALID_STA_ID) &&
            (vos_is_macaddr_broadcast( pDestMacAddress ) ||
             vos_is_macaddr_group(pDestMacAddress)))
@@ -1079,7 +1073,6 @@ void __hdd_tx_timeout(struct net_device *dev)
    int i = 0;
    int status = 0;
    v_ULONG_t diff_in_jiffies = 0;
-   hdd_station_ctx_t *pHddStaCtx = NULL;
 
    VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
       "%s: Transmission timeout occurred jiffies %lu dev->trans_start %lu",
@@ -1098,14 +1091,6 @@ void __hdd_tx_timeout(struct net_device *dev)
    if (status !=0 )
    {
        return;
-   }
-
-   pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
-   if ( NULL == pHddStaCtx )
-   {
-      VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
-              FL("pHddStaCtx is NULL"));
-      return;
    }
 
    ++pAdapter->hdd_stats.hddTxRxStats.txTimeoutCount;
@@ -1168,12 +1153,6 @@ void __hdd_tx_timeout(struct net_device *dev)
    //update last jiffies after the check
    pAdapter->hdd_stats.hddTxRxStats.jiffiesLastTxTimeOut = jiffies;
 
-   if (!pHddStaCtx->conn_info.uIsAuthenticated) {
-      VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,
-                FL("TL is not in authenticated state so skipping SSR"));
-      pAdapter->hdd_stats.hddTxRxStats.continuousTxTimeoutCount = 0;
-      goto print_log;
-   }
    if (pAdapter->hdd_stats.hddTxRxStats.continuousTxTimeoutCount ==
           HDD_TX_STALL_RECOVERY_THRESHOLD)
    {
@@ -1181,11 +1160,10 @@ void __hdd_tx_timeout(struct net_device *dev)
                 "%s: Request firmware for recovery",__func__);
       WLANTL_TLDebugMessage(WLANTL_DEBUG_FW_CLEANUP);
    }
-   mutex_lock(&pHddCtx->roc_lock);
+
    pRemainChanCtx = hdd_get_remain_on_channel_ctx(pHddCtx);
    if (!pRemainChanCtx)
    {
-       mutex_unlock(&pHddCtx->roc_lock);
       if (pAdapter->hdd_stats.hddTxRxStats.continuousTxTimeoutCount >
           HDD_TX_STALL_SSR_THRESHOLD)
       {
@@ -1199,7 +1177,6 @@ void __hdd_tx_timeout(struct net_device *dev)
    }
    else
    {
-       mutex_unlock(&pHddCtx->roc_lock);
       VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
                 "Remain on channel in progress");
       /* The supplicant can retry "P2P Invitation Request" for 120 times
@@ -1221,7 +1198,6 @@ void __hdd_tx_timeout(struct net_device *dev)
       }
    }
 
-print_log:
    /* If Tx stalled for a long time then *hdd_tx_timeout* is called
     * every 5sec. The TL debug spits out a lot of information on the
     * serial console, if it is called every time *hdd_tx_timeout* is
@@ -1233,15 +1209,7 @@ print_log:
       hdd_wmm_tx_snapshot(pAdapter);
       WLANTL_TLDebugMessage(WLANTL_DEBUG_TX_SNAPSHOT);
    }
-   /* Call fatal event if data stall is for
-    * HDD_TX_STALL_FATAL_EVENT_THRESHOLD times
-    */
-   if (HDD_TX_STALL_FATAL_EVENT_THRESHOLD ==
-       pAdapter->hdd_stats.hddTxRxStats.continuousTxTimeoutCount)
-      vos_fatal_event_logs_req(WLAN_LOG_TYPE_FATAL,
-                   WLAN_LOG_INDICATOR_HOST_DRIVER,
-                   WLAN_LOG_REASON_DATA_STALL,
-                   FALSE, TRUE);
+
 }
 
 /**============================================================================
@@ -1826,11 +1794,6 @@ VOS_STATUS hdd_ibss_tx_fetch_packet_cbk( v_VOID_t *vosContext,
          VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                    "IBSS STA TX DHCP");
       }
-      else if (VOS_PKT_PROTO_TYPE_ARP & proto_type)
-      {
-         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                   "IBSS STA TX ARP");
-      }
    }
 
    vos_pkt_get_packet_length( pVosPacket,&packet_size );
@@ -2075,14 +2038,43 @@ VOS_STATUS hdd_tx_fetch_packet_cbk( v_VOID_t *vosContext,
    }
 
 #ifdef WLAN_FEATURE_LINK_LAYER_STATS
-   if (vos_is_macaddr_multicast((v_MACADDR_t*)skb->data))
    {
-        pAdapter->hdd_stats.hddTxRxStats.txMcast[actualAC]++;
+       v_MACADDR_t *pDestMacAddress = (v_MACADDR_t*)skb->data;
+       /* vos_is_macaddr_group expects data in v_MACADDR_t format
+        */
+       if (vos_is_macaddr_group(pDestMacAddress))
+       {
+            pAdapter->hdd_stats.hddTxRxStats.txMcast[actualAC]++;
+       }
+
    }
 
 #endif
 
-   wlan_hdd_tdls_notify_packet(pAdapter, skb);
+#ifdef FEATURE_WLAN_TDLS
+    if (eTDLS_SUPPORT_ENABLED == pHddCtx->tdls_mode)
+    {
+        hdd_station_ctx_t *pHddStaCtx = &pAdapter->sessionCtx.station;
+        u8 mac[6];
+
+        wlan_hdd_tdls_extract_da(skb, mac);
+
+        if (vos_is_macaddr_group((v_MACADDR_t *)mac)) {
+            VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_MED,
+                      "broadcast packet, not adding to peer list");
+        } else if (memcmp(pHddStaCtx->conn_info.bssId,
+                            mac, 6) != 0) {
+            VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_MED,
+                      "extract mac: " MAC_ADDRESS_STR,
+                      MAC_ADDR_ARRAY(mac) );
+
+            wlan_hdd_tdls_increment_pkt_count(pAdapter, mac, 1);
+        } else {
+            VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_MED,
+                       "packet da is bssid, not adding to peer list");
+        }
+    }
+#endif
 
    //Return VOS packet to TL;
    *ppVosPacket = pVosPacket;
@@ -2113,11 +2105,6 @@ VOS_STATUS hdd_tx_fetch_packet_cbk( v_VOID_t *vosContext,
       {
          VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                    "STA TX DHCP");
-      }
-      else if (VOS_PKT_PROTO_TYPE_ARP & proto_type)
-      {
-         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                   "STA TX ARP");
       }
    }
 
@@ -2345,22 +2332,8 @@ static void hdd_mon_add_rx_radiotap_hdr (struct sk_buff *skb,
     unsigned char *pos;
     u16 rx_flags = 0;
     u16 rateIdx;
-    s8        currentRSSI, currentRSSI0, currentRSSI1;
 
     rateIdx = WDA_GET_RX_MAC_RATE_IDX(pRxPacket);
-    if( rateIdx >= 210 && rateIdx <= 217)
-       rateIdx-=202;
-    if( rateIdx >= 218 && rateIdx <= 225 )
-       rateIdx-=210;
-
-    if(rateIdx > (sizeof(gRatefromIdx)/ sizeof(int))) {
-       VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
-                  "%s: invalid rateIdx %d make it 0", __func__, rateIdx);
-       rateIdx = 0;
-    }
-    currentRSSI0 = WDA_GETRSSI0(pRxPacket) - 100;
-    currentRSSI1 = WDA_GETRSSI1(pRxPacket) - 100;
-    currentRSSI  = (currentRSSI0 > currentRSSI1) ? currentRSSI0 : currentRSSI1;
 
     rthdr = (struct ieee80211_radiotap_header *)(&rtap_temp[0]);
 
@@ -2384,12 +2357,7 @@ static void hdd_mon_add_rx_radiotap_hdr (struct sk_buff *skb,
 
     /* IEEE80211_RADIOTAP_CHANNEL */
     put_unaligned_le16(pMonCtx->ChannelNo, pos);
-    pos += 4;
-
-    /* IEEE80211_RADIOTAP_DBM_ANTSIGNAL */
-    *pos = currentRSSI;
-    rthdr->it_present |=cpu_to_le32(1 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL);
-    pos++;
+    pos += 2;
 
     if ((pos - (u8 *)rthdr) & 1)
         pos++;
@@ -2422,15 +2390,6 @@ VOS_STATUS  hdd_rx_packet_monitor_cbk(v_VOID_t *vosContext,vos_pkt_t *pVosPacket
    }
 
    pHddCtx = (hdd_context_t *)vos_get_context( VOS_MODULE_ID_HDD, vosContext );
-
-   if (NULL == pHddCtx)
-   {
-      VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
-                 FL("Failed to get pHddCtx from vosContext"));
-      vos_pkt_return_packet( pVosPacket );
-      return VOS_STATUS_E_FAILURE;
-   }
-
    pAdapter = hdd_get_adapter(pHddCtx,WLAN_HDD_MONITOR);
    if ((NULL == pAdapter)  || (WLAN_HDD_ADAPTER_MAGIC != pAdapter->magic) )
    {
@@ -2464,7 +2423,7 @@ VOS_STATUS  hdd_rx_packet_monitor_cbk(v_VOID_t *vosContext,vos_pkt_t *pVosPacket
     if(!conversion)
     {
          pMonCtx = WLAN_HDD_GET_MONITOR_CTX_PTR(pAdapter);
-         needed_headroom = sizeof(struct ieee80211_radiotap_header) + 10;
+         needed_headroom = sizeof(struct ieee80211_radiotap_header) + 9;
          hdd_mon_add_rx_radiotap_hdr( skb, needed_headroom, pvBDHeader, pMonCtx );
     }
 
@@ -2571,7 +2530,8 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
       }
 
       // Extract the OS packet (skb).
-      status = vos_pkt_get_os_packet( pVosPacket, (v_VOID_t **)&skb, VOS_FALSE );
+      // Tell VOS to detach the OS packet from the VOS packet
+      status = vos_pkt_get_os_packet( pVosPacket, (v_VOID_t **)&skb, VOS_TRUE );
       if(!VOS_IS_STATUS_SUCCESS( status ))
       {
          ++pAdapter->hdd_stats.hddTxRxStats.rxDropped;
@@ -2579,11 +2539,6 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
                                 "%s: Failure extracting skb from vos pkt", __func__);
          return VOS_STATUS_E_FAILURE;
       }
-
-      if (TRUE == hdd_IsEAPOLPacket( pVosPacket ))
-          wlan_hdd_log_eapol(skb, WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED);
-
-      pVosPacket->pSkb = NULL;
 
       if (WLAN_HDD_ADAPTER_MAGIC != pAdapter->magic)
       {
@@ -2599,21 +2554,35 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
         hdd_station_ctx_t *pHddStaCtx = &pAdapter->sessionCtx.station;
         u8 mac[6];
 
-        memcpy(mac, skb->data+6, 6);
+        wlan_hdd_tdls_extract_sa(skb, mac);
 
         if (vos_is_macaddr_group((v_MACADDR_t *)mac)) {
             VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_MED,
                       "rx broadcast packet, not adding to peer list");
-        } else if ((memcmp(pHddStaCtx->conn_info.bssId,
-                            mac, 6) != 0) && (pRxMetaInfo->isStaTdls)) {
-            wlan_hdd_tdls_update_rx_pkt_cnt_n_rssi(pAdapter, mac,
-                    pRxMetaInfo->rssiAvg);
+        } else if (memcmp(pHddStaCtx->conn_info.bssId,
+                            mac, 6) != 0) {
+            hddTdlsPeer_t *curr_peer;
+            VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_MED,
+                      "rx extract mac:" MAC_ADDRESS_STR,
+                      MAC_ADDR_ARRAY(mac) );
+            curr_peer = wlan_hdd_tdls_find_peer(pAdapter, mac, TRUE);
+            if ((NULL != curr_peer) && (eTDLS_LINK_CONNECTED == curr_peer->link_status)
+                 && (TRUE == pRxMetaInfo->isStaTdls))
+            {
+                wlan_hdd_tdls_increment_pkt_count(pAdapter, mac, 0);
+                VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,"rssi is %d", pRxMetaInfo->rssiAvg);
+                wlan_hdd_tdls_set_rssi (pAdapter, mac, pRxMetaInfo->rssiAvg);
+            }
         } else {
             VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO_MED,
                        "rx packet sa is bssid, not adding to peer list");
         }
     }
 #endif
+
+      if (TRUE == hdd_IsEAPOLPacket( pVosPacket ))
+          wlan_hdd_log_eapol(skb, WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED);
+
       if (pHddCtx->cfg_ini->gEnableDebugLog)
       {
          proto_type = vos_pkt_get_proto_type(skb,
@@ -2627,11 +2596,6 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
          {
             VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                       "STA RX DHCP");
-         }
-         else if (VOS_PKT_PROTO_TYPE_ARP & proto_type)
-         {
-            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                      "STA RX ARP");
          }
       }
 
@@ -2651,20 +2615,12 @@ VOS_STATUS hdd_rx_packet_cbk( v_VOID_t *vosContext,
       ++pAdapter->hdd_stats.hddTxRxStats.rxPackets;
       ++pAdapter->stats.rx_packets;
       pAdapter->stats.rx_bytes += skb->len;
+#ifdef WLAN_OPEN_SOURCE
 #ifdef WLAN_FEATURE_HOLD_RX_WAKELOCK
-       vos_wake_lock_timeout_release(&pHddCtx->rx_wake_lock,
-                          HDD_WAKE_LOCK_DURATION,
-                          WIFI_POWER_EVENT_WAKELOCK_HOLD_RX);
+      wake_lock_timeout(&pHddCtx->rx_wake_lock, msecs_to_jiffies(HDD_WAKE_LOCK_DURATION));
 #endif
-      if (pNextVosPacket)
-      {
-          rxstat = netif_rx(skb);
-      }
-      else
-      {
-          rxstat = netif_rx_ni(skb);
-      }
-
+#endif
+      rxstat = netif_rx_ni(skb);
       if (NET_RX_SUCCESS == rxstat)
       {
          ++pAdapter->hdd_stats.hddTxRxStats.rxDelivered;
@@ -2815,7 +2771,7 @@ void hdd_tx_rx_pkt_cnt_stat_timer_handler( void *phddctx)
      */
     if ((pHddCtx->isTdlsScanCoexistence == FALSE) && (pHddCtx->issplitscan_enabled))
     {
-       VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,
+       VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
                         "%s: Disable split scan", __func__);
        pHddCtx->issplitscan_enabled = FALSE;
        sme_enable_disable_split_scan(
@@ -2921,31 +2877,8 @@ void wlan_hdd_log_eapol(struct sk_buff *skb,
 
     wlan_hdd_get_eapol_params(skb, &eapol_params, event_type);
     wlan_hdd_event_eapol_log(eapol_params);
-
-    if ((eapol_params.eapol_key_info & EAPOL_MASK )== EAPOL_M1_BIT_MASK)
-    {
-        hddLog(LOG1, FL("%s: M1 packet"),eapol_params.event_sub_type ==
-               WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED ? "RX" : "TX");
-    }
-    else if ((eapol_params.eapol_key_info & EAPOL_MASK )== EAPOL_M2_BIT_MASK)
-    {
-        hddLog(LOG1, FL("%s: M2 packet"),eapol_params.event_sub_type ==
-               WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED ? "RX" : "TX");
-
-    }
-
-    else if ((eapol_params.eapol_key_info & EAPOL_MASK )== EAPOL_M3_BIT_MASK)
-    {
-        hddLog(LOG1, FL("%s: M3 packet"),eapol_params.event_sub_type ==
-               WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED ? "RX" : "TX");
-    }
-
-    else if ((eapol_params.eapol_key_info & EAPOL_MASK )== EAPOL_M4_BIT_MASK)
-    {
-        hddLog(LOG1, FL("%s: M4 packet"),eapol_params.event_sub_type ==
-               WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED ? "RX" : "TX");
-
-    }
-
+    VOS_TRACE( VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_INFO,
+               "Eapol subtype is %d and key info is %d\n",
+               eapol_params.event_sub_type,eapol_params.eapol_key_info);
 }
 #endif /* FEATURE_WLAN_DIAG_SUPPORT */

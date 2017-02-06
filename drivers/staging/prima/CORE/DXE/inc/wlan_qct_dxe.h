@@ -83,13 +83,6 @@ when           who        what, where, why
  * Size must be same with Vos Packet Size */
 #define WLANDXE_DEFAULT_RX_OS_BUFFER_SIZE  (VPKT_SIZE_BUFFER)
 
-/*reserve 30B of skb buff, to add NL header*/
-#define WLANDXE_NL_HEADER_SZ (30)
-
-/*MAX data transferred in one skb*/
-#define WLANDXE_FW_LOGGING_XFSIZE  (WLANDXE_DEFAULT_RX_OS_BUFFER_SIZE - \
-                                    WLANDXE_NL_HEADER_SZ)
-
 /*The maximum number of packets that can be chained in dxe for the Low 
   priority channel
   Note: Increased it to 240 from 128 for Windows(EA) becase Windows is
@@ -179,23 +172,6 @@ typedef WDTS_LowResourceCbType WLANDXE_LowResourceCbType;
 
 /*==========================================================================
   @  Type Name
-  WLANDXE_MbReceiveMsgCbType
-
-  @  Description
-  DXE Mailbox mes receive indiacation
-
-  @  Parameters
-  void
-
-  @  Return
-  void
-===========================================================================*/
-typedef WDTS_MbReceiveMsgType WLANDXE_MbReceiveMsgCbType;
-
-typedef WDTS_RxLogDoneType WLANDXE_RxLogDoneType;
-
-/*==========================================================================
-  @  Type Name
       WLANDXE_SetPowerStateCbType 
 
   @  Description 
@@ -243,7 +219,9 @@ void *WLANDXE_Open
 
   @  Parameters
       pVoid                       pDXEContext : DXE module control block
-      WDTS_ClientCallbacks        WDTSCb : Callbacks to WDTS to indicate various events
+      WDTS_RxFrameReadyCbType     rxFrameReadyCB : RX Frame ready CB function pointer
+      WDTS_TxCompleteCbType       txCompleteCB : TX complete CB function pointer
+      WDTS_LowResourceCbType      lowResourceCB : Low DXE resource notification CB function pointer
       void                       *userContext : DXE Cliennt control block
 
   @  Return
@@ -252,7 +230,9 @@ void *WLANDXE_Open
 wpt_status WLANDXE_ClientRegistration
 (
    void                       *pDXEContext,
-   WDTS_ClientCallbacks       WDTSCb,
+   WDTS_RxFrameReadyCbType     rxFrameReadyCB,
+   WDTS_TxCompleteCbType       txCompleteCB,
+   WDTS_LowResourceCbType      lowResourceCB,
    void                       *userContext
 );
 
@@ -442,14 +422,4 @@ void WLANDXE_ChannelDebug
    wpt_uint8      debugFlags
 );
 
-wpt_uint32 WLANDXE_SetupLogTransfer
-(
-   wpt_uint64 bufferAddr,
-   wpt_uint32 bufferLen
-);
-
-wpt_status WLANDXE_StartLogTransfer
-(
-void
-);
 #endif /* WLAN_QCT_DXE_H */

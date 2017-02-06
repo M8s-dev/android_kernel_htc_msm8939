@@ -141,7 +141,6 @@ typedef struct sSirProbeRespBeacon
     tDot11fIEVHTCaps          VHTCaps;
     tDot11fIEVHTOperation     VHTOperation;
     tDot11fIEVHTExtBssLoad    VHTExtBssLoad;
-    tDot11fIEExtCap           ExtCap;
     tDot11fIEOperatingMode    OperatingMode;
     tANI_U8                   WiderBWChanSwitchAnnPresent;
     tDot11fIEWiderBWChanSwitchAnn WiderBWChanSwitchAnn;
@@ -888,12 +887,10 @@ int FindIELocation( tpAniSirGlobal pMac,
 
 #ifdef WLAN_FEATURE_11AC
 tSirRetStatus
-PopulateDot11fVHTCaps(tpAniSirGlobal  pMac, tDot11fIEVHTCaps *pDot11f,
-          tANI_U8 nChannelNum, tAniBool isProbeRspAssocRspBeacon);
+PopulateDot11fVHTCaps(tpAniSirGlobal  pMac, tDot11fIEVHTCaps *pDot11f, tAniBool isProbeRspAssocRspBeacon );
 
 tSirRetStatus
-PopulateDot11fVHTOperation(tpAniSirGlobal  pMac,
-                     tDot11fIEVHTOperation  *pDot11f, tANI_U8 nChannelNum);
+PopulateDot11fVHTOperation(tpAniSirGlobal  pMac, tDot11fIEVHTOperation  *pDot11f);
 
 tSirRetStatus
 PopulateDot11fVHTExtBssLoad(tpAniSirGlobal  pMac, tDot11fIEVHTExtBssLoad   *pDot11f);

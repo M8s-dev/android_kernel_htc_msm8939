@@ -71,17 +71,15 @@
 tANI_U32
 limDeactivateMinChannelTimerDuringScan(tpAniSirGlobal pMac)
 {
-    if ((VOS_TRUE ==
-         tx_timer_running(&pMac->lim.limTimers.gLimMinChannelTimer)) &&
-         (pMac->lim.gLimMlmState == eLIM_MLM_WT_PROBE_RESP_STATE) &&
-             (pMac->lim.gLimHalScanState == eLIM_HAL_SCANNING_STATE))
+    if ((pMac->lim.gLimMlmState == eLIM_MLM_WT_PROBE_RESP_STATE) && (pMac->lim.gLimHalScanState == eLIM_HAL_SCANNING_STATE))
     {
         /**
-         * Beacon/Probe Response is received during active scanning.
-         * Deactivate MIN channel timer if running.
-         */
-
+            * Beacon/Probe Response is received during active scanning.
+            * Deactivate MIN channel timer if running.
+            */
+        
         limDeactivateAndChangeTimer(pMac,eLIM_MIN_CHANNEL_TIMER);
+        MTRACE(macTrace(pMac, TRACE_CODE_TIMER_ACTIVATE, NO_SESSION, eLIM_MAX_CHANNEL_TIMER));
         if (tx_timer_activate(&pMac->lim.limTimers.gLimMaxChannelTimer)
                                           == TX_TIMER_ERROR)
         {
@@ -517,8 +515,6 @@ limCheckAndAddBssDescription(tpAniSirGlobal pMac,
 
         return;
     }
-
-    vos_mem_zero(pBssDescr, frameLen);
 
     // In scan state, store scan result.
 #if defined WLAN_FEATURE_VOWIFI

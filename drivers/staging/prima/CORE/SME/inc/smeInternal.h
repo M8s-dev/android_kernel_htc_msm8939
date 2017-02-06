@@ -52,7 +52,6 @@
 #include "vos_memory.h"
 #include "vos_types.h"
 #include "csrLinkList.h"
-#include "vos_diag_core_event.h"
 
 /*-------------------------------------------------------------------------- 
   Type declarations
@@ -165,11 +164,6 @@ typedef struct tagSmeStruct
    tSmeEncMsgHddCbkInfo pEncMsgInfoParams;
    void (*pBtCoexTDLSNotification) (void *pAdapter, int);
    void (*nanCallback) (void*, tSirNanEvent*);
-   void (*rssiThresholdBreachedCb)(void *, struct rssi_breach_event *);
-#ifdef FEATURE_OEM_DATA_SUPPORT
-   void (*pOemDataIndCb) (void *, const tANI_U16, void *);
-   void *pOemDataCallbackContext;
-#endif /* FEATURE_OEM_DATA_SUPPORT */
 
 } tSmeStruct, *tpSmeStruct;
 

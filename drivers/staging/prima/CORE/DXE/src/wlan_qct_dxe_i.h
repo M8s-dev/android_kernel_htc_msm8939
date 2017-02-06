@@ -100,7 +100,6 @@ when           who        what, where, why
 #endif
 
 #define WLANDXE_BMU_AVAILABLE_BD_PDU      0x80084
-#define WLANDXE_BMU_ERROR_INTR_STATUS     0x80004
 
 #define WLANDXE_REGISTER_BASE_ADDRESS     0x202000
 
@@ -150,7 +149,6 @@ when           who        what, where, why
 #define WLANDXE_DMA_CHAN4_BASE_ADDRESS   (WLANDXE_REGISTER_BASE_ADDRESS + 0x500)
 #define WLANDXE_DMA_CHAN5_BASE_ADDRESS   (WLANDXE_REGISTER_BASE_ADDRESS + 0x540)
 #define WLANDXE_DMA_CHAN6_BASE_ADDRESS   (WLANDXE_REGISTER_BASE_ADDRESS + 0x580)
-#define WLANDXE_DMA_CHAN7_BASE_ADDRESS   (WLANDXE_REGISTER_BASE_ADDRESS + 0x5c0)
 
 /* Channel specific register offset */
 #define WLANDXE_DMA_CH_CTRL_REG          0x0000
@@ -176,9 +174,6 @@ when           who        what, where, why
 #define WLANDXE_DMA_CSR_RESERVED_OFFSET       0x10
 #define WLANDXE_DMA_CSR_RESERVED_DEFAULT      0x0
 
-#define WLANDXE_DMA_CSR_FW_BMU_RECOVERY       0x400000
-#define WLANDXE_DMA_CSR_RECOVERY_DONE         0x200000
-#define WLANDXE_DMA_CSR_HOST_RECOVERY_DONE    0x800000
 
 #define WLANDXE_DMA_CSR_H2H_SYNC_EN_MASK      0x8000
 #define WLANDXE_DMA_CSR_H2H_SYNC_EN_OFFSET    0x0F
@@ -421,7 +416,6 @@ when           who        what, where, why
 #define WLANDXE_INT_MASK_CHAN_4          0x00000010
 #define WLANDXE_INT_MASK_CHAN_5          0x00000020
 #define WLANDXE_INT_MASK_CHAN_6          0x00000040
-#define WLANDXE_INT_MASK_CHAN_7          0x00000080
 
 #define WLANDXE_TX_LOW_RES_THRESHOLD     (5)
 
@@ -505,7 +499,6 @@ typedef enum
    WLANDXE_DMA_CHANNEL_4,
    WLANDXE_DMA_CHANNEL_5,
    WLANDXE_DMA_CHANNEL_6,
-   WLANDXE_DMA_CHANNEL_7,
    WLANDXE_DMA_CHANNEL_MAX
 } WLANDXE_DMAChannelType;
 
@@ -681,45 +674,34 @@ typedef struct
    WLANDXE_RxFrameReadyCbType      rxReadyCB;
    WLANDXE_TxCompleteCbType        txCompCB;
    WLANDXE_LowResourceCbType       lowResourceCB;
-   WLANDXE_MbReceiveMsgCbType      receiveMbMsgCB;
-   WLANDXE_RxLogDoneType           receiveLogCompleteCB;
    WLANDXE_TxCompIntConfigType     txCompInt;
    void                           *clientCtxt;
    wpt_uint32                      interruptPath;
    wpt_msg                        *rxIsrMsg;
    wpt_msg                        *txIsrMsg;
-   wpt_msg                        *rxPktAvailMsg;
+   wpt_msg                        *rxPktAvailMsg;   
    volatile WLANDXE_PowerStateType hostPowerState;
    wpt_boolean                     rxIntDisabledByIMPS;
    wpt_boolean                     txIntDisabledByIMPS;
    WLANDXE_SetPowerStateCbType     setPowerStateCb;
    volatile WLANDXE_RivaPowerStateType rivaPowerState;
-   wpt_boolean                     ringNotEmpty;
+   wpt_boolean                     ringNotEmpty; 
    wpt_boolean                     txIntEnable;
-   wpt_uint32                      txCompletedFrames;
-   wpt_uint8                       ucTxMsgCnt;
-   wpt_uint16                      lastKickOffDxe;
-   wpt_uint32                      smsmRingsEmptyHistogram;
-   wpt_uint32                      smsmDxeHistogram;
+   wpt_uint32                      txCompletedFrames; 
+   wpt_uint8                       ucTxMsgCnt; 
+   wpt_uint16                      lastKickOffDxe; 
    wpt_uint32                      dxeCookie;
    wpt_packet                     *freeRXPacket;
    wpt_boolean                     rxPalPacketUnavailable;
    wpt_boolean                     driverReloadInProcessing;
    wpt_boolean                     smsmToggled;
    wpt_boolean                     txRingsEmpty;
-   wpt_boolean                     hostInitiatedH2H;
 #ifdef WLAN_DXE_LOW_RESOURCE_TIMER
    wpt_timer                       rxResourceAvailableTimer;
 #endif
    wpt_timer                       dxeSSRTimer;
 } WLANDXE_CtrlBlkType;
 
-typedef struct
-{
-   u64                             *rxIntDisableReturn;
-   wpt_uint8                       rxIntChanlSrc;
-   wpt_uint8                       txCmpIntChanlSrc;
-} WLANDXE_EnvInformation;
 /*==========================================================================
   @  Function Name 
       dxeCommonDefaultConfig
@@ -731,10 +713,10 @@ typedef struct
                                DXE host driver main control block
 
   @  Return
-      void
+      wpt_status
 
 ===========================================================================*/
-extern void dxeCommonDefaultConfig
+extern wpt_status dxeCommonDefaultConfig
 (
    WLANDXE_CtrlBlkType     *dxeCtrlBlk
 );

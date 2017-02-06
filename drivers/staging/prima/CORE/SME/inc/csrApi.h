@@ -194,7 +194,7 @@ typedef enum
  */
 typedef enum
 {
-    eCSR_SCAN_ABORT_DEFAULT = 1,
+    eCSR_SCAN_ABORT_DEFAULT,
     eCSR_SCAN_ABORT_DUE_TO_BAND_CHANGE, //Scan aborted due to band change
 }eCsrAbortReason;
 
@@ -511,7 +511,6 @@ typedef enum
     eCSR_ROAM_ESE_BCN_REPORT_IND,
 #endif /* FEATURE_WLAN_ESE && FEATURE_WLAN_ESE_UPLOAD */
     eCSR_ROAM_UPDATE_MAX_RATE_IND,
-    eCSR_ROAM_LOST_LINK_PARAMS_IND,
 }eRoamCmdStatus;
 
 
@@ -1173,7 +1172,7 @@ typedef struct tagCsrConfigParam
 #endif
 #endif
 
-    tANI_BOOLEAN ignorePeerErpInfo;
+
     tANI_U8 scanCfgAgingTime;
 
     tANI_U8   enableTxLdpc;
@@ -1193,9 +1192,6 @@ typedef struct tagCsrConfigParam
 #endif
     tANI_U32 nOBSSScanWidthTriggerInterval;
     tANI_U8 roamDelayStatsEnabled;
-    tANI_BOOLEAN ignorePeerHTopMode;
-    tANI_BOOLEAN disableP2PMacSpoofing;
-    tANI_BOOLEAN enableFatalEvent;
 }tCsrConfigParam;
 
 //Tush
@@ -1246,7 +1242,6 @@ typedef struct tagCsrRoamInfo
         tSirMicFailureInfo *pMICFailureInfo;
         tCsrRoamConnectedProfile *pConnectedProfile;
         tSirWPSPBCProbeReq *pWPSPBCProbeReq;
-        tSirLostLinkParamsInfo *pLostLinkParams;
     } u;
 
     tANI_BOOLEAN wmmEnabledSta;   //set to true if WMM enabled STA
@@ -1315,7 +1310,6 @@ typedef struct sSirSmeAssocIndToUpperLayerCnf
 #ifdef WLAN_FEATURE_AP_HT40_24G
     tANI_U8              HT40MHzIntoEnabledSta; //set to true if 40 MHz Intolerant enabled STA
 #endif
-    uint32_t             rate_flags;
 } tSirSmeAssocIndToUpperLayerCnf, *tpSirSmeAssocIndToUpperLayerCnf;
 
 typedef struct tagCsrSummaryStatsInfo

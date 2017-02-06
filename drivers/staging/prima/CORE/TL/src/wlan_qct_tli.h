@@ -122,7 +122,6 @@ when        who    what, where, why
 
 /*WAPI protocol type */
 #define WLANTL_LLC_WAI_TYPE              0x88b4
-#define WLANTL_ETHERTYPE_ARP             0x0806
 
 #ifdef FEATURE_WLAN_TDLS
 #define WLANTL_LLC_TDLS_TYPE             0x890d
@@ -696,9 +695,6 @@ typedef struct
 
   WLANTL_InterfaceStatsType         interfaceStats;
 #endif
-  /* BD Rate for transmitting ARP packets */
-  v_U8_t arpRate;
-  v_BOOL_t arpOnWQ5;
 }WLANTL_STAClientType;
 
 /*---------------------------------------------------------------------------

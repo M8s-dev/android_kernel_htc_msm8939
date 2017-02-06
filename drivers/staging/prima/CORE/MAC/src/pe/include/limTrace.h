@@ -81,6 +81,7 @@ enum {
     TRACE_CODE_TX_CFG_MSG,
     TRACE_CODE_RX_CFG_MSG,
     TRACE_CODE_RX_MGMT_DROP,
+    TRACE_CODE_RX_MGMT_PROCESS,
 
     TRACE_CODE_TIMER_ACTIVATE,
     TRACE_CODE_TIMER_DEACTIVATE,
@@ -93,7 +94,6 @@ enum {
 
 
 void limTraceInit(tpAniSirGlobal pMac);
-void lim_register_debug_callback(void);
 void limTraceReset(tpAniSirGlobal pMac);
 void limTraceUpdateMgmtStat(tpAniSirGlobal pMac, tANI_U8 subtype);
 void limTraceDumpMgmtStat(tpAniSirGlobal pMac, tANI_U8 subtype);

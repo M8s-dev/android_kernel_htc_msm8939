@@ -576,8 +576,6 @@ char *limMsgStr(tANI_U32 msgType)
             return "eWNI_SME_DEAUTH_CNF";
         case eWNI_SME_MIC_FAILURE_IND:
             return "eWNI_SME_MIC_FAILURE_IND";
-        case eWNI_SME_LOST_LINK_PARAMS_IND:
-            return "eWNI_SME_LOST_LINK_PARAMS_IND";
         case eWNI_SME_ADDTS_REQ:
             return "eWNI_SME_ADDTS_REQ";
         case eWNI_SME_ADDTS_RSP:
@@ -1399,15 +1397,9 @@ tANI_U8 limWriteDeferredMsgQ(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
          **/
     if (pMac->lim.gLimDeferredMsgQ.size >= MAX_DEFERRED_QUEUE_LEN)
     {
-        if (!(pMac->lim.deferredMsgCnt & 0xF))
+        if(!(pMac->lim.deferredMsgCnt & 0xF))
         {
-            limLog(pMac, LOGE,
-             FL("Deferred Message Queue is full. Msg:%d Messages Failed:%d"),
-                                    limMsg->type, ++pMac->lim.deferredMsgCnt);
-            vos_fatal_event_logs_req(WLAN_LOG_TYPE_NON_FATAL,
-                     WLAN_LOG_INDICATOR_HOST_DRIVER,
-                     WLAN_LOG_REASON_QUEUE_FULL,
-                     FALSE, TRUE);
+            PELOGE(limLog(pMac, LOGE, FL("Deferred Message Queue is full. Msg:%d Messages Failed:%d"), limMsg->type, ++pMac->lim.deferredMsgCnt);)
         }
         else
         {
@@ -2604,7 +2596,6 @@ void limProcessChannelSwitchTimeout(tpAniSirGlobal pMac)
         return;
     }
     channel = psessionEntry->gLimChannelSwitch.primaryChannel;
-
     /*
      *  This potentially can create issues if the function tries to set
      * channel while device is in power-save, hence putting an extra check
@@ -2621,34 +2612,7 @@ void limProcessChannelSwitchTimeout(tpAniSirGlobal pMac)
 
     /* Channel-switch timeout has occurred. reset the state */
     psessionEntry->gLimSpecMgmt.dot11hChanSwState = eLIM_11H_CHANSW_END;
-
-    /*
-     * If Lim allows Switch channel on same channel on which preauth
-     * is going on then LIM will not post resume link(WDA_FINISH_SCAN)
-     * during preauth rsp handling hence firmware may crash on ENTER/
-     * EXIT BMPS request.
-     */
-    if(pMac->ft.ftPEContext.pFTPreAuthReq)
-    {
-        limLog(pMac, LOGE,
-           FL("Avoid Switch Channel req during pre auth"));
-        return;
-    }
-    /* If link is already suspended mean some off
-     * channel operation or scan is in progress, Allowing
-     * Change channel here will lead to either Init Scan
-     * sent twice or missing Finish scan when change
-     * channel is completed, this may lead
-     * to driver in invalid state and crash.
-     */
-    if (limIsLinkSuspended(pMac))
-    {
-       limLog(pMac, LOGE, FL("Link is already suspended for "
-               "some other reason. Return here for sessionId:%d"),
-               pMac->lim.limTimers.gLimChannelSwitchTimer.sessionId);
-       return;
-    }
-
+    
     /* Check if the AP is switching to a channel that we support.
      * Else, just don't bother to switch. Indicate HDD to look for a 
      * better AP to associate
@@ -2680,6 +2644,14 @@ void limProcessChannelSwitchTimeout(tpAniSirGlobal pMac)
             if ( isLimSessionOffChannel(pMac,
                 pMac->lim.limTimers.gLimChannelSwitchTimer.sessionId) )
             {
+                if (limIsLinkSuspended(pMac))
+                {
+                    limLog(pMac, LOGE, FL("Link is already suspended for "
+                        "some other reason. Return here for sessionId:%d"),
+                        pMac->lim.limTimers.gLimChannelSwitchTimer.sessionId);
+                    return;
+                }
+
                 limSuspendLink(pMac,
                     eSIR_DONT_CHECK_LINK_TRAFFIC_BEFORE_SCAN,
                     limProcessChannelSwitchSuspendLink,
@@ -3333,8 +3305,8 @@ void limSwitchChannelCback(tpAniSirGlobal pMac, eHalStatus status,
    mmhMsg.bodyptr = pSirSmeSwitchChInd;
    mmhMsg.bodyval = 0;
    
-   MTRACE(macTrace(pMac, TRACE_CODE_TX_SME_MSG, psessionEntry->peSessionId,
-                                                            mmhMsg.type));
+   MTRACE(macTraceMsgTx(pMac, psessionEntry->peSessionId, mmhMsg.type));
+   
    SysProcessMmhMsg(pMac, &mmhMsg);
 }
 
@@ -3426,11 +3398,6 @@ void limSwitchPrimarySecondaryChannel(tpAniSirGlobal pMac, tpPESession psessionE
                 limSendSwitchChnlParams(pMac, newChannel, subband, psessionEntry->maxTxPower, psessionEntry->peSessionId);
 #else
                 limSendSwitchChnlParams(pMac, newChannel, subband, (tPowerdBm)localPwrConstraint, psessionEntry->peSessionId);
-#endif
-
-#ifdef FEATURE_WLAN_DIAG_SUPPORT
-       limDiagEventReport(pMac, WLAN_PE_DIAG_CHANNEL_SWITCH_ANOUNCEMENT,
-                 psessionEntry, eSIR_SUCCESS, LIM_SWITCH_CHANNEL_OPERATION);
 #endif
 
     // Store the new primary and secondary channel in session entries if different
@@ -7519,7 +7486,7 @@ void limProcessAddStaSelfRsp(tpAniSirGlobal pMac,tpSirMsgQ limMsgQ)
    mmhMsg.type = eWNI_SME_ADD_STA_SELF_RSP;
    mmhMsg.bodyptr = pRsp;
    mmhMsg.bodyval = 0;
-   MTRACE(macTrace(pMac, TRACE_CODE_TX_SME_MSG, NO_SESSION, mmhMsg.type));
+   MTRACE(macTraceMsgTx(pMac, NO_SESSION, mmhMsg.type));
    limSysProcessMmhMsgApi(pMac, &mmhMsg,  ePROT);
 
 }
@@ -7558,7 +7525,7 @@ void limProcessDelStaSelfRsp(tpAniSirGlobal pMac,tpSirMsgQ limMsgQ)
    mmhMsg.type = eWNI_SME_DEL_STA_SELF_RSP;
    mmhMsg.bodyptr = pRsp;
    mmhMsg.bodyval = 0;
-   MTRACE(macTrace(pMac, TRACE_CODE_TX_SME_MSG, NO_SESSION, mmhMsg.type));
+   MTRACE(macTraceMsgTx(pMac, NO_SESSION, mmhMsg.type));
    limSysProcessMmhMsgApi(pMac, &mmhMsg,  ePROT);
 
 }

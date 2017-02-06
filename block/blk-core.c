@@ -1783,7 +1783,11 @@ generic_make_request_checks(struct bio *bio)
 	might_sleep();
 
 #ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
+#ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION_BOGUS
+	sprintf(wp_ptn, "mmcblk0p%d", get_partition_num_by_name("xxxxxx"));
+#else
 	sprintf(wp_ptn, "mmcblk0p%d", get_partition_num_by_name("system"));
+#endif
 	if (!strcmp(bdevname(bio->bi_bdev, b), wp_ptn) && !board_mfg_mode() &&
 			(get_tamper_sf() == 1) && (get_atsdebug() != 1) && (bio->bi_rw & WRITE)) {
 		pr_info("blk-core: Attempt to write protected partition %s block %Lu \n",

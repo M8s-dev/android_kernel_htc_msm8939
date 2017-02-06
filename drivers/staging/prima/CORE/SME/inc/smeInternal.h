@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2015 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -38,9 +38,6 @@
   
   \brief prototype for SME internal structures and APIs used for SME and MAC
   
-   Copyright 2008 (c) Qualcomm, Incorporated.  All Rights Reserved.
-   
-   Qualcomm Confidential and Proprietary.
   
   ========================================================================*/
 
@@ -55,6 +52,7 @@
 #include "vos_memory.h"
 #include "vos_types.h"
 #include "csrLinkList.h"
+#include "vos_diag_core_event.h"
 
 /*-------------------------------------------------------------------------- 
   Type declarations
@@ -74,6 +72,9 @@ typedef enum eSmeCommandType
     eSmeCommandRemoveKey,
     eSmeCommandAddStaSession,
     eSmeCommandDelStaSession,
+    eSmeCommandPnoReq,
+    eSmeCommandMacSpoofRequest,
+    eSmeCommandGetFrameLogRequest,
 #ifdef FEATURE_WLAN_TDLS
     //eSmeTdlsCommandMask = 0x80000,  //To identify TDLS commands <TODO>
     //These can be considered as csr commands. 
@@ -82,14 +83,8 @@ typedef enum eSmeCommandType
     eSmeCommandTdlsDelPeer, 
     eSmeCommandTdlsLinkEstablish,
     eSmeCommandTdlsChannelSwitch, // tdlsoffchan
-#ifdef FEATURE_WLAN_TDLS_INTERNAL
-    eSmeCommandTdlsDiscovery,
-    eSmeCommandTdlsLinkSetup,
-    eSmeCommandTdlsLinkTear,
-    eSmeCommandTdlsEnterUapsd,
-    eSmeCommandTdlsExitUapsd,
 #endif
-#endif
+    eSmeCommandNanReq,
     //PMC
     eSmePmcCommandMask = 0x20000, //To identify PMC commands
     eSmeCommandEnterImps,
@@ -169,6 +164,12 @@ typedef struct tagSmeStruct
 #endif /* WLAN_FEATURE_EXTSCAN */
    tSmeEncMsgHddCbkInfo pEncMsgInfoParams;
    void (*pBtCoexTDLSNotification) (void *pAdapter, int);
+   void (*nanCallback) (void*, tSirNanEvent*);
+   void (*rssiThresholdBreachedCb)(void *, struct rssi_breach_event *);
+#ifdef FEATURE_OEM_DATA_SUPPORT
+   void (*pOemDataIndCb) (void *, const tANI_U16, void *);
+   void *pOemDataCallbackContext;
+#endif /* FEATURE_OEM_DATA_SUPPORT */
 
 } tSmeStruct, *tpSmeStruct;
 

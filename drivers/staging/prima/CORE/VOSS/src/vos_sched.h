@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -42,9 +42,6 @@
    by vOSS.
     
   
-   Copyright 2008 (c) Qualcomm, Incorporated.  All Rights Reserved.
-   
-   Qualcomm Confidential and Proprietary.
   
   ========================================================================*/
 
@@ -337,6 +334,15 @@ typedef struct _VosContextType
    /* NV BIN Version */
    eNvVersionType     nvVersion;
 
+   /* Roam delay statistic enabled in ini*/
+   v_U8_t             roamDelayStatsEnabled;
+
+   /*Fw log complete Event*/
+   vos_event_t fwLogsComplete;
+   v_U32_t wakelock_log_level;
+   v_U32_t connectivity_log_level;
+   v_U32_t packet_stats_log_level;
+   v_U8_t      vosWrapperFullReported;
 } VosContextType, *pVosContextType;
 
 
@@ -347,6 +353,7 @@ typedef struct _VosContextType
  
 int vos_sched_is_tx_thread(int threadID);
 int vos_sched_is_rx_thread(int threadID);
+int vos_sched_is_mc_thread(int threadID);
 /*---------------------------------------------------------------------------
   
   \brief vos_sched_open() - initialize the vOSS Scheduler  
@@ -485,6 +492,7 @@ VOS_STATUS vos_watchdog_close ( v_PVOID_t pVosContext );
 VOS_STATUS vos_mq_init(pVosMqType pMq);
 void vos_mq_deinit(pVosMqType pMq);
 void vos_mq_put(pVosMqType pMq, pVosMsgWrapper pMsgWrapper);
+void vos_mq_put_front(pVosMqType pMq, pVosMsgWrapper pMsgWrapper);
 pVosMsgWrapper vos_mq_get(pVosMqType pMq);
 v_BOOL_t vos_is_mq_empty(pVosMqType pMq);
 pVosSchedContext get_vos_sched_ctxt(void);
@@ -499,7 +507,6 @@ void clearWlanResetReason(void);
 void vos_timer_module_init( void );
 VOS_STATUS vos_watchdog_wlan_shutdown(void);
 VOS_STATUS vos_watchdog_wlan_re_init(void);
-v_BOOL_t isWDresetInProgress(void);
 v_BOOL_t isSsrPanicOnFailure(void);
 void vos_ssr_protect(const char *caller_func);
 void vos_ssr_unprotect(const char *caller_func);

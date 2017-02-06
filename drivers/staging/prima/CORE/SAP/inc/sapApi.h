@@ -39,8 +39,6 @@ DESCRIPTION
   module.
   
       
-  Copyright (c) 2010 QUALCOMM Incorporated. All Rights Reserved.
-  Qualcomm Confidential and Proprietary
 ===========================================================================*/
 
 
@@ -288,7 +286,8 @@ typedef struct sap_StationAssocReassocCompleteEvent_s {
     tANI_U32     assocReqLength;
     tANI_U8*     assocReqPtr;
     tANI_U32     assocRespLength;
-    tANI_U8*     assocRespPtr;    
+    tANI_U8*     assocRespPtr;
+    uint32_t rate_flags;
 } tSap_StationAssocReassocCompleteEvent;
 
 typedef struct sap_StationDisassocCompleteEvent_s {
@@ -1005,7 +1004,12 @@ WLANSAP_StopBss
 VOS_STATUS 
 WLANSAP_DisassocSta
 (
-    v_PVOID_t  pvosGCtx, v_U8_t *pPeerStaMac
+    v_PVOID_t  pvosGCtx,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+    const v_U8_t *pPeerStaMac
+#else
+    v_U8_t *pPeerStaMac
+#endif
 );
 
 /*==========================================================================

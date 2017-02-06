@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -118,13 +118,33 @@ static int wlan_suspend(hdd_context_t* pHddCtx)
       VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_FATAL,"%s: Global VOS_SCHED context is Null",__func__);
       return 0;
    }
-   if(!vos_is_apps_power_collapse_allowed(pHddCtx))
+
+   if (!pHddCtx->last_suspend_success)
+     pHddCtx->last_suspend_success = vos_timer_get_system_time();
+
+   if (!vos_is_apps_power_collapse_allowed(pHddCtx))
    {
        /* Fail this suspend */
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: Fail wlan suspend: not in IMPS/BMPS", __func__);
+       pHddCtx->continuous_suspend_fail_cnt++;
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+        FL("Fail wlan suspend: not in IMPS/BMPS, continuous Failcnt %d"),
+        pHddCtx->continuous_suspend_fail_cnt);
+
+       /* call fatal event if power collapse fails for
+        * WLAN_POWER_COLLAPSE_FAIL_THRESHOLD time.
+        */
+       if ((vos_timer_get_system_time() - pHddCtx->last_suspend_success) >=
+                                         WLAN_POWER_COLLAPSE_FAIL_THRESHOLD)
+       {
+          pHddCtx->last_suspend_success = 0;
+          vos_fatal_event_logs_req(WLAN_LOG_TYPE_FATAL,
+                      WLAN_LOG_INDICATOR_HOST_DRIVER,
+                      WLAN_LOG_REASON_POWER_COLLAPSE_FAIL,
+                      FALSE, TRUE);
+       }
        return -EPERM;
    }
-
+   pHddCtx->continuous_suspend_fail_cnt = 0;
    /*
      Suspending MC Thread, Rx Thread and Tx Thread as the platform driver is going to Suspend.     
    */
@@ -158,7 +178,18 @@ static int wlan_suspend(hdd_context_t* pHddCtx)
                    "%s: TX Thread: will still suspend", __func__);
          goto tx_suspend;
       }
-
+      /* call fatal event if suspend for
+       * WLAN_POWER_COLLAPSE_FAIL_THRESHOLD time.
+       */
+      if ((vos_timer_get_system_time() - pHddCtx->last_suspend_success) >=
+                                         WLAN_POWER_COLLAPSE_FAIL_THRESHOLD)
+      {
+          pHddCtx->last_suspend_success = 0;
+          vos_fatal_event_logs_req(WLAN_LOG_TYPE_FATAL,
+                      WLAN_LOG_INDICATOR_HOST_DRIVER,
+                      WLAN_LOG_REASON_POWER_COLLAPSE_FAIL,
+                      FALSE, TRUE);
+      }
       return -ETIME;
    }
 
@@ -199,6 +230,18 @@ tx_suspend:
 
        /* Set the Tx Thread as Resumed */
        pHddCtx->isTxThreadSuspended = FALSE;
+      /* call fatal event if suspend for
+       * WLAN_POWER_COLLAPSE_FAIL_THRESHOLD time.
+       */
+      if ((vos_timer_get_system_time() - pHddCtx->last_suspend_success) >=
+                                         WLAN_POWER_COLLAPSE_FAIL_THRESHOLD)
+      {
+          pHddCtx->last_suspend_success = 0;
+          vos_fatal_event_logs_req(WLAN_LOG_TYPE_FATAL,
+                      WLAN_LOG_INDICATOR_HOST_DRIVER,
+                      WLAN_LOG_REASON_POWER_COLLAPSE_FAIL,
+                      FALSE, TRUE);
+      }
 
        return -ETIME;
    }
@@ -248,6 +291,19 @@ rx_suspend:
        /* Set the Tx Thread as Resumed */
        pHddCtx->isTxThreadSuspended = FALSE;
 
+      /* call fatal event if suspend for
+       * WLAN_POWER_COLLAPSE_FAIL_THRESHOLD time.
+       */
+      if ((vos_timer_get_system_time() - pHddCtx->last_suspend_success) >=
+                                         WLAN_POWER_COLLAPSE_FAIL_THRESHOLD)
+      {
+          pHddCtx->last_suspend_success = 0;
+          vos_fatal_event_logs_req(WLAN_LOG_TYPE_FATAL,
+                      WLAN_LOG_INDICATOR_HOST_DRIVER,
+                      WLAN_LOG_REASON_POWER_COLLAPSE_FAIL,
+                      FALSE, TRUE);
+      }
+
        return -ETIME;
    }
 
@@ -257,7 +313,7 @@ mc_suspend:
    
    /* Set the Station state as Suspended */
    pHddCtx->isWlanSuspended = TRUE;
-
+   pHddCtx->last_suspend_success = 0;
    return 0;
 }
 
@@ -327,16 +383,14 @@ int __hddDevSuspendHdlr(struct device *dev)
    int ret = 0;
    hdd_context_t* pHddCtx = NULL;
 
-   pHddCtx =  (hdd_context_t*)wcnss_wlan_get_drvdata(dev);
+   ENTER();
 
-   VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: WLAN suspended by platform driver",__func__);
+   pHddCtx =  (hdd_context_t*)wcnss_wlan_get_drvdata(dev);
 
    /* Get the HDD context */
    ret = wlan_hdd_validate_context(pHddCtx);
    if (0 != ret)
    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 "%s: HDD context is not valid",__func__);
        return ret;
    }
    if(pHddCtx->isWlanSuspended == TRUE)
@@ -360,6 +414,8 @@ int __hddDevSuspendHdlr(struct device *dev)
       suspend_notify_sent = true;
    }
 #endif
+
+   EXIT();
    return 0;
 }
 
@@ -389,14 +445,12 @@ int __hddDevResumeHdlr(struct device *dev)
    hdd_context_t* pHddCtx = NULL;
    int ret = 0;
 
-   VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_INFO, "%s: WLAN being resumed by Android OS",__func__);
+   ENTER();
 
    pHddCtx =  (hdd_context_t*)wcnss_wlan_get_drvdata(dev);
    ret = wlan_hdd_validate_context(pHddCtx);
    if (0 != ret)
    {
-       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                 "%s: HDD context is not valid ",__func__);
        return ret;
    }
    if(pHddCtx->isWlanSuspended != TRUE)
@@ -414,7 +468,7 @@ int __hddDevResumeHdlr(struct device *dev)
       suspend_notify_sent = false;
    }
 #endif
-
+   EXIT();
    return 0;
 }
 
@@ -450,9 +504,7 @@ static const struct dev_pm_ops pm_ops = {
 ----------------------------------------------------------------------------*/
 VOS_STATUS hddRegisterPmOps(hdd_context_t *pHddCtx)
 {
-#ifndef FEATURE_R33D
     wcnss_wlan_register_pm_ops(pHddCtx->parent_dev, &pm_ops);
-#endif /* FEATURE_R33D */
     return VOS_STATUS_SUCCESS;
 }
 
@@ -471,9 +523,7 @@ VOS_STATUS hddRegisterPmOps(hdd_context_t *pHddCtx)
 ----------------------------------------------------------------------------*/
 VOS_STATUS hddDeregisterPmOps(hdd_context_t *pHddCtx)
 {
-#ifndef FEATURE_R33D
     wcnss_wlan_unregister_pm_ops(pHddCtx->parent_dev, &pm_ops);
-#endif /* FEATURE_R33D */
     return VOS_STATUS_SUCCESS;
 }
 
@@ -492,21 +542,19 @@ void hddDevTmTxBlockTimeoutHandler(void *usrData)
 {
    hdd_context_t        *pHddCtx = (hdd_context_t *)usrData;
    hdd_adapter_t        *staAdapater;
-   /* Sanity, This should not happen */
-   if(NULL == pHddCtx)
+
+   ENTER();
+   if (0 != (wlan_hdd_validate_context(pHddCtx)))
    {
-      VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_ERROR,
-                "%s: NULL Context", __func__);
-      VOS_ASSERT(0);
-      return;
+       return;
    }
 
    staAdapater = hdd_get_adapter(pHddCtx, WLAN_HDD_INFRA_STATION);
 
-   if(NULL == staAdapater)
+   if ((NULL == staAdapater) || (WLAN_HDD_ADAPTER_MAGIC != staAdapater->magic))
    {
       VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_ERROR,
-                "%s: NULL Adapter", __func__);
+                FL("invalid Adapter %p"), staAdapater);
       VOS_ASSERT(0);
       return;
    }
@@ -520,11 +568,12 @@ void hddDevTmTxBlockTimeoutHandler(void *usrData)
    pHddCtx->tmInfo.txFrameCount = 0;
 
    /* Resume TX flow */
-    
+   hddLog(VOS_TRACE_LEVEL_INFO, FL("Enabling queues"));
    netif_tx_wake_all_queues(staAdapater->dev);
    pHddCtx->tmInfo.qBlocked = VOS_FALSE;
    mutex_unlock(&pHddCtx->tmInfo.tmOperationLock);
 
+   EXIT();
    return;
 }
 

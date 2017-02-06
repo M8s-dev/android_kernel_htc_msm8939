@@ -459,8 +459,8 @@ typedef enum
   WDI_EXTSCAN_GET_CAPABILITIES_REQ               = 96,
   WDI_EXTSCAN_SET_BSSID_HOTLIST_REQ              = 97,
   WDI_EXTSCAN_RESET_BSSID_HOTLIST_REQ            = 98,
-  WDI_EXTSCAN_SET_SIGNF_RSSI_CHANGE_REQ          = 99,
-  WDI_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_REQ        = 100,
+  WDI_EXTSCAN_SET_SSID_HOTLIST_REQ               = 99,
+  WDI_EXTSCAN_RESET_SSID_HOTLIST_REQ             = 100,
 #endif
 
   WDI_SPOOF_MAC_ADDR_REQ                         = 101,
@@ -469,6 +469,21 @@ typedef enum
 
   /* Send command to encrypt the given message */
   WDI_ENCRYPT_MSG_REQ                            = 103,
+
+  WDI_FW_LOGGING_INIT_REQ                        = 104,
+  WDI_GET_FRAME_LOG_REQ                          = 105,
+
+  /* NAN Request */
+  WDI_NAN_REQUEST                                = 106,
+
+  WDI_MON_START_REQ                              = 107,
+  WDI_MON_STOP_REQ                               = 108,
+  WDI_FATAL_EVENT_LOGGING_REQ                    = 109,
+  WDI_FWR_MEM_DUMP_REQ                           = 110,
+  WDI_START_RSSI_MONITOR_REQ                     = 111,
+  WDI_STOP_RSSI_MONITOR_REQ                      = 112,
+
+  WDI_WIFI_CONFIG_SET_REQ                        = 113,
 
   WDI_MAX_REQ,
 
@@ -508,9 +523,20 @@ typedef enum
   /* csa channel switch req*/
   WDI_CH_SWITCH_REQ_V1,
   WDI_TDLS_CHAN_SWITCH_REQ,
+  WDI_SET_RTS_CTS_HTVHT_IND,
+  WDI_FW_LOGGING_DXE_DONE_IND,
+  WDI_SEND_FREQ_RANGE_CONTROL_IND,
+
+#ifdef WLAN_FEATURE_EXTSCAN
+  WDI_HIGH_PRIORITY_DATA_INFO_IND,
+#endif
+
+#ifdef FEATURE_OEM_DATA_SUPPORT
+  WDI_START_OEM_DATA_REQ_IND_NEW,
+#endif
 
   /*Keep adding the indications to the max request
-    such that we keep them sepparate */
+    such that we keep them separate */
   WDI_MAX_UMAC_IND
 }WDI_RequestEnumType;
 
@@ -791,14 +817,29 @@ typedef enum
   WDI_EXTSCAN_GET_CAPABILITIES_RSP               = 96,
   WDI_EXTSCAN_SET_HOTLIST_BSSID_RSP              = 97,
   WDI_EXTSCAN_RESET_HOTLIST_BSSID_RSP            = 98,
-  WDI_EXTSCAN_SET_SIGNF_RSSI_CHANGE_RSP          = 99,
-  WDI_EXTSCAN_RESET_SIGNF_RSSI_CHANGE_RSP        = 100,
+  WDI_EXTSCAN_SET_HOTLIST_SSID_RSP               = 99,
+  WDI_EXTSCAN_RESET_HOTLIST_SSID_RSP             = 100,
 #endif
   WDI_SPOOF_MAC_ADDR_RSP                         = 101,
   WDI_GET_FW_STATS_RSP                           = 102,
 
   /* Send command to encrypt the given message */
   WDI_ENCRYPT_MSG_RSP                            = 103,
+
+  WDI_FW_LOGGING_INIT_RSP                        = 104,
+  WDI_GET_FRAME_LOG_RSP                          = 105,
+
+  WDI_NAN_RESPONSE                               = 106,
+
+  WDI_MON_START_RSP                              = 107,
+  WDI_MON_STOP_RSP                               = 108,
+  WDI_FATAL_EVENT_LOGGING_RSP                    = 109,
+  WDI_FWR_MEM_DUMP_RSP                           = 110,
+  WDI_START_RSSI_MONITOR_RSP                     = 111,
+  WDI_STOP_RSSI_MONITOR_RSP                      = 112,
+
+  WDI_WIFI_CONFIG_SET_RSP                        = 113,
+
   /*-------------------------------------------------------------------------
     Indications
      !! Keep these last in the enum if possible
@@ -873,10 +914,14 @@ typedef enum
   WDI_HAL_EXTSCAN_SCAN_AVAILABLE_IND = WDI_HAL_IND_MIN + 22,
   WDI_HAL_EXTSCAN_RESULT_IND         = WDI_HAL_IND_MIN + 23,
   WDI_HAL_EXTSCAN_BSSID_HOTLIST_RESULT_IND    = WDI_HAL_IND_MIN + 24,
-  WDI_HAL_EXTSCAN_SIG_RSSI_RESULT_IND         = WDI_HAL_IND_MIN + 25,
+  WDI_HAL_EXTSCAN_SSID_HOTLIST_RESULT_IND    = WDI_HAL_IND_MIN + 25,
 #endif
   WDI_TDLS_CHAN_SWITCH_REQ_RESP      = WDI_HAL_IND_MIN + 26,
   WDI_HAL_DEL_BA_IND                 = WDI_HAL_IND_MIN + 27,
+  WDI_HAL_NAN_EVENT                  = WDI_HAL_IND_MIN + 28,
+  WDI_HAL_LOST_LINK_PARAMS_IND       = WDI_HAL_IND_MIN + 29,
+  WDI_HAL_RSSI_BREACHED_IND          = WDI_HAL_IND_MIN + 30,
+  WDI_HAL_START_OEM_DATA_RSP_IND_NEW = WDI_HAL_IND_MIN + 31,
   WDI_MAX_RESP
 }WDI_ResponseEnumType; 
 
@@ -1237,6 +1282,9 @@ typedef struct
 
   /* reason for WDI_DetectedDeviceError */
   void *                        DeviceErrorReason;
+
+   /* Roam delay statistic enabled in ini*/
+   wpt_uint8                  roamDelayStatsEnabled;
 }WDI_ControlBlockType; 
 
 
@@ -5971,28 +6019,35 @@ WDI_ProcessEXTScanResetHotlistBSSIDRsp
 );
 
 WDI_Status
-WDI_ProcessEXTScanSetSignifRSSIChangeReq
+WDI_ProcessEXTScanSetSSIDHotlistReq
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
 
 WDI_Status
-WDI_ProcessEXTScanSetSignfRSSIChangeRsp
+WDI_ProcessEXTScanSetHotlistSSIDRsp
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
 
 WDI_Status
-WDI_ProcessEXTScanResetSignfRSSIChangeReq
+WDI_ProcessEXTScanResetSSIDHotlistReq
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
 
 WDI_Status
-WDI_ProcessEXTScanResetSignfRSSIChangeRsp
+WDI_ProcessEXTScanResetHotlistSSIDRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessHighPriorityDataInfoInd
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
@@ -6020,11 +6075,12 @@ WDI_ProcessEXTScanBssidHotListResultInd
 );
 
 WDI_Status
-WDI_ProcessEXTScanSignfRssiResultInd
+WDI_ProcessEXTScanSsidHotListResultInd
 (
    WDI_ControlBlockType*  pWDICtx,
    WDI_EventInfoType*     pEventData
 );
+
 
 #endif /* WLAN_FEATURE_EXTSCAN */
 
@@ -6101,6 +6157,83 @@ WDI_ProcessSpoofMacAddrRsp
 );
 
 WDI_Status
+WDI_ProcessGetFrameLogRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+WDI_Status
+WDI_ProcessGetFrameLogReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFWLoggingDXEdoneInd
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFatalEventLogsReq
+
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFatalEventLogsRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFWLoggingInitReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFWFrameLoggingInitRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessRssiMonitorStartReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessRssiMonitorStartRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessRssiMonitorStopReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessRssiMonitorStopRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
 WDI_ProcessEncryptMsgReq
 (
   WDI_ControlBlockType*  pWDICtx,
@@ -6113,5 +6246,201 @@ WDI_ProcessEncryptMsgRsp
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
+
+/**
+ @brief Process NAN Request
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessNanRequest
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+ @brief Process NAN Response
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessNanResponse
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+*@brief Process NAN Event function (called when
+        an indication is being received over the
+        bus from HAL)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessNanEvent
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+
+/**
+*@brief Process Lost Link param function (called when
+        an indication is being received over the
+        bus from HAL)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+
+WDI_Status
+WDI_Process_LostLinkParamInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_Process_RssiBreachedInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+);
+
+
+/**
+ @brief WDI_ProcessSetRtsCtsHtvhtInd
+        Set RTS/CTS indication for diff modes.
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @return Result of the function call
+*/
+
+
+WDI_Status
+WDI_ProcessSetRtsCtsHtvhtInd
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessMonStartReq
+(
+   WDI_ControlBlockType*  pWDICtx,
+   WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessMonStartRsp
+(
+   WDI_ControlBlockType*  pWDICtx,
+   WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessMonStopReq
+(
+   WDI_ControlBlockType*  pWDICtx,
+   WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessMonStopRsp
+(
+   WDI_ControlBlockType*  pWDICtx,
+   WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessEnableDisableCAEventInd
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFwrMemDumpReq
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+    WDI_ProcessFwrMemDumpRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessWifiConfigReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessWificonfigSetRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+#ifdef FEATURE_OEM_DATA_SUPPORT
+/**
+ @brief WDI_ProcessStartOemDataReqIndNew -
+    Send OEM Data request new indication to FW
+
+ @param  pWDICtx : wdi context
+         pEventData : indication data
+
+ @see
+ @return none
+*/
+WDI_Status
+WDI_ProcessStartOemDataReqIndNew
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+ @brief Process OemDataRsp New Indication indication from FW
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessStartOemDataRspIndNew
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+#endif
+
+
 #endif /*WLAN_QCT_WDI_I_H*/
 

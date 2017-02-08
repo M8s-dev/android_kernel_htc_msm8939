@@ -1755,6 +1755,15 @@ typedef struct sSirSmeMicFailureInd
     tSirMicFailureInfo     info;
 } tSirSmeMicFailureInd, *tpSirSmeMicFailureInd;
 
+typedef struct sSirSmeLostLinkParamsInd
+{
+    tANI_U16  messageType;
+    tANI_U16  length;
+    tANI_U8 sessionId;
+    tSirLostLinkParamsInfo info;
+} tSirSmeLostLinkParamsInd, *tpSirSmeLostLinkParamsInd;
+
+
 typedef struct sSirSmeMissedBeaconInd
 {
     tANI_U16                    messageType; // eWNI_SME_MISSED_BEACON_IND
@@ -3667,8 +3676,7 @@ typedef struct sSirSmeCoexInd
 
 typedef struct sSirSmeMgmtFrameInd
 {
-    tANI_U16        mesgType;
-    tANI_U16        mesgLen;
+    tANI_U16        frameLen;
     tANI_U32        rxChan;
     tANI_U8        sessionId;
     tANI_U8         frameType;
@@ -3721,30 +3729,48 @@ typedef struct sSirWlanSetRxpFilters
     tANI_U8 setMcstBcstFilter;
 }tSirWlanSetRxpFilters,*tpSirWlanSetRxpFilters;
 
-typedef void(*MgmtLoggingInitReqCb)(void *mgmtlogInitCbContext,
-                                                       VOS_STATUS status);
+typedef void(*FWLoggingInitReqCb)(void *fwlogInitCbContext, VOS_STATUS status);
 typedef void ( *tGetFrameLogCallback) (void *pContext);
 
 typedef struct sAniGetFrameLogReq
 {
     tANI_U16               msgType;
     tANI_U16               msgLen;
-    tGetFrameLogCallback   getFramelogCallback;
-    void                   *pDevContext;       //device context
     tANI_U8                getFrameLogCmdFlag;
-    tANI_U32               rspStatus;
 } tAniGetFrameLogReq,      *tpAniGetFrameLogReq;
 
+/**
+ * struct s_ani_set_tx_max_pwr - Req params to set max tx power
+ * @bssid: bssid to set the power cap for
+ * @self_mac_addr:self mac address
+ * @power: power to set in dB
+ */
+struct s_ani_set_tx_max_pwr
+{
+    tSirMacAddr   bssid;
+    tSirMacAddr   self_sta_mac_addr;
+    tPowerdBm     power;
+};
 
-typedef struct sSirMgmtLoggingInitParam
+
+
+typedef struct sSirFWLoggingInitParam
 {
     tANI_U8                enableFlag;
     tANI_U8                frameType;
     tANI_U8                frameSize;
     tANI_U8                bufferMode;
-    MgmtLoggingInitReqCb   mgmtlogInitCallback;
-    void                   *mgmtlogInitCbContext;
-}tSirMgmtLoggingInitParam,*tpSirMgmtLoggingInitParam;
+    tANI_U8                continuousFrameLogging;
+    tANI_U8                minLogBufferSize;
+    tANI_U8                maxLogBufferSize;
+    FWLoggingInitReqCb     fwlogInitCallback;
+    void                   *fwlogInitCbContext;
+}tSirFWLoggingInitParam,*tpSirFWLoggingInitParam;
+
+typedef struct sSirFatalEventLogsReqParam
+{
+    tANI_U32 reason_code;
+}tSirFatalEventLogsReqParam, *tpSirFatalEventLogsReqParam;
 
 #ifdef FEATURE_WLAN_SCAN_PNO
 //
@@ -4669,7 +4695,7 @@ typedef PACKED_PRE struct PACKED_POST
 #endif // FEATURE_WLAN_BATCH_SCAN
 
 #ifdef FEATURE_WLAN_CH_AVOID
-#define SIR_CH_AVOID_MAX_RANGE   4
+#define SIR_CH_AVOID_MAX_RANGE   15
 
 typedef struct sSirChAvoidFreqType
 {
@@ -4688,6 +4714,23 @@ typedef void (*pGetBcnMissRateCB)( tANI_S32 bcnMissRate,
                                    VOS_STATUS status, void *data);
 typedef void (*tSirFWStatsCallback)(VOS_STATUS status,
                     tSirFwStatsResult *fwStatsRsp, void *pContext);
+typedef void (*sir_mgmt_frame_ind_callback)(tSirSmeMgmtFrameInd *frame_ind);
+
+
+/**
+ * struct sir_sme_mgmt_frame_cb_req - Register a
+ * management frame callback req
+ * @message_type: message id
+ * @length: msg length
+ * @callback: callback for management frame indication
+ */
+struct sir_sme_mgmt_frame_cb_req
+{
+  tANI_U16 message_type;
+  tANI_U16 length;
+  sir_mgmt_frame_ind_callback callback;
+};
+
 typedef PACKED_PRE struct PACKED_POST
 {
    tANI_U32   msgLen;
@@ -5081,6 +5124,8 @@ typedef PACKED_PRE struct PACKED_POST
 }  tSirLLStatsResults, *tpSirLLStatsResults;
 
 #endif /* WLAN_FEATURE_LINK_LAYER_STATS */
+
+
 
 #ifdef WLAN_FEATURE_EXTSCAN
 
@@ -5577,4 +5622,20 @@ typedef struct
     tANI_U16    msgLen;     // length of the entire request
     tANI_U8     SetTdls2040BSSCoex; //enabled or disabled
 } tAniSetTdls2040BSSCoex, *tpAniSetTdls2040BSSCoex;
+
+typedef struct
+{
+    tANI_U16   mesgType;
+    tANI_U16   mesgLen;
+    tSirMacAddr bssid;
+}tSirDelAllTdlsPeers, *ptSirDelAllTdlsPeers;
+
+typedef void (*tSirMonModeCb)(tANI_U32 *magic, struct completion *cmpVar);
+typedef struct
+{
+    tANI_U32 *magic;
+    struct completion *cmpVar;
+    void *data;
+    tSirMonModeCb callback;
+}tSirMonModeReq, *ptSirMonModeReq;
 #endif /* __SIR_API_H */

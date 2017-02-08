@@ -609,8 +609,8 @@ typedef tSap_SoftapStats WLANTL_TRANSFER_STA_TYPE;
 typedef enum
 {
   WLANTL_DEBUG_TX_SNAPSHOT = 1<<0,
-
   WLANTL_DEBUG_FW_CLEANUP = 1<<1,
+  WLANTL_DEBUG_KICKDXE = 1<<2
 }WLANTL_DebugFlags;
 
 /*----------------------------------------------------------------------------
@@ -2222,6 +2222,41 @@ WLANTL_GetRxPktCount
   v_U8_t         ucSTAId,
   v_U8_t         ucTid,
   v_U32_t*       puRxPktCount
+);
+
+/*==========================================================================
+
+  FUNCTION    WLANTL_IsEAPOLPending
+
+  DESCRIPTION
+
+    HDD calls this function when hdd_tx_timeout occurs. This checks whether
+    EAPOL is pending.
+
+  DEPENDENCIES
+
+    HDD must have registered with TL at least one STA before this function
+    can be called.
+
+  PARAMETERS
+
+    IN
+    pvosGCtx:       pointer to the global vos context
+
+  RETURN VALUE
+
+    The result code associated with performing the operation
+
+    Success : Indicates EAPOL frame is pending and sta is in connected state
+
+    Failure : EAPOL frame is not pending
+
+  SIDE EFFECTS
+============================================================================*/
+VOS_STATUS
+WLANTL_IsEAPOLPending
+(
+  v_PVOID_t     pvosGCtx
 );
 
 /*==========================================================================

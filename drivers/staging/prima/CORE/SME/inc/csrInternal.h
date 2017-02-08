@@ -47,6 +47,8 @@
 #include "vos_nvitem.h"
 #include "wlan_qct_tl.h"
 
+#include "csrApi.h"
+
 #ifdef WLAN_FEATURE_NEIGHBOR_ROAMING
 #include "csrNeighborRoam.h"
 #endif
@@ -404,7 +406,7 @@ typedef struct tagScanCmd
         tCsrBGScanRequest bgScanRequest;
     }u;
     //This flag will be set while aborting the scan due to band change
-    tANI_BOOLEAN            abortScanDueToBandChange;
+     eCsrAbortReason        abortScanIndication;
 }tScanCmd;
 
 typedef struct tagRoamCmd
@@ -670,6 +672,7 @@ typedef struct tagCsrConfig
     tANI_U8 isCoalesingInIBSSAllowed;
     tANI_U8 allowDFSChannelRoam;
     tANI_BOOLEAN initialScanSkipDFSCh;
+    tANI_BOOLEAN ignorePeerErpInfo;
     tANI_BOOLEAN sendDeauthBeforeCon;
 #ifdef WLAN_FEATURE_AP_HT40_24G
     tANI_BOOLEAN apHT40_24GEnabled;
@@ -677,6 +680,9 @@ typedef struct tagCsrConfig
 #endif
     tANI_U32 nOBSSScanWidthTriggerInterval;
     tANI_U8 roamDelayStatsEnabled;
+    tANI_BOOLEAN ignorePeerHTopMode;
+    tANI_BOOLEAN disableP2PMacSpoofing;
+    tANI_U8 max_chan_for_dwell_time_cfg;
 }tCsrConfig;
 
 typedef struct tagCsrChannelPowerInfo
@@ -722,7 +728,6 @@ typedef struct tagCsrScanStruct
     vos_timer_t hTimerStaApConcTimer;
 #endif
     vos_timer_t hTimerIdleScan;
-    vos_timer_t hTimerResultCfgAging;
     tPalTimerHandle hTimerBgScan;
     //changes on every scan, it is used as a flag for whether 11d info is found on every scan
     tANI_U8 channelOf11dInfo;
@@ -803,6 +808,7 @@ typedef struct tagCsrScanStruct
 
     csrScanCompleteCallback callback11dScanDone;
     eCsrBand  scanBandPreference;  //This defines the band perference for scan
+    bool fcc_constraint;
 }tCsrScanStruct;
 
 
@@ -958,6 +964,7 @@ typedef struct tagCsrRoamSession
     * the PMKID cache. To clear the cache in this particular case this is added
     * it is needed by the HS 2.0 passpoint certification 5.2.a and b testcases */
     tANI_BOOLEAN fIgnorePMKIDCache;
+    tANI_BOOLEAN abortConnection;
 } tCsrRoamSession;
 
 typedef struct tagCsrRoamStruct

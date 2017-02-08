@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2013, 2016 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -619,6 +619,9 @@ typedef struct sDphHashNode
     tANI_U16 pmfSaQueryCurrentTransId;
     tANI_U16 pmfSaQueryStartTransId;
     TX_TIMER pmfSaQueryTimer;
+    v_TIME_t last_unprot_deauth_disassoc;
+    tANI_U8 proct_deauh_disassoc_cnt;
+    v_TIME_t last_assoc_received_time;
 #endif
 
     tANI_U8 htLdpcCapable;
@@ -635,6 +638,7 @@ typedef struct sDphHashNode
 
      */
     tANI_U8 isDisassocDeauthInProgress;
+    bool sta_deletion_in_progress;
     struct sDphHashNode  *next;
 
 

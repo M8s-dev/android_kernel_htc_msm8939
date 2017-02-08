@@ -284,6 +284,14 @@ VOS_STATUS vos_open( v_CONTEXT_t *pVosContext, void *devHandle )
     
       goto err_probe_event;
    }
+   if (vos_event_init( &(gpVosContext->fwLogsComplete) ) != VOS_STATUS_SUCCESS )
+   {
+      VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+                  "%s: Unable to init fwLogsComplete", __func__);
+      VOS_ASSERT(0);
+
+      goto err_wda_complete_event;
+   }
 
    /* Initialize the free message queue */
    vStatus = vos_mq_init(&gpVosContext->freeVosMq);
@@ -294,7 +302,7 @@ VOS_STATUS vos_open( v_CONTEXT_t *pVosContext, void *devHandle )
       VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
                 "%s: Failed to initialize VOS free message queue", __func__);
       VOS_ASSERT(0);
-      goto err_wda_complete_event;
+      goto err_fw_logs_complete_event;
    }
 
    for (iter = 0; iter < VOS_CORE_MAX_MESSAGES; iter++)
@@ -465,6 +473,9 @@ err_sched_close:
 
 err_msg_queue:
    vos_mq_deinit(&gpVosContext->freeVosMq);
+
+err_fw_logs_complete_event:
+    vos_event_destroy( &gpVosContext->fwLogsComplete);
 
 err_wda_complete_event:
    vos_event_destroy( &gpVosContext->wdaCompleteEvent );
@@ -719,6 +730,9 @@ VOS_STATUS vos_mon_stop( v_CONTEXT_t vosContext )
 
   vos_event_reset( &(gpVosContext->wdaCompleteEvent) );
 
+  VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+         "%s: HAL_STOP is requested", __func__);
+
   vosStatus = WDA_stop( vosContext, HAL_STOP_TYPE_RF_KILL );
 
   if (!VOS_IS_STATUS_SUCCESS(vosStatus))
@@ -877,11 +891,13 @@ VOS_STATUS vos_start( v_CONTEXT_t vosContext )
   if ( vStatus != VOS_STATUS_SUCCESS )
   {
      VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                 "%s: Failed to start WDA - WDA_shutdown needed", __func__);
+                 "%s: Failed to start WDA - WDA_shutdown needed %d ",
+                   __func__, vStatus);
      if ( vStatus == VOS_STATUS_E_TIMEOUT )
-      {
+     {
          WDA_setNeedShutdown(vosContext);
-      }
+     }
+     VOS_ASSERT(0);
      return VOS_STATUS_E_FAILURE;
   }
   VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
@@ -1148,6 +1164,14 @@ VOS_STATUS vos_close( v_CONTEXT_t vosContext )
 
   vos_mq_deinit(&((pVosContextType)vosContext)->freeVosMq);
 
+  vosStatus = vos_event_destroy(&gpVosContext->fwLogsComplete);
+  if (!VOS_IS_STATUS_SUCCESS(vosStatus))
+  {
+     VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+         "%s: failed to destroy fwLogsComplete", __func__);
+     VOS_ASSERT( VOS_IS_STATUS_SUCCESS( vosStatus ) );
+  }
+
   vosStatus = vos_event_destroy(&gpVosContext->wdaCompleteEvent);
   if (!VOS_IS_STATUS_SUCCESS(vosStatus))
   {
@@ -1155,6 +1179,7 @@ VOS_STATUS vos_close( v_CONTEXT_t vosContext )
          "%s: failed to destroy wdaCompleteEvent", __func__);
      VOS_ASSERT( VOS_IS_STATUS_SUCCESS( vosStatus ) );
   }
+
 
   vosStatus = vos_event_destroy(&gpVosContext->ProbeEvent);
   if (!VOS_IS_STATUS_SUCCESS(vosStatus))
@@ -1642,6 +1667,170 @@ VOS_STATUS vos_free_context( v_VOID_t *pVosContext, VOS_MODULE_ID moduleID,
 
 } /* vos_free_context() */
 
+
+bool vos_is_log_report_in_progress(void)
+{
+    return wlan_is_log_report_in_progress();
+}
+
+void vos_reset_log_report_in_progress(void)
+{
+    return wlan_reset_log_report_in_progress();
+}
+
+
+
+
+int vos_set_log_completion(uint32 is_fatal,
+                            uint32 indicator,
+                            uint32 reason_code)
+{
+    return wlan_set_log_completion(is_fatal,
+                                   indicator,reason_code);
+}
+
+void vos_get_log_completion(uint32 *is_fatal,
+                             uint32 *indicator,
+                             uint32 *reason_code)
+{
+    wlan_get_log_completion(is_fatal, indicator, reason_code);
+}
+
+
+
+void vos_send_fatal_event_done(void)
+{
+    /*Complete the fwLogsComplete Event*/
+    VosContextType *vos_context;
+    uint32_t is_fatal, indicator, reason_code;
+
+    vos_context = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+    if (!vos_context) {
+        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+            "%s: vos context is Invalid", __func__);
+        return;
+    }
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+         "%s: vos_event_set for fwLogsComplete", __func__);
+    if (vos_event_set(&vos_context->fwLogsComplete)!= VOS_STATUS_SUCCESS)
+    {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+         "%s: vos_event_set failed for fwLogsComplete", __func__);
+        return;
+    }
+    /*The below API will reset is_report_in_progress flag*/
+    vos_get_log_completion(&is_fatal, &indicator, &reason_code);
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+         "%s: is_fatal : %d, indicator: %d, reason_code=%d",
+         __func__, is_fatal, indicator, reason_code);
+}
+
+
+
+/**---------------------------------------------------------------------------
+
+  \brief vos_fatal_event_logs_req() - used to send flush command to FW
+
+  This API is wrapper to SME flush API.
+
+  \param is_fatal - fatal or non fatal event
+         indicator - Tyoe of indicator framework/Host/FW
+         reason_code - reason code for flush logs
+
+  \return VOS_STATUS_SUCCESS - if command is sent successfully.
+          VOS_STATUS_E_FAILURE - if command is not sent successfully.
+  --------------------------------------------------------------------------*/
+VOS_STATUS vos_fatal_event_logs_req( uint32_t is_fatal,
+                        uint32_t indicator,
+                        uint32_t reason_code,
+                        bool waitRequired)
+{
+    VOS_STATUS vosStatus;
+    eHalStatus status;
+    VosContextType *vos_context;
+
+    vos_context = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+    if (!vos_context)
+    {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+            "%s: vos context is Invalid", __func__);
+        return eHAL_STATUS_FAILURE;
+    }
+
+
+    if (vos_is_log_report_in_progress() == true)
+    {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+        "%s: Fatal Event Req already in progress - dropping! type:%d, indicator=%d reason_code=%d",
+        __func__, is_fatal, indicator, reason_code);
+        return VOS_STATUS_E_FAILURE;
+    }
+
+    vosStatus = vos_set_log_completion(is_fatal, indicator, reason_code);
+    if (VOS_STATUS_SUCCESS != vosStatus) {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+        "%s: Failed to set log trigger params for fatalEvent", __func__);
+        return VOS_STATUS_E_FAILURE;
+    }
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+        "%s: Triggering fatal Event: type:%d, indicator=%d reason_code=%d",
+        __func__, is_fatal, indicator, reason_code);
+
+    vos_event_reset(&gpVosContext->fwLogsComplete);
+    status = sme_fatal_event_logs_req(vos_context->pMACContext,
+                                      is_fatal, indicator,
+                                      reason_code);
+
+    if (HAL_STATUS_SUCCESS(status) && (waitRequired == TRUE))
+    {
+
+        /* Need to update time out of complete */
+        vosStatus = vos_wait_single_event(&gpVosContext->fwLogsComplete,
+                                    WAIT_TIME_FW_LOGS);
+        if ( vosStatus != VOS_STATUS_SUCCESS )
+        {
+            if ( vosStatus == VOS_STATUS_E_TIMEOUT )
+            {
+                VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                 "%s: Timeout occurred before fwLogsComplete", __func__);
+            }
+            else
+            {
+                VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+                     "%s: fwLogsComplete reporting other error", __func__);
+            }
+            /*Done indication is not received.So reset the bug report in progress*/
+            vos_reset_log_report_in_progress();
+            return VOS_STATUS_E_FAILURE;
+        }
+    }
+    if (HAL_STATUS_SUCCESS( status ))
+        return VOS_STATUS_SUCCESS;
+    else
+        return VOS_STATUS_E_FAILURE;
+}
+
+/**---------------------------------------------------------------------------
+
+  \brief vos_process_done_indication() - Process the done indication for fatal event,
+   FW memory dump
+
+  This API processes the done indication and wakeup the logger thread accordingly.
+
+  \param type - Type for which done indication is received.
+
+
+  \return VOS_STATUS_SUCCESS - the pkt has been successfully queued.
+          VOS_STATUS_E_FAILURE - the pkt queue handler has reported
+          a failure.
+  --------------------------------------------------------------------------*/
+
+VOS_STATUS vos_process_done_indication(v_U8_t type, v_U32_t reason_code)
+{
+    wlan_process_done_indication(type, reason_code);
+    return VOS_STATUS_SUCCESS;
+}
+
 /**---------------------------------------------------------------------------
 
   \brief vos_logger_pkt_serialize() - queue a logging vos pkt
@@ -1798,12 +1987,149 @@ VOS_STATUS vos_mq_post_message( VOS_MQ_ID msgQueueId, vos_msg_t *pMsg )
 
   vos_mq_put(pTargetMq, pMsgWrapper);
 
-  set_bit(MC_POST_EVENT_MASK, &gpVosContext->vosSched.mcEventFlag);
+  set_bit(MC_POST_EVENT, &gpVosContext->vosSched.mcEventFlag);
   wake_up_interruptible(&gpVosContext->vosSched.mcWaitQueue);
 
   return VOS_STATUS_SUCCESS;
 
 } /* vos_mq_post_message()*/
+
+
+/**--------------------------------------------------------------------------
+  \brief vos_mq_post_message_high_pri() - posts a high priority message to
+           a message queue
+
+  This API allows messages to be posted to the head of a specific message
+  queue. Messages  can be posted to the following message queues:
+
+  <ul>
+    <li> SME
+    <li> PE
+    <li> HAL
+    <li> TL
+  </ul>
+
+  \param msgQueueId - identifies the message queue upon which the message
+         will be posted.
+
+  \param message - a pointer to a message buffer.  Memory for this message
+         buffer is allocated by the caller and free'd by the vOSS after the
+         message is posted to the message queue.  If the consumer of the
+         message needs anything in this message, it needs to copy the contents
+         before returning from the message queue handler.
+
+  \return VOS_STATUS_SUCCESS - the message has been successfully posted
+          to the message queue.
+
+          VOS_STATUS_E_INVAL - The value specified by msgQueueId does not
+          refer to a valid Message Queue Id.
+
+          VOS_STATUS_E_FAULT  - message is an invalid pointer.
+
+          VOS_STATUS_E_FAILURE - the message queue handler has reported
+          an unknown failure.
+  --------------------------------------------------------------------------*/
+VOS_STATUS vos_mq_post_message_high_pri(VOS_MQ_ID msgQueueId, vos_msg_t *pMsg)
+{
+  pVosMqType      pTargetMq   = NULL;
+  pVosMsgWrapper  pMsgWrapper = NULL;
+
+  if ((gpVosContext == NULL) || (pMsg == NULL))
+  {
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+        "%s: Null params or global vos context is null", __func__);
+    VOS_ASSERT(0);
+    return VOS_STATUS_E_FAILURE;
+  }
+
+  switch (msgQueueId)
+  {
+    /// Message Queue ID for messages bound for SME
+    case  VOS_MQ_ID_SME:
+    {
+       pTargetMq = &(gpVosContext->vosSched.smeMcMq);
+       break;
+    }
+
+    /// Message Queue ID for messages bound for PE
+    case VOS_MQ_ID_PE:
+    {
+       pTargetMq = &(gpVosContext->vosSched.peMcMq);
+       break;
+    }
+
+    /// Message Queue ID for messages bound for WDA
+    case VOS_MQ_ID_WDA:
+    {
+       pTargetMq = &(gpVosContext->vosSched.wdaMcMq);
+       break;
+    }
+
+    /// Message Queue ID for messages bound for WDI
+    case VOS_MQ_ID_WDI:
+    {
+       pTargetMq = &(gpVosContext->vosSched.wdiMcMq);
+       break;
+    }
+
+    /// Message Queue ID for messages bound for TL
+    case VOS_MQ_ID_TL:
+    {
+       pTargetMq = &(gpVosContext->vosSched.tlMcMq);
+       break;
+    }
+
+    /// Message Queue ID for messages bound for the SYS module
+    case VOS_MQ_ID_SYS:
+    {
+       pTargetMq = &(gpVosContext->vosSched.sysMcMq);
+       break;
+    }
+
+    default:
+
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+              ("%s: Trying to queue msg into unknown MC Msg queue ID %d"),
+              __func__, msgQueueId);
+
+    return VOS_STATUS_E_FAILURE;
+  }
+
+  VOS_ASSERT(NULL !=pTargetMq);
+  if (pTargetMq == NULL)
+  {
+     VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+         "%s: pTargetMq == NULL", __func__);
+     return VOS_STATUS_E_FAILURE;
+  }
+
+  /*
+  ** Try and get a free Msg wrapper
+  */
+  pMsgWrapper = vos_mq_get(&gpVosContext->freeVosMq);
+
+  if (NULL == pMsgWrapper)
+  {
+    VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+              "%s: VOS Core run out of message wrapper", __func__);
+    return VOS_STATUS_E_RESOURCES;
+  }
+
+  /*
+  ** Copy the message now
+  */
+  vos_mem_copy( (v_VOID_t*)pMsgWrapper->pVosMsg,
+                (v_VOID_t*)pMsg, sizeof(vos_msg_t));
+
+  vos_mq_put_front(pTargetMq, pMsgWrapper);
+
+  set_bit(MC_POST_EVENT, &gpVosContext->vosSched.mcEventFlag);
+  wake_up_interruptible(&gpVosContext->vosSched.mcWaitQueue);
+
+  return VOS_STATUS_SUCCESS;
+
+} /* vos_mq_post_message_high_pri()*/
+
 
 
 /**---------------------------------------------------------------------------
@@ -1916,7 +2242,7 @@ VOS_STATUS vos_tx_mq_serialize( VOS_MQ_ID msgQueueId, vos_msg_t *pMsg )
 
   vos_mq_put(pTargetMq, pMsgWrapper);
 
-  set_bit(TX_POST_EVENT_MASK, &gpVosContext->vosSched.txEventFlag);
+  set_bit(TX_POST_EVENT, &gpVosContext->vosSched.txEventFlag);
   wake_up_interruptible(&gpVosContext->vosSched.txWaitQueue);
 
   return VOS_STATUS_SUCCESS;
@@ -2031,7 +2357,7 @@ VOS_STATUS vos_rx_mq_serialize( VOS_MQ_ID msgQueueId, vos_msg_t *pMsg )
 
   vos_mq_put(pTargetMq, pMsgWrapper);
 
-  set_bit(RX_POST_EVENT_MASK, &gpVosContext->vosSched.rxEventFlag);
+  set_bit(RX_POST_EVENT, &gpVosContext->vosSched.rxEventFlag);
   wake_up_interruptible(&gpVosContext->vosSched.rxWaitQueue);
 
   return VOS_STATUS_SUCCESS;
@@ -2235,6 +2561,15 @@ VOS_STATUS vos_shutdown(v_CONTEXT_t vosContext)
   }
 
   vos_mq_deinit(&((pVosContextType)vosContext)->freeVosMq);
+
+  vosStatus = vos_event_destroy(&gpVosContext->fwLogsComplete);
+  if (!VOS_IS_STATUS_SUCCESS(vosStatus))
+  {
+     VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+         "%s: failed to destroy fwLogsComplete", __func__);
+     VOS_ASSERT( VOS_IS_STATUS_SUCCESS( vosStatus ) );
+  }
+
 
   vosStatus = vos_event_destroy(&gpVosContext->wdaCompleteEvent);
   if (!VOS_IS_STATUS_SUCCESS(vosStatus))
@@ -2475,6 +2810,24 @@ v_U8_t vos_is_fw_logging_enabled(void)
 
 /**---------------------------------------------------------------------------
 
+  \brief vos_is_fw_ev_logging_enabled() -
+
+  API to check if firmware is configured to send live logs using DXE channel
+
+  \param  -  None
+
+  \return -  0: firmware logging is not enabled (it may or may not
+                be supported)
+             1: firmware logging is enabled
+
+  --------------------------------------------------------------------------*/
+v_U8_t vos_is_fw_ev_logging_enabled(void)
+{
+   return hdd_is_fw_ev_logging_enabled();
+}
+
+/**---------------------------------------------------------------------------
+
   \brief vos_is_fw_logging_supported() -
 
   API to check if firmware supports to send logs using DXE channel
@@ -2586,6 +2939,24 @@ v_VOID_t vos_flush_delayed_work(struct delayed_work *dwork)
 #endif
 }
 
+v_VOID_t vos_init_work(struct work_struct *work , void *callbackptr)
+{
+#if defined (WLAN_OPEN_SOURCE)
+   INIT_WORK(work,callbackptr);
+#else
+   wcnss_init_work(work, callbackptr);
+#endif
+}
+
+v_VOID_t vos_init_delayed_work(struct delayed_work *dwork , void *callbackptr)
+{
+#if defined (WLAN_OPEN_SOURCE)
+   INIT_DELAYED_WORK(dwork,callbackptr);
+#else
+   wcnss_init_delayed_work(dwork, callbackptr);
+#endif
+}
+
 /**
  * vos_set_multicast_logging() - Set mutlicast logging value
  * @value: Value of multicast logging
@@ -2613,5 +2984,93 @@ void vos_set_multicast_logging(uint8_t value)
 v_U8_t vos_is_multicast_logging(void)
 {
    return vos_multicast_logging;
+}
+
+/**
+ * vos_isLoadUnloadInProgress()
+ *
+ * Return TRUE if load/unload is in progress.
+ *
+ */
+v_BOOL_t vos_isLoadUnloadInProgress(void)
+{
+    hdd_context_t *pHddCtx = NULL;
+    v_CONTEXT_t pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+
+    if(!pVosContext)
+    {
+       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: Global VOS context is Null", __func__);
+       return FALSE;
+    }
+
+    pHddCtx = (hdd_context_t *)vos_get_context(VOS_MODULE_ID_HDD, pVosContext );
+    if(!pHddCtx) {
+       VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+                "%s: HDD context is Null", __func__);
+       return FALSE;
+    }
+
+    return ( 0 != pHddCtx->isLoadUnloadInProgress);
+}
+
+/**
+ * vos_isUnloadInProgress()
+ *
+ * Return TRUE if unload is in progress.
+ *
+ */
+v_BOOL_t vos_isUnloadInProgress(void)
+{
+    hdd_context_t *pHddCtx = NULL;
+    v_CONTEXT_t pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+
+    if(!pVosContext)
+    {
+       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: Global VOS context is Null", __func__);
+       return FALSE;
+    }
+
+    pHddCtx = (hdd_context_t *)vos_get_context(VOS_MODULE_ID_HDD, pVosContext );
+    if(!pHddCtx) {
+       VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+                "%s: HDD context is Null", __func__);
+       return FALSE;
+    }
+
+    return (WLAN_HDD_UNLOAD_IN_PROGRESS == pHddCtx->isLoadUnloadInProgress);
+}
+
+/**
+ * vos_probe_threads() - VOS API to post messages
+ * to all the threads to detect if they are active or not
+ *
+ * Return none.
+ *
+ */
+void vos_probe_threads(void)
+{
+    vos_msg_t msg;
+
+    msg.callback = vos_wd_reset_thread_stuck_count;
+    /* Post Message to MC Thread */
+    sysBuildMessageHeader(SYS_MSG_ID_MC_THR_PROBE, &msg);
+    if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MQ_ID_SYS, &msg)) {
+         VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+          FL("Unable to post SYS_MSG_ID_MC_THR_PROBE message to MC thread"));
+    }
+
+    /* Post Message to Tx Thread */
+    sysBuildMessageHeader(SYS_MSG_ID_TX_THR_PROBE, &msg);
+    if (VOS_STATUS_SUCCESS != vos_tx_mq_serialize(VOS_MQ_ID_SYS, &msg)) {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+          FL("Unable to post SYS_MSG_ID_TX_THR_PROBE message to TX thread"));
+    }
+
+    /* Post Message to Rx Thread */
+    sysBuildMessageHeader(SYS_MSG_ID_RX_THR_PROBE, &msg);
+    if (VOS_STATUS_SUCCESS != vos_rx_mq_serialize(VOS_MQ_ID_SYS, &msg)) {
+        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+          FL("Unable to post SYS_MSG_ID_RX_THR_PROBE message to RX thread"));
+    }
 }
 

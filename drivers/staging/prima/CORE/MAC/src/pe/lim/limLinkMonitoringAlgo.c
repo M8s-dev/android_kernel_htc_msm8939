@@ -226,14 +226,14 @@ limDeleteStaContext(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
                         eSIR_MAC_DISASSOC_DUE_TO_INACTIVITY_REASON;
                     pStaDs->mlmStaContext.cleanupTrigger = eLIM_LINK_MONITORING_DEAUTH;
 
-                   /** Set state to mlm State to eLIM_MLM_WT_DEL_STA_RSP_STATE
-                    * This is to address the issue of race condition between
-                    * disconnect request from the HDD and deauth from
-                    * Tx inactivity timer by FWR. This will make sure that we will not
-                    * process disassoc if deauth is in progress for the station
-                    * and thus mlmStaContext.cleanupTrigger will not be overwritten.
-                    */
-                    pStaDs->mlmStaContext.mlmState   = eLIM_MLM_WT_DEL_STA_RSP_STATE;
+                    if (pStaDs->isDisassocDeauthInProgress)
+                    {
+                        limLog(pMac, LOGE, FL("No need to cleanup as already"
+                               "disassoc or deauth in progress"));
+                        return;
+                    }
+                    else
+                        pStaDs->isDisassocDeauthInProgress++;
 
                     // Issue Deauth Indication to SME.
                     vos_mem_copy((tANI_U8 *) &mlmDeauthInd.peerMacAddr,
@@ -300,6 +300,17 @@ limTriggerSTAdeletion(tpAniSirGlobal pMac, tpDphHashNode pStaDs, tpPESession pse
         PELOGW(limLog(pMac, LOGW, FL("Skip STA deletion (invalid STA)"));)
         return;
     }
+
+    if (pStaDs->sta_deletion_in_progress) {
+         /* Already in the process of deleting context for the peer */
+        limLog(pMac, LOG1,
+            FL("Deletion is in progress (%d) for peer:%p in mlmState %d"),
+            pStaDs->sta_deletion_in_progress, pStaDs->staAddr,
+            pStaDs->mlmStaContext.mlmState);
+         return;
+     }
+     pStaDs->sta_deletion_in_progress = true;
+
     /**
      * MAC based Authentication was used. Trigger
      * Deauthentication frame to peer since it will
@@ -346,7 +357,8 @@ limTriggerSTAdeletion(tpAniSirGlobal pMac, tpDphHashNode pStaDs, tpPESession pse
     msgLength += sizeof(tSirMacAddr);
 
     //reasonCode 
-    limCopyU16((tANI_U8*)pBuf, (tANI_U16)eLIM_LINK_MONITORING_DISASSOC);
+    limCopyU16((tANI_U8*)pBuf,
+            (tANI_U16)eSIR_MAC_DISASSOC_DUE_TO_INACTIVITY_REASON);
     pBuf += sizeof(tANI_U16);
     msgLength += sizeof(tANI_U16);
 

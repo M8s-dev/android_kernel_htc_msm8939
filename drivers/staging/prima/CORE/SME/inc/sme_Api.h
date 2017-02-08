@@ -46,6 +46,7 @@
 /*--------------------------------------------------------------------------
   Include Files
   ------------------------------------------------------------------------*/
+#include <linux/version.h>
 #include "ccmApi.h"
 #include "csrApi.h"
 #include "pmcApi.h"
@@ -56,6 +57,7 @@
 #include "btcApi.h"
 #include "vos_nvitem.h"
 #include "p2p_Api.h"
+#include "smeInternal.h"
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
 #include "oemDataApi.h"
@@ -433,22 +435,39 @@ void sme_SetCurrDeviceMode (tHalHandle hHal, tVOS_CON_MODE currDeviceMode);
   
   This is a synchronous API.
 
-  
   \param hHal - The handle returned by macOpen.
 
   \param sessionId - A previous opened session's ID.
-  
+
+  \param bPurgeSmeCmdList  - Whether sme cmd list purging is required or not.
+                             TRUE -Purging require FALSE - Purging not require
+
   \return eHAL_STATUS_SUCCESS - session is closed. 
   
           Other status means SME is failed to open the session.  
           eHAL_STATUS_INVALID_PARAMETER - session is not opened. 
   \sa
-  
+
+
   --------------------------------------------------------------------------*/
 eHalStatus sme_CloseSession(tHalHandle hHal, tANI_U8 sessionId,
-                         csrRoamSessionCloseCallback callback, void *pContext);
+                            tANI_U8 bPurgeSmeCmdList,
+                            csrRoamSessionCloseCallback callback,
+                            void *pContext);
+/*--------------------------------------------------------------------------
+
+  \brief sme_PurgeCmdList() - Purge all the sme cmd list
+
+  This is a synchronous API.
 
 
+  \param hHal - The handle returned by macOpen.
+
+  \param sessionId - A previous opened session's ID.
+
+--------------------------------------------------------------------------*/
+
+eHalStatus sme_PurgeCmdList(tHalHandle hHal, tANI_U8 sessionId);
 
 /*--------------------------------------------------------------------------
   
@@ -798,6 +817,14 @@ eHalStatus sme_RoamConnectToLastProfile(tHalHandle hHal, tANI_U8 sessionId);
 eHalStatus sme_RoamDisconnect(tHalHandle hHal, tANI_U8 sessionId, eCsrRoamDisconnectReason reason);
 
 /* ---------------------------------------------------------------------------
+    \fn.sme_abortConnection
+    \brief a wrapper function to request CSR to stop from connecting a network
+    \retun void.
+---------------------------------------------------------------------------*/
+
+void sme_abortConnection(tHalHandle hHal, tANI_U8 sessionId);
+
+/* ---------------------------------------------------------------------------
     \fn sme_RoamStopBss
     \brief a wrapper function to request CSR to stop bss
     \param sessionId    - sessionId of SoftAP
@@ -827,7 +854,13 @@ eHalStatus sme_RoamGetAssociatedStas(tHalHandle hHal, tANI_U8 sessionId,
     \param pPeerMacAddr - Caller allocated memory filled with peer MAC address (6 bytes)
     \return eHalStatus  SUCCESS  Roam callback will be called to indicate actual results
   -------------------------------------------------------------------------------*/
-eHalStatus sme_RoamDisconnectSta(tHalHandle hHal, tANI_U8 sessionId, tANI_U8 *pPeerMacAddr);
+eHalStatus sme_RoamDisconnectSta(tHalHandle hHal, tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                                 const tANI_U8 *pPeerMacAddr
+#else
+                                 tANI_U8 *pPeerMacAddr
+#endif
+                                 );
 
 /* ---------------------------------------------------------------------------
     \fn sme_RoamDeauthSta
@@ -2130,6 +2163,9 @@ eHalStatus sme_SetKeepAlive (tHalHandle hHal, tANI_U8 sessionId,
 -------------------------------------------------------------------------------*/
 eHalStatus sme_GetOperationChannel(tHalHandle hHal, tANI_U32 *pChannel, tANI_U8 sessionId);
 
+eHalStatus sme_register_mgmt_frame_ind_callback(tHalHandle hHal,
+      sir_mgmt_frame_ind_callback callback);
+
 /* ---------------------------------------------------------------------------
 
     \fn sme_RegisterMgtFrame
@@ -2161,14 +2197,10 @@ eHalStatus sme_DeregisterMgmtFrame(tHalHandle hHal, tANI_U8 sessionId,
     \fn sme_GetFramesLog
     \brief a wrapper function that client calls to register a callback to get
            mgmt frames logged
-    \param callback - SME sends back the context using the callback
     \param flag - flag tells to clear OR send the frame log buffer
-    \param pContext - user context to be passed back along with the callback
     \return eHalStatus
   ---------------------------------------------------------------------------*/
-eHalStatus sme_GetFramesLog(tHalHandle hHal,
-                             tGetFrameLogCallback callback,
-                             tANI_U8 flag, void *pContext);
+eHalStatus sme_GetFramesLog(tHalHandle hHal, tANI_U8 flag);
 /* ---------------------------------------------------------------------------
 
   \fn    sme_InitMgmtFrameLogging
@@ -2180,12 +2212,12 @@ eHalStatus sme_GetFramesLog(tHalHandle hHal,
 
     hHal - The handle returned by macOpen.
 
-    wlanMgmtLoggingInitParam - Params to initialize frame logging
+    wlanFWLoggingInitParam - Params to initialize frame logging
 
   \return eHalStatus
 --------------------------------------------------------------------------- */
 eHalStatus sme_InitMgmtFrameLogging( tHalHandle hHal,
-                            tpSirMgmtLoggingInitParam wlanMgmtLoggingInitParam);
+                            tpSirFWLoggingInitParam wlanFWLoggingInitParam);
 
 /* ---------------------------------------------------------------------------
 
@@ -2573,15 +2605,19 @@ eHalStatus sme_p2pGetResultFilter(tHalHandle hHal, tANI_U8 HDDSessionId,
 eHalStatus sme_SetMaxTxPower(tHalHandle hHal, tSirMacAddr pBssid, 
                              tSirMacAddr pSelfMacAddress, v_S7_t dB);
 
-/* ---------------------------------------------------------------------------
-    \fn sme_SetMaxTxPowerPerBand
-    \brief  Used to set the Maximum Transmit Power for
-    specific band dynamically. Note: this setting will not persist over reboots
-    \param band
-    \param power to set in dB
-    \- return eHalStatus
-    -------------------------------------------------------------------------*/
-eHalStatus sme_SetMaxTxPowerPerBand(eCsrBand band, v_S7_t db);
+/**
+ * sme_SetMaxTxPowerPerBand() - Set the Maximum Transmit Power
+ * specific to band dynamically
+ * @band: Band for which power needs to be applied
+ * @dB: power to set in dB
+ * @hal: HAL handle
+ *
+ * Set the maximum transmit power dynamically per band
+ *
+ * Return: eHalStatus
+ */
+eHalStatus sme_SetMaxTxPowerPerBand(eCsrBand band, v_S7_t dB,
+                 tHalHandle hal);
 
 /* ---------------------------------------------------------------------------
 
@@ -3220,9 +3256,13 @@ tANI_U8 sme_IsFeatureSupportedByDriver(tANI_U8 featEnumValue);
     -------------------------------------------------------------------------*/
 
 VOS_STATUS sme_SendTdlsLinkEstablishParams(tHalHandle hHal,
-                                                   tANI_U8 sessionId,
-                                                   tSirMacAddr peerMac,
-                                                   tCsrTdlsLinkEstablishParams *tdlsLinkEstablishParams);
+                                           tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                                           const tSirMacAddr peerMac,
+#else
+                                           tSirMacAddr peerMac,
+#endif
+                                           tCsrTdlsLinkEstablishParams *tdlsLinkEstablishParams);
 
 /* ---------------------------------------------------------------------------
     \fn sme_SendTdlsMgmtFrame
@@ -3238,8 +3278,15 @@ VOS_STATUS sme_SendTdlsLinkEstablishParams(tHalHandle hHal,
     \param responder - Tdls request type
     \- return VOS_STATUS_SUCCES
     -------------------------------------------------------------------------*/
-VOS_STATUS sme_SendTdlsMgmtFrame(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr peerMac,
-      tANI_U8 frame_type, tANI_U8 dialog, tANI_U16 status, tANI_U32 peerCapability, tANI_U8 *buf, tANI_U8 len, tANI_U8 responder);
+VOS_STATUS sme_SendTdlsMgmtFrame(tHalHandle hHal, tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                                 const tSirMacAddr peerMac,
+#else
+                                 tSirMacAddr peerMac,
+#endif
+                                 tANI_U8 frame_type, tANI_U8 dialog,
+                                 tANI_U16 status, tANI_U32 peerCapability,
+                                 tANI_U8 *buf, tANI_U8 len, tANI_U8 responder);
 /* ---------------------------------------------------------------------------
     \fn sme_ChangeTdlsPeerSta
     \brief  API to Update TDLS peer sta parameters.
@@ -3248,7 +3295,12 @@ VOS_STATUS sme_SendTdlsMgmtFrame(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr
     \param  staParams - Peer Station Parameters.
     \- return VOS_STATUS_SUCCES
     -------------------------------------------------------------------------*/
-VOS_STATUS sme_ChangeTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr peerMac,
+VOS_STATUS sme_ChangeTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                                 const tSirMacAddr peerMac,
+#else
+                                 tSirMacAddr peerMac,
+#endif
                                  tCsrStaParams *pstaParams);
 /* ---------------------------------------------------------------------------
     \fn sme_AddTdlsPeerSta
@@ -3257,7 +3309,13 @@ VOS_STATUS sme_ChangeTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr
     \param  peerMac - peer's Mac Adress.
     \- return VOS_STATUS_SUCCES
     -------------------------------------------------------------------------*/
-VOS_STATUS sme_AddTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr peerMac);
+VOS_STATUS sme_AddTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                              const tSirMacAddr peerMac
+#else
+                              tSirMacAddr peerMac
+#endif
+                              );
 /* ---------------------------------------------------------------------------
     \fn sme_DeleteTdlsPeerSta
     \brief  API to Delete TDLS peer sta entry.
@@ -3265,7 +3323,13 @@ VOS_STATUS sme_AddTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr pe
     \param  peerMac - peer's Mac Adress.
     \- return VOS_STATUS_SUCCES
     -------------------------------------------------------------------------*/
-VOS_STATUS sme_DeleteTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId, tSirMacAddr peerMac);
+VOS_STATUS sme_DeleteTdlsPeerSta(tHalHandle hHal, tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                                 const tSirMacAddr peerMac
+#else
+                                 tSirMacAddr peerMac
+#endif
+                                );
 /* ---------------------------------------------------------------------------
     \fn sme_SetTdlsPowerSaveProhibited
     \API to set/reset the isTdlsPowerSaveProhibited.
@@ -3478,7 +3542,11 @@ eHalStatus smeIssueFastRoamNeighborAPEvent (tHalHandle hHal,
                                             tANI_U8 channel);
 
 eHalStatus sme_RoamDelPMKIDfromCache( tHalHandle hHal, tANI_U8 sessionId,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+                                      const tANI_U8 *pBSSId,
+#else
                                       tANI_U8 *pBSSId,
+#endif
                                       tANI_BOOLEAN flush_cache );
 
 void smeGetCommandQStatus( tHalHandle hHal );
@@ -3554,6 +3622,7 @@ eHalStatus sme_AddChAvoidCallback
 );
 #endif /* FEATURE_WLAN_CH_AVOID */
 eHalStatus sme_UpdateConnectDebug(tHalHandle hHal, tANI_U32 set_value);
+
 /* ---------------------------------------------------------------------------
     \fn sme_requestTypetoString
     \brief API to convert requestType enum values
@@ -3681,5 +3750,14 @@ eHalStatus sme_SetTdls2040BSSCoexistence(tHalHandle hHal, tANI_S32 isEnabled);
     -------------------------------------------------------------------------*/
 eHalStatus sme_SetRtsCtsHtVht(tHalHandle hHal, tANI_U32 set_value);
 
+tANI_BOOLEAN sme_handleSetFccChannel(tHalHandle hHal,
+                                      tANI_U8 fcc_constraint);
+
+eHalStatus sme_DeleteAllTDLSPeers(tHalHandle hHal, uint8_t sessionId);
+eHalStatus sme_fatal_event_logs_req(tHalHandle hHal, tANI_U32 is_fatal,
+                               tANI_U32 indicator, tANI_U32 reason_code);
+
+eHalStatus sme_enableDisableChanAvoidIndEvent(tHalHandle hHal,
+                                              tANI_U8 set_value);
 
 #endif //#if !defined( __SME_API_H )

@@ -426,12 +426,13 @@ limSendProbeReqMgmtFrame(tpAniSirGlobal pMac,
        //Include HT Capability IE
        if (psessionEntry->vhtCapability)
        {
-          PopulateDot11fVHTCaps( pMac, &pr.VHTCaps, eSIR_FALSE );
+          PopulateDot11fVHTCaps( pMac, &pr.VHTCaps,
+                      psessionEntry->currentOperChannel , eSIR_FALSE );
        }
     }  else {
        if (IS_DOT11_MODE_VHT(dot11mode))
        {
-          PopulateDot11fVHTCaps( pMac, &pr.VHTCaps, eSIR_FALSE );
+          PopulateDot11fVHTCaps( pMac, &pr.VHTCaps, nChannelNum, eSIR_FALSE );
        }
     }
 #endif
@@ -763,8 +764,10 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     if(psessionEntry->vhtCapability)
     {
         limLog( pMac, LOG1, FL("Populate VHT IE in Probe Response"));
-        PopulateDot11fVHTCaps( pMac, &pFrm->VHTCaps, eSIR_TRUE );
-        PopulateDot11fVHTOperation( pMac, &pFrm->VHTOperation );
+        PopulateDot11fVHTCaps( pMac, &pFrm->VHTCaps,
+                              psessionEntry->currentOperChannel, eSIR_TRUE );
+        PopulateDot11fVHTOperation( pMac, &pFrm->VHTOperation ,
+                                          psessionEntry->currentOperChannel);
         // we do not support multi users yet
         //PopulateDot11fVHTExtBssLoad( pMac, &frm.VHTExtBssLoad );
     }
@@ -1479,6 +1482,7 @@ limSendAssocRspMgmtFrame(tpAniSirGlobal pMac,
         if ( pSta->mlmStaContext.htCapability  && 
              psessionEntry->htCapability )
         {
+            limLog(pMac, LOG1, FL("Populate HT IEs in Assoc Response"));
             PopulateDot11fHTCaps( pMac, psessionEntry, &frm.HTCaps );
             /*
              *Check the STA capability and update the HTCaps accordingly
@@ -1492,6 +1496,13 @@ limSendAssocRspMgmtFrame(tpAniSirGlobal pMac,
 
             PopulateDot11fHTInfo( pMac, &frm.HTInfo, psessionEntry );
         }
+         limLog(pMac, LOG1, FL("SupportedChnlWidth: %d, mimoPS: %d, GF: %d,"
+                          "shortGI20:%d, shortGI40: %d, dsssCck: %d, AMPDU Param: %x"),
+                 frm.HTCaps.supportedChannelWidthSet, frm.HTCaps.mimoPowerSave,
+                 frm.HTCaps.greenField, frm.HTCaps.shortGI20MHz, frm.HTCaps.shortGI40MHz,
+                 frm.HTCaps.dsssCckMode40MHz, frm.HTCaps.maxRxAMPDUFactor);
+
+
 
 #ifdef WLAN_FEATURE_AP_HT40_24G
         /* Populate Overlapping BSS Scan Parameters IEs,
@@ -1516,8 +1527,10 @@ limSendAssocRspMgmtFrame(tpAniSirGlobal pMac,
             psessionEntry->vhtCapability )
         {
             limLog( pMac, LOG1, FL("Populate VHT IEs in Assoc Response"));
-            PopulateDot11fVHTCaps( pMac, &frm.VHTCaps, eSIR_TRUE );
-            PopulateDot11fVHTOperation( pMac, &frm.VHTOperation);
+            PopulateDot11fVHTCaps( pMac, &frm.VHTCaps,
+                    psessionEntry->currentOperChannel, eSIR_TRUE );
+            PopulateDot11fVHTOperation( pMac, &frm.VHTOperation,
+                                         psessionEntry->currentOperChannel);
         }
 #endif
 
@@ -2236,7 +2249,7 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
     tDot11fAssocRequest *pFrm;
     tANI_U16            caps;
     tANI_U8            *pFrame;
-    tSirRetStatus       nSirStatus;
+    tSirRetStatus       nSirStatus = eSIR_FAILURE;
     tLimMlmAssocCnf     mlmAssocCnf;
     tANI_U32            nPayload, nStatus;
     tANI_U8             fQosEnabled, fWmeEnabled, fWsmEnabled;
@@ -2280,9 +2293,12 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
     vos_mem_set( ( tANI_U8* )pFrm, sizeof( tDot11fAssocRequest ), 0 );
 
     vos_mem_set(( tANI_U8* )&extractedExtCap, sizeof( tDot11fIEExtCap ), 0);
-    nSirStatus = limStripOffExtCapIEAndUpdateStruct(pMac, pAddIE,
+    if (psessionEntry->is_ext_caps_present)
+    {
+        nSirStatus = limStripOffExtCapIEAndUpdateStruct(pMac, pAddIE,
                                   &nAddIELen,
                                   &extractedExtCap );
+    }
     if(eSIR_SUCCESS != nSirStatus )
     {
         extractedExtCapFlag = eANI_BOOLEAN_FALSE;
@@ -2437,6 +2453,7 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
     if ( psessionEntry->htCapability &&
             pMac->lim.htCapabilityPresentInBeacon)
     {
+        limLog(pMac, LOG1, FL("Populate HT IEs in Assoc Request"));
         PopulateDot11fHTCaps( pMac, psessionEntry, &pFrm->HTCaps );
 #ifdef DISABLE_GF_FOR_INTEROP
 
@@ -2456,19 +2473,26 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
 #endif
 
     }
+
+    limLog(pMac, LOG1, FL("SupportedChnlWidth: %d, mimoPS: %d, GF: %d,"
+                          "shortGI20:%d, shortGI40: %d, dsssCck: %d, AMPDU Param: %x"),
+           pFrm->HTCaps.supportedChannelWidthSet, pFrm->HTCaps.mimoPowerSave,
+           pFrm->HTCaps.greenField, pFrm->HTCaps.shortGI20MHz, pFrm->HTCaps.shortGI40MHz,
+           pFrm->HTCaps.dsssCckMode40MHz, pFrm->HTCaps.maxRxAMPDUFactor);
+
+
 #ifdef WLAN_FEATURE_11AC
     if ( psessionEntry->vhtCapability &&
         psessionEntry->vhtCapabilityPresentInBeacon)
     {
         limLog( pMac, LOG1, FL("Populate VHT IEs in Assoc Request"));
-        PopulateDot11fVHTCaps( pMac, &pFrm->VHTCaps, eSIR_FALSE );
+        PopulateDot11fVHTCaps( pMac, &pFrm->VHTCaps,
+                        psessionEntry->currentOperChannel, eSIR_FALSE );
 
-        if (SIR_11B_CHANNEL_END >= psessionEntry->currentOperChannel)
-            PopulateDot11fOperatingMode(pMac, &pFrm->OperatingMode,
-                                                        psessionEntry);
     }
 #endif
-    PopulateDot11fExtCap( pMac, &pFrm->ExtCap, psessionEntry);
+    if (psessionEntry->is_ext_caps_present)
+        PopulateDot11fExtCap( pMac, &pFrm->ExtCap, psessionEntry);
 
 #if defined WLAN_FEATURE_VOWIFI_11R
     if (psessionEntry->pLimJoinReq->is11Rconnection)
@@ -2922,7 +2946,11 @@ limSendReassocReqWithFTIEsMgmtFrame(tpAniSirGlobal     pMac,
     {
         PopulateDot11fHTCaps( pMac, psessionEntry, &frm.HTCaps );
     }
-
+    limLog(pMac, LOG1, FL("SupportedChnlWidth: %d, mimoPS: %d, GF: %d,"
+                          "shortGI20:%d, shortGI40: %d, dsssCck: %d, AMPDU Param: %x"),
+                 frm.HTCaps.supportedChannelWidthSet, frm.HTCaps.mimoPowerSave,
+                 frm.HTCaps.greenField, frm.HTCaps.shortGI20MHz, frm.HTCaps.shortGI40MHz,
+                 frm.HTCaps.dsssCckMode40MHz, frm.HTCaps.maxRxAMPDUFactor);
 #if defined WLAN_FEATURE_VOWIFI_11R
     if ( psessionEntry->pLimReAssocReq->bssDescription.mdiePresent &&
          (pMac->ft.ftSmeContext.addMDIE == TRUE)
@@ -2940,14 +2968,13 @@ limSendReassocReqWithFTIEsMgmtFrame(tpAniSirGlobal     pMac,
              psessionEntry->vhtCapabilityPresentInBeacon)
     {
         limLog( pMac, LOG1, FL("Populate VHT IEs in Re-Assoc Request"));
-        PopulateDot11fVHTCaps( pMac, &frm.VHTCaps, eSIR_FALSE );
+        PopulateDot11fVHTCaps( pMac, &frm.VHTCaps,
+                         psessionEntry->currentOperChannel, eSIR_FALSE );
 
-        if (SIR_11B_CHANNEL_END >= psessionEntry->currentOperChannel)
-            PopulateDot11fOperatingMode(pMac, &frm.OperatingMode,
-                                                        psessionEntry);
     }
 #endif
-    PopulateDot11fExtCap( pMac, &frm.ExtCap, psessionEntry);
+    if (psessionEntry->is_ext_caps_present)
+        PopulateDot11fExtCap( pMac, &frm.ExtCap, psessionEntry);
 
     nStatus = dot11fGetPackedReAssocRequestSize( pMac, &frm, &nPayload );
     if ( DOT11F_FAILED( nStatus ) )
@@ -3407,17 +3434,20 @@ limSendReassocReqMgmtFrame(tpAniSirGlobal     pMac,
     {
         PopulateDot11fHTCaps( pMac, psessionEntry, &frm.HTCaps );
     }
+    limLog(pMac, LOG1, FL("SupportedChnlWidth: %d, mimoPS: %d, GF: %d,"
+                          "shortGI20:%d, shortGI40: %d, dsssCck: %d, AMPDU Param: %x"),
+                 frm.HTCaps.supportedChannelWidthSet, frm.HTCaps.mimoPowerSave,
+                 frm.HTCaps.greenField, frm.HTCaps.shortGI20MHz, frm.HTCaps.shortGI40MHz,
+                 frm.HTCaps.dsssCckMode40MHz, frm.HTCaps.maxRxAMPDUFactor);
 #ifdef WLAN_FEATURE_11AC
     if ( psessionEntry->vhtCapability &&
              psessionEntry->vhtCapabilityPresentInBeacon)
     {
         limLog( pMac, LOG1, FL("Populate VHT IEs in Re-Assoc Request"));
-        PopulateDot11fVHTCaps( pMac, &frm.VHTCaps, eSIR_FALSE );
-        PopulateDot11fExtCap( pMac, &frm.ExtCap, psessionEntry);
-
-        if (SIR_11B_CHANNEL_END >= psessionEntry->currentOperChannel)
-            PopulateDot11fOperatingMode(pMac, &frm.OperatingMode,
-                                                        psessionEntry);
+        PopulateDot11fVHTCaps( pMac, &frm.VHTCaps,
+                     psessionEntry->currentOperChannel, eSIR_FALSE );
+        if (psessionEntry->is_ext_caps_present)
+            PopulateDot11fExtCap( pMac, &frm.ExtCap, psessionEntry);
     }
 #endif
 
@@ -3929,7 +3959,7 @@ limSendAuthMgmtFrame(tpAniSirGlobal pMac,
     if(eSIR_TRUE == waitForAck)
     {
         pMac->authAckStatus = LIM_AUTH_ACK_NOT_RCD;
-        limLog(pMac, LOGE, FL("Auth frame - txBdToken %u"),
+        limLog(pMac, LOG1, FL("Auth frame - txBdToken %u"),
                 pMac->lim.txBdToken);
         halstatus = halTxFrameWithTxComplete( pMac, pPacket,
                     ( tANI_U16 ) frameLen,

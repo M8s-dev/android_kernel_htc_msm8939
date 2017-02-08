@@ -231,14 +231,47 @@ limProcessAssocReqFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,
      */
     pStaDs = dphLookupHashEntry(pMac, pHdr->sa, &peerIdx,
                              &psessionEntry->dph.dphHashTable);
-    if ((NULL != pStaDs) && (pHdr->fc.retry > 0))
+    if (NULL != pStaDs)
     {
-        limLog(pMac, LOGE,
-            FL("STA is initiating Assoc Req after ACK lost.So, do not Process"
-             "sessionid: %d sys subType=%d for role=%d from: "MAC_ADDRESS_STR),
-                psessionEntry->peSessionId, subType,
-                 psessionEntry->limSystemRole, MAC_ADDR_ARRAY(pHdr->sa));
-        return;
+        if (pHdr->fc.retry > 0)
+        {
+            /* Ignore the Retry */
+            limLog(pMac, LOGE,
+                    FL("STA is initiating Assoc Req after ACK lost. "
+                        "So, do not Process sessionid: %d sys subType=%d "
+                        "for role=%d from: "MAC_ADDRESS_STR),
+                    psessionEntry->peSessionId, subType,
+                    psessionEntry->limSystemRole,
+                    MAC_ADDR_ARRAY(pHdr->sa));
+            return;
+        }
+        else
+        {
+#ifdef WLAN_FEATURE_11W
+            /* Do not send Assoc rsp for duplicate assoc req in case of PMF
+             * enabled STA, as driver needs to start SA Querry in this case
+             */
+            if (!pStaDs->rmfEnabled)
+#endif
+            {
+               /* STA might have missed the assoc response,
+                * so it is sending assoc request frame again.
+                */
+                limSendAssocRspMgmtFrame( pMac, eSIR_SUCCESS,
+                    pStaDs->assocId, pStaDs->staAddr,
+                    pStaDs->mlmStaContext.subType, pStaDs,
+                    psessionEntry);
+                limLog(pMac, LOGE,
+                    FL("DUT already received an assoc request frame "
+                        "and STA is sending another assoc req.So, do not "
+                        "Process sessionid: %d sys subType=%d for role=%d "
+                        "from: "MAC_ADDRESS_STR),
+                    psessionEntry->peSessionId, subType,
+                    psessionEntry->limSystemRole,
+                    MAC_ADDR_ARRAY(pHdr->sa));
+                return;
+            }
+        }
     }
 
     // Get pointer to Re/Association Request frame body
@@ -300,7 +333,8 @@ limProcessAssocReqFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,
 
     if (status != eSIR_SUCCESS)
     {
-        limLog(pMac, LOGE, FL("Parse error AssocRequest, length=%d from "MAC_ADDRESS_STR),
+        limLog(pMac, LOGW,
+               FL("Parse error AssocRequest, length=%d from "MAC_ADDRESS_STR),
                              framelen, MAC_ADDR_ARRAY(pHdr->sa));
         limSendAssocRspMgmtFrame(pMac, eSIR_MAC_UNSPEC_FAILURE_STATUS, 1, pHdr->sa, subType, 0, psessionEntry);
         goto error;
@@ -1137,8 +1171,36 @@ sendIndToSme:
         pStaDs->htMaxAmsduLength = (tANI_U8)pAssocReq->HTCaps.maximalAMSDUsize;
         pStaDs->htMaxRxAMpduFactor = pAssocReq->HTCaps.maxRxAMPDUFactor;
         pStaDs->htMIMOPSState = pAssocReq->HTCaps.mimoPowerSave;
-        pStaDs->htShortGI20Mhz = (tANI_U8)pAssocReq->HTCaps.shortGI20MHz;
-        pStaDs->htShortGI40Mhz = (tANI_U8)pAssocReq->HTCaps.shortGI40MHz;
+
+        /* pAssocReq will be copied to psessionEntry->parsedAssocReq later */
+        /* check whether AP is enabled with shortGI */
+        if (wlan_cfgGetInt(pMac, WNI_CFG_SHORT_GI_20MHZ, &val) !=
+                           eSIR_SUCCESS) {
+           limLog(pMac, LOGE,
+                         FL("could not retrieve shortGI 20Mhz CFG"));
+           goto error;
+        }
+        if (val) {
+            pStaDs->htShortGI20Mhz = (tANI_U8)pAssocReq->HTCaps.shortGI20MHz;
+        } else {
+            /* Unset htShortGI20Mhz in ht_caps*/
+            pAssocReq->HTCaps.shortGI20MHz = 0;
+            pStaDs->htShortGI20Mhz = 0;
+        }
+
+        if (wlan_cfgGetInt(pMac, WNI_CFG_SHORT_GI_40MHZ, &val) !=
+                           eSIR_SUCCESS) {
+           limLog(pMac, LOGE,
+                         FL("could not retrieve shortGI 40Mhz CFG"));
+           goto error;
+        }
+        if (val) {
+            pStaDs->htShortGI40Mhz = (tANI_U8)pAssocReq->HTCaps.shortGI40MHz;
+        } else {
+            /* Unset htShortGI40Mhz in ht_caps */
+            pAssocReq->HTCaps.shortGI40MHz = 0;
+            pStaDs->htShortGI40Mhz = 0;
+        }
         pStaDs->htSupportedChannelWidthSet = (tANI_U8)pAssocReq->HTCaps.supportedChannelWidthSet;
         /* peer just follows AP; so when we are softAP/GO, we just store our session entry's secondary channel offset here in peer INFRA STA
          * However, if peer's 40MHz channel width support is disabled then secondary channel will be zero

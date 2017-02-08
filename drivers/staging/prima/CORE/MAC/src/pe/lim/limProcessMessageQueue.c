@@ -80,7 +80,7 @@
 #include "vos_memory.h"
 
 /* This value corresponds to 500 ms */
-#define MAX_PROBEREQ_TIME 5000
+#define MAX_PROBEREQ_TIME 50
 
 #ifdef WLAN_FEATURE_EXTSCAN
 #define  SIZE_OF_FIXED_PARAM 12
@@ -151,6 +151,19 @@ defMsgDecision(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
         (limMsg->type != WDA_START_OEM_DATA_RSP) &&
 #endif
         (limMsg->type != WDA_ADD_TS_RSP) &&
+
+        /* LIM won't process any defer queue commands if gLimAddtsSent is set to
+           TRUE. gLimAddtsSent will be set TRUE to while sending ADDTS REQ. Say,
+           when deferring is enabled, if SIR_LIM_ADDTS_RSP_TIMEOUT is posted
+           (because of not receiving ADDTS RSP) then this command will be added
+           to defer queue and as gLimAddtsSent is set TRUE LIM will never
+           process any commands from defer queue, including
+           SIR_LIM_ADDTS_RSP_TIMEOUT. Hence allowing SIR_LIM_ADDTS_RSP_TIMEOUT
+           command to be processed with deferring enabled, so that this will be
+           processed immediately and sets gLimAddtsSent to FALSE.
+         */
+        (limMsg->type != SIR_LIM_ADDTS_RSP_TIMEOUT) &&
+        (limMsg->type != WDA_LOST_LINK_PARAMS_IND) &&
         /* Allow processing of RX frames while awaiting reception of
            ADD TS response over the air. This logic particularly handles the
            case when host sends ADD BA request to FW after ADD TS request
@@ -577,7 +590,7 @@ limProcessEXTScanRealTimeData(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
         if ( DOT11F_FAILED( status ) )
         {
             limLog(pMac, LOGE, FL("Failed to parse a Beacons"
-                        "(%d):\n"), status);
+                        "(%d)"), status);
             vos_mem_free(pBeacon);
             return;
         }
@@ -615,7 +628,7 @@ limProcessEXTScanRealTimeData(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
         if ( DOT11F_FAILED( status ) )
         {
             limLog(pMac, LOGE, FL("Failed to parse a Probe"
-                        "Response (%d:\n"), status);
+                        "Response (%d"), status);
             vos_mem_free(pProbeResponse);
             return;
         }
@@ -1287,8 +1300,29 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
       limMsgStr(limMsg->type), limSmeStateStr(pMac->lim.gLimSmeState),
       limMlmStateStr(pMac->lim.gLimMlmState));)
 
-    MTRACE(macTraceMsgRx(pMac, NO_SESSION, LIM_TRACE_MAKE_RXMSG(limMsg->type, LIM_MSG_PROCESSED));)
+   /*
+    * MTRACE logs not captured for events received from SME
+    * SME enums (eWNI_SME_START_REQ) starts with 0x16xx.
+    * Compare received SME events with SIR_SME_MODULE_ID
+    */
 
+    if (SIR_SME_MODULE_ID == (tANI_U8)MAC_TRACE_GET_MODULE_ID(limMsg->type))
+    {
+       MTRACE(macTrace(pMac, TRACE_CODE_RX_SME_MSG, NO_SESSION, limMsg->type));
+    }
+    else
+    {
+       /* Omitting below message types as these are too frequent and when crash
+        * happens we loose critical trace logs if these are also logged
+        */
+       if (limMsg->type != SIR_LIM_MAX_CHANNEL_TIMEOUT &&
+           limMsg->type != SIR_LIM_MIN_CHANNEL_TIMEOUT &&
+           limMsg->type != SIR_LIM_PERIODIC_PROBE_REQ_TIMEOUT &&
+           limMsg->type != SIR_CFG_PARAM_UPDATE_IND &&
+           limMsg->type != SIR_BB_XPORT_MGMT_MSG)
+              MTRACE(macTraceMsgRx(pMac, NO_SESSION,
+                      LIM_TRACE_MAKE_RXMSG(limMsg->type, LIM_MSG_PROCESSED));)
+    }
     switch (limMsg->type)
     {
 
@@ -1367,7 +1401,6 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
                 vos_pkt_t  *pVosPkt;
                 VOS_STATUS  vosStatus;
                 tSirMsgQ    limMsgNew;
-                MTRACE(macTrace(pMac, TRACE_CODE_RX_MGMT_PROCESS, 0, 0 );)
                 /* The original limMsg which we were deferring have the 
                  * bodyPointer point to 'BD' instead of 'Vos pkt'. If we don't make a copy
                  * of limMsg, then vos_pkt_peek_data will overwrite the limMsg->bodyPointer. 
@@ -1435,14 +1468,11 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
                      * Asumption here is when Rx mgmt frame processing is done,
                      * voss packet could be freed here.
                      */
-                    MTRACE(macTrace(pMac, TRACE_CODE_RX_MGMT_PROCESS, 0, 3 );)
                     limDecrementPendingMgmtCount(pMac);
                     vos_pkt_return_packet(pVosPkt);
                 }
             }
-            MTRACE(macTrace(pMac, TRACE_CODE_RX_MGMT_PROCESS, 0, 4 );)
             break;
-
         case eWNI_SME_SCAN_REQ:
         case eWNI_SME_REMAIN_ON_CHANNEL_REQ:
         case eWNI_SME_DISASSOC_REQ:
@@ -1535,6 +1565,7 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
         case eWNI_SME_GET_TSM_STATS_REQ:
 #endif /* FEATURE_WLAN_ESE && FEATURE_WLAN_ESE_UPLOAD */
         case eWNI_SME_MAC_SPOOF_ADDR_IND:
+        case eWNI_SME_REGISTER_MGMT_FRAME_CB:
             // These messages are from HDD
             limProcessNormalHddMsg(pMac, limMsg, false);   //no need to response to hdd
             break;
@@ -1736,7 +1767,11 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
            limMsg->bodyptr = NULL;
            break;
     
-
+        case WDA_LOST_LINK_PARAMS_IND:
+            limProcessLostLinkParamsInd(pMac,limMsg);
+            vos_mem_free(limMsg->bodyptr);
+            limMsg->bodyptr = NULL;
+            break;
 
         case SIR_LIM_ADDTS_RSP_TIMEOUT:
             limProcessSmeReqMessages(pMac,limMsg);
@@ -2149,7 +2184,7 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
                                                      pTdlsLinkEstablishParams->staIdx,
                                                      &sessionId))== NULL)
             {
-                limLog(pMac, LOGE, FL("session %u  does not exist.\n"), sessionId);
+                limLog(pMac, LOGE, FL("session %u  does not exist"), sessionId);
                 /* Still send the eWNI_SME_TDLS_LINK_ESTABLISH_RSP message to SME
                    with session id as zero and status as FAILURE so, that message
                    queued in SME queue can be freed to prevent the SME cmd buffer leak */
@@ -2183,7 +2218,7 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
                                                      pTdlsChanSwitchParams->staIdx,
                                                      &sessionId))== NULL)
             {
-                limLog(pMac, LOGE, FL("session %u  does not exist.\n"), sessionId);
+                limLog(pMac, LOGE, FL("session %u  does not exist"), sessionId);
                 /* Still send the eWNI_SME_TDLS_LINK_ESTABLISH_RSP message to SME
                    with session id as zero and status as FAILURE so, that message
                    queued in SME queue can be freed to prevent the SME cmd buffer leak */
@@ -2228,6 +2263,12 @@ limProcessMessages(tpAniSirGlobal pMac, tpSirMsgQ  limMsg)
          vos_mem_free((v_VOID_t*)limMsg->bodyptr);
          limMsg->bodyptr = NULL;
         break;
+
+    case eWNI_SME_DEL_ALL_TDLS_PEERS:
+         limProcessSmeDelAllTdlsPeers(pMac, limMsg->bodyptr);
+         vos_mem_free((v_VOID_t*)limMsg->bodyptr);
+         limMsg->bodyptr = NULL;
+         break;
 
     default:
         vos_mem_free((v_VOID_t*)limMsg->bodyptr);

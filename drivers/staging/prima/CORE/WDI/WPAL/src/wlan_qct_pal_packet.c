@@ -441,6 +441,45 @@ wpt_status wpalPacketSetRxLength(wpt_packet *pPkt, wpt_uint32 len)
    }
 }/*wpalPacketSetRxLength*/
 
+void wpalRecoverTail(wpt_packet *pFrame)
+{
+   // Validate the parameter pointers
+   if (unlikely(NULL == pFrame))
+   {
+      WPAL_TRACE(eWLAN_MODULE_PAL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                "%s : NULL packet pointer", __func__);
+      return;
+   }
+
+   return vos_recover_tail(WPAL_TO_VOS_PKT(pFrame));
+}
+
+void* wpalGetOSPktHead(wpt_packet *pFrame)
+{
+   // Validate the parameter pointers
+   if (unlikely(NULL == pFrame))
+   {
+      WPAL_TRACE(eWLAN_MODULE_PAL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                "%s : NULL packet pointer", __func__);
+      return NULL;
+   }
+
+   return vos_get_pkt_head(WPAL_TO_VOS_PKT(pFrame));
+}
+
+void* wpalGetOSPktend(wpt_packet *pFrame)
+{
+   // Validate the parameter pointers
+   if (unlikely(NULL == pFrame))
+   {
+      WPAL_TRACE(eWLAN_MODULE_PAL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                "%s : NULL packet pointer", __func__);
+      return 0;
+   }
+
+   return vos_get_pkt_end(WPAL_TO_VOS_PKT(pFrame));
+}
+
 /*
   Set of helper functions that will prepare packet for DMA transfer,
   based on the type of transfer : - to and from the device
@@ -1013,4 +1052,25 @@ void wpalLogPktSerialize
    {
       vos_pkt_return_packet(WPAL_TO_VOS_PKT(pFrame));
    }
+}
+
+/*---------------------------------------------------------------------------
+    wpalFwLogPktSerialize - Serialize Logging data to logger thread
+
+    Param:
+    wpt_packet pFrame - The packet which contains the logging data.
+                        This packet has to be a VALID packet, as this
+                        API will not do any checks on the validity of
+                        the packet.
+
+    Return:
+        NONE
+
+---------------------------------------------------------------------------*/
+void wpalFwLogPktSerialize
+(
+   wpt_packet *pFrame
+)
+{
+    vos_logger_pkt_serialize(WPAL_TO_VOS_PKT(pFrame),LOG_PKT_TYPE_FW_LOG);
 }

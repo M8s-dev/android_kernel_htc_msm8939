@@ -205,7 +205,7 @@ ibss_peer_collect(
 
     /* Collect peer VHT capabilities based on the received beacon from the peer */
 #ifdef WLAN_FEATURE_11AC
-    if ( pBeacon->VHTCaps.present )
+    if (IS_BSS_VHT_CAPABLE(pBeacon->VHTCaps))
     {
         pPeer->vhtSupportedChannelWidthSet = pBeacon->VHTOperation.chanWidth;
         pPeer->vhtCapable = pBeacon->VHTCaps.present;
@@ -259,6 +259,7 @@ ibss_sta_caps_update(
         {
             pStaDs->htGreenfield = pPeerNode->htGreenfield;
             pStaDs->htSupportedChannelWidthSet =  pPeerNode->htSupportedChannelWidthSet;
+            pStaDs->htSecondaryChannelOffset =  pPeerNode->htSecondaryChannelOffset;
             pStaDs->htMIMOPSState =             pPeerNode->htMIMOPSState;
             pStaDs->htMaxAmsduLength =  pPeerNode->htMaxAmsduLength;
             pStaDs->htAMpduDensity =             pPeerNode->htAMpduDensity;

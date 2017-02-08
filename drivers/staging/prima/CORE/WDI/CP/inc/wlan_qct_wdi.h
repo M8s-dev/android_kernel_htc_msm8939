@@ -152,6 +152,9 @@ of NV fragment is nt possbile.The next multiple of 1Kb is 3K */
 #define PERIODIC_TX_PTRN_MAX_SIZE 1536
 #define MAXNUM_PERIODIC_TX_PTRNS 6
 #define WDI_DISA_MAX_PAYLOAD_SIZE                1600
+#define MAX_NUM_OF_BUFFER 3
+#define VALID_FW_LOG_TYPES      2
+#define MAX_LOG_BUFFER_LENGTH      128 * 1024
 
 /*============================================================================
  *     GENERIC STRUCTURES 
@@ -415,7 +418,7 @@ typedef enum
   /*Delete BA Ind*/
   WDI_DEL_BA_IND,
   WDI_NAN_EVENT_IND,
-
+  WDI_LOST_LINK_PARAMS_IND,
   WDI_MAX_IND
 }WDI_LowLevelIndEnumType;
 
@@ -733,6 +736,19 @@ typedef struct
 #endif
 
 
+typedef struct
+{
+  wpt_uint8  bssIdx;
+  wpt_uint8  rssi;
+  wpt_uint8  selfMacAddr[WDI_MAC_ADDR_LEN];
+  wpt_uint32 linkFlCnt;
+  wpt_uint32 linkFlTx;
+  wpt_uint32 lastDataRate;
+  wpt_uint32 rsvd1;
+  wpt_uint32 rsvd2;
+
+}WDI_LostLinkParamsIndType;
+
 /*---------------------------------------------------------------------------
  WDI_IbssPeerInactivityIndType
 -----------------------------------------------------------------------------*/
@@ -833,7 +849,7 @@ typedef struct
 }  WDI_FWStatsResults;
 
 #ifdef FEATURE_WLAN_CH_AVOID
-#define WDI_CH_AVOID_MAX_RANGE   4
+#define WDI_CH_AVOID_MAX_RANGE   15
 
 typedef struct
 {
@@ -963,6 +979,7 @@ typedef struct
     WDI_NanEventType wdiNanEvent;
 
     WDI_TxBDStatus              wdiTxBdInd;
+    WDI_LostLinkParamsIndType   wdiLostLinkParamsInd;
   }  wdiIndicationData;
 }WDI_LowLevelIndType;
 
@@ -2675,14 +2692,33 @@ typedef struct
   wpt_uint32   wdiStatus;
 }WDI_GetFrameLogRspParamType;
 /*---------------------------------------------------------------------------
-  WDI_MgmtLoggingRspParamType
+  WDI_FWLoggingInitRspParamType
+---------------------------------------------------------------------------*/
+typedef struct
+{
+  //FW mail box address
+  wpt_uint64 logMailBoxAddr;
+  wpt_uint32 status;
+  //Logging mail box version
+  wpt_uint8 logMailBoxVer;
+  //Qshrink is enabled
+  wpt_boolean logCompressEnabled;
+  //Reserved for future purpose
+  wpt_uint32 reserved0;
+  wpt_uint32 reserved1;
+  wpt_uint32 reserved2;
+}WDI_FWLoggingInitRspParamType;
+
+
+/*---------------------------------------------------------------------------
+  WDI_FatalEventLogsRspParamType
 ---------------------------------------------------------------------------*/
 typedef struct
 {
   /* wdi status */
   wpt_uint32   wdiStatus;
+}WDI_FatalEventLogsRspParamType;
 
-}WDI_MgmtLoggingRspParamType;
 /*---------------------------------------------------------------------------
   WDI_AddBAReqinfoType
 ---------------------------------------------------------------------------*/
@@ -4061,12 +4097,28 @@ typedef struct
    wpt_uint8 frameType;
    wpt_uint8 frameSize;
    wpt_uint8 bufferMode;
-}WDI_MgmtLoggingInitReqInfoType;
+   wpt_uint8 continuousFrameLogging;
+   wpt_uint8 minLogBufferSize;
+   wpt_uint8 maxLogBufferSize;
+}WDI_FWLoggingInitReqInfoType;
+
+typedef struct
+{
+    wpt_uint32 reason_code;
+}WDI_FatalEventLogsReqInfoType;
+
 
 typedef struct
 {
    wpt_uint8 flags;
 }WDI_GetFrameLogReqInfoType;
+
+typedef struct
+{
+   wpt_uint64 logBuffAddress[MAX_NUM_OF_BUFFER];
+   wpt_uint32 status;
+   wpt_uint32 logBuffLength[MAX_NUM_OF_BUFFER];
+}WDI_FWLoggingDXEdoneIndInfoType;
 
 /*---------------------------------------------------------------------------
   WDI_BeaconFilterInfoType
@@ -8002,13 +8054,14 @@ typedef void  (*WDI_FWStatsGetRspCb)(WDI_Status status,void *fwStatsResp,
                                          void *pUserData);
 
 typedef void  (*WDI_EncryptMsgRspCb)(wpt_uint8 status, void *pEventData, void* pUserData);
-typedef void  (*WDI_MgmtLoggingInitRspCb)(
-                         WDI_MgmtLoggingRspParamType *wdiRsp, void *pUserData);
+typedef void  (*WDI_FWLoggingInitRspCb)(
+                        WDI_FWLoggingInitRspParamType *wdiRsp, void *pUserData);
 typedef void  (*WDI_GetFrameLogRspCb)(
                         WDI_GetFrameLogRspParamType *wdiRsp, void *pUserData);
+typedef void  (*WDI_FatalEventLogsRspCb)(
+                         WDI_FatalEventLogsRspParamType *wdiRsp, void *pUserData);
 
-typedef void  (*WDI_MonStartRspCb)(void *pEventData,void *pUserData);
-typedef void  (*WDI_MonStopRspCb)(void *pUserData);
+typedef void  (*WDI_MonModeRspCb)(void *pEventData,void *pUserData);
 
 /*========================================================================
  *     Function Declarations and Documentation
@@ -9437,6 +9490,39 @@ WDI_SetUapsdAcParamsReq
   WDI_SetUapsdAcParamsCb  wdiSetUapsdAcParamsCb,
   void*                   pUserData
 );
+
+
+/**
+ @brief WDI_FatalEventLogsReq will be called when the upper
+        MAC wants to send the fatal event req. Upon the call of
+        this API the WLAN DAL will pack and send a HAL
+        Fatal event request message to the lower RIVA sub-system.
+
+        In state BUSY this request will be queued. Request won't
+        be allowed in any other state.
+
+
+ @param pwdiFatalEventLogsReqInfo: the Fatal event logs params
+                      as specified by the Device Interface
+
+        wdiFatalEventLogsRspCb: callback for passing back the
+        response of the fatal event operation received
+        from the device
+
+        pUserData: user data will be passed back with the
+        callback
+
+ @return Result of the function call
+*/
+
+WDI_Status
+WDI_FatalEventLogsReq
+(
+   WDI_FatalEventLogsReqInfoType      *pwdiFatalEventLogsReqInfo,
+   WDI_FatalEventLogsRspCb             wdiFatalEventLogsRspCb,
+   void*                               pUserData
+);
+
 /**
  @brief WDI_GetFrameLogReq will be called when the upper
         MAC wants to initialize frame logging. Upon the call of
@@ -9469,7 +9555,7 @@ WDI_GetFrameLogReq
 );
 
 /**
- @brief WDI_MgmtLoggingInitReq will be called when the upper
+ @brief WDI_FWLoggingInitReq will be called when the upper
         MAC wants to initialize frame logging. Upon the call of
         this API the WLAN DAL will pack and send a HAL
         Frame logging init request message to
@@ -9479,10 +9565,10 @@ WDI_GetFrameLogReq
         be allowed in any other state.
 
 
- @param pwdiMgmtLoggingInitReqParams: the Frame Logging params
+ @param pwdiFWLoggingInitReqParams: the Frame Logging params
                       as specified by the Device Interface
 
-        wdiMgmtLoggingInitReqCb: callback for passing back the
+        wdiFWLoggingInitReqCb: callback for passing back the
         response of the frame logging init operation received
         from the device
 
@@ -9492,10 +9578,10 @@ WDI_GetFrameLogReq
  @return Result of the function call
 */
 WDI_Status
-WDI_MgmtLoggingInitReq
+WDI_FWLoggingInitReq
 (
-   WDI_MgmtLoggingInitReqInfoType      *pwdiMgmtLoggingInitReqInfo,
-   WDI_MgmtLoggingInitRspCb             wdiMgmtLoggingInitReqCb,
+   WDI_FWLoggingInitReqInfoType      *pwdiFWLoggingInitReqInfo,
+   WDI_FWLoggingInitRspCb             wdiFWLoggingInitReqCb,
    void*                                pUserData
 );
 
@@ -11115,6 +11201,16 @@ void WDI_TransportChannelDebug
 );
 
 /**
+ @brief WDI_TransportKickDxe -
+    Request Kick DXE when first HDD TX time out
+    happens
+ @param  none
+ @see
+ @return none
+*/
+void WDI_TransportKickDxe(void);
+
+/**
  @brief WDI_SsrTimerCB
     Callback function for SSR timer, if this is called then the graceful
     shutdown for Riva did not happen.
@@ -11363,13 +11459,13 @@ WDI_Status WDI_FWStatsGetReq
 WDI_Status WDI_MonStartReq
 (
     WDI_MonStartReqType*   pwdiMonStartReqParams,
-    WDI_MonStartRspCb      wdiMonStartRspCb,
+    WDI_MonModeRspCb       wdiMonModeRspCb,
     void*                  pUserData
 );
 
 WDI_Status WDI_MonStopReq
 (
-    WDI_MonStopRspCb      wdiMonStopRspCb,
+    WDI_MonModeRspCb       wdiMonModeRspCb,
     void*                  pUserData
 );
 
@@ -11495,6 +11591,26 @@ WDI_SetRtsCtsHTVhtInd
   wpt_uint32 rtsCtsVal
 );
 
+WDI_Status
+WDI_FWLoggingDXEdoneInd
+(
+  WDI_FWLoggingDXEdoneIndInfoType*    pwdiFWLoggingDXEdoneInd
+);
+
+/**
+ @brief WDI_EnableDisableCAEventInd
+        Enable/Disable Chan Avoidance indication
+
+ @param val: Enable/Disable Chan Avoidance indication
+
+ @return Result of the function call
+*/
+
+WDI_Status
+WDI_EnableDisableCAEventInd
+(
+wpt_uint32 val
+);
 
 #ifdef __cplusplus
  }

@@ -470,7 +470,7 @@ typedef enum
   /* Send command to encrypt the given message */
   WDI_ENCRYPT_MSG_REQ                            = 103,
 
-  WDI_MGMT_LOGGING_INIT_REQ                      = 104,
+  WDI_FW_LOGGING_INIT_REQ                        = 104,
   WDI_GET_FRAME_LOG_REQ                          = 105,
 
   /* NAN Request */
@@ -478,6 +478,7 @@ typedef enum
 
   WDI_MON_START_REQ                              = 107,
   WDI_MON_STOP_REQ                               = 108,
+  WDI_FATAL_EVENT_LOGGING_REQ                    = 109,
 
   WDI_MAX_REQ,
 
@@ -518,9 +519,11 @@ typedef enum
   WDI_CH_SWITCH_REQ_V1,
   WDI_TDLS_CHAN_SWITCH_REQ,
   WDI_SET_RTS_CTS_HTVHT_IND,
+  WDI_FW_LOGGING_DXE_DONE_IND,
+  WDI_SEND_FREQ_RANGE_CONTROL_IND,
 
   /*Keep adding the indications to the max request
-    such that we keep them sepparate */
+    such that we keep them separate */
   WDI_MAX_UMAC_IND
 }WDI_RequestEnumType;
 
@@ -810,13 +813,14 @@ typedef enum
   /* Send command to encrypt the given message */
   WDI_ENCRYPT_MSG_RSP                            = 103,
 
-  WDI_MGMT_LOGGING_INIT_RSP                      = 104,
+  WDI_FW_LOGGING_INIT_RSP                        = 104,
   WDI_GET_FRAME_LOG_RSP                          = 105,
 
   WDI_NAN_RESPONSE                               = 106,
 
   WDI_MON_START_RSP                              = 107,
   WDI_MON_STOP_RSP                               = 108,
+  WDI_FATAL_EVENT_LOGGING_RSP                    = 109,
 
   /*-------------------------------------------------------------------------
     Indications
@@ -897,6 +901,7 @@ typedef enum
   WDI_TDLS_CHAN_SWITCH_REQ_RESP      = WDI_HAL_IND_MIN + 26,
   WDI_HAL_DEL_BA_IND                 = WDI_HAL_IND_MIN + 27,
   WDI_HAL_NAN_EVENT                  = WDI_HAL_IND_MIN + 28,
+  WDI_HAL_LOST_LINK_PARAMS_IND       = WDI_HAL_IND_MIN + 29,
   WDI_MAX_RESP
 }WDI_ResponseEnumType; 
 
@@ -6137,14 +6142,36 @@ WDI_ProcessGetFrameLogReq
 );
 
 WDI_Status
-WDI_ProcessMgmtLoggingInitReq
+WDI_ProcessFWLoggingDXEdoneInd
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
 
 WDI_Status
-WDI_ProcessMgmtFrameLoggingInitRsp
+WDI_ProcessFatalEventLogsReq
+
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFatalEventLogsRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFWLoggingInitReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessFWFrameLoggingInitRsp
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
@@ -6214,6 +6241,27 @@ WDI_ProcessNanEvent
   WDI_EventInfoType*     pEventData
 );
 
+
+/**
+*@brief Process Lost Link param function (called when
+        an indication is being received over the
+        bus from HAL)
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+
+WDI_Status
+WDI_Process_LostLinkParamInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+);
+
+
 /**
  @brief WDI_ProcessSetRtsCtsHtvhtInd
         Set RTS/CTS indication for diff modes.
@@ -6258,6 +6306,13 @@ WDI_ProcessMonStopRsp
 (
    WDI_ControlBlockType*  pWDICtx,
    WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessEnableDisableCAEventInd
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
 );
 
 #endif /*WLAN_QCT_WDI_I_H*/

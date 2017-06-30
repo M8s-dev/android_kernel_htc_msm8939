@@ -959,6 +959,7 @@ static int __qseecom_register_bus_bandwidth_needs(
 			data->mode = request_mode;
 		}
 	}
+	pr_err("line 962 ret = %d\n", ret);
 	return ret;
 }
 
@@ -1316,7 +1317,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 	struct qseecom_check_app_ireq req;
 	struct qseecom_load_app_ireq load_req;
 
-	
+	pr_info("hello from qseecom!\n");
+
 	if (copy_from_user(&load_img_req,
 				(void __user *)argp,
 				sizeof(struct qseecom_load_img_req))) {
@@ -1328,22 +1330,31 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		mutex_lock(&qsee_bw_mutex);
 		ret = __qseecom_register_bus_bandwidth_needs(data, MEDIUM);
 		mutex_unlock(&qsee_bw_mutex);
-		if (ret)
+		if (ret) {
+			pr_info("line 1332: ret = %d\n", ret);
+			ret = -150;
 			return ret;
+		}
 	}
 
 	
 	ret = __qseecom_enable_clk_scale_up(data);
-	if (ret)
+	if (ret) {
+		ret = -199;
+		pr_info("line 1339: ret = %d\n", ret);
 		goto enable_clk_err;
+	}
 
 	req.qsee_cmd_id = QSEOS_APP_LOOKUP_COMMAND;
 	load_img_req.img_name[MAX_APP_NAME_SIZE-1] = '\0';
 	strlcpy(req.app_name, load_img_req.img_name, MAX_APP_NAME_SIZE);
 
 	ret = __qseecom_check_app_exists(req);
-	if (ret < 0)
+	if (ret < 0) {
+		ret = -198;
+		pr_info("line 1348: ret = %d\n", ret);
 		goto loadapp_err;
+	}
 
 	app_id = ret;
 	if (app_id) {
@@ -1369,6 +1380,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		if (IS_ERR_OR_NULL(ihandle)) {
 			pr_err("Ion client could not retrieve the handle\n");
 			ret = -ENOMEM;
+			ret = -197;
 			goto loadapp_err;
 		}
 
@@ -1377,6 +1389,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		if (ret) {
 			pr_err("Cannot get phys_addr for the Ion Client, ret = %d\n",
 				ret);
+			ret = -196;
 			goto loadapp_err;
 		}
 
@@ -1399,6 +1412,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			if (!IS_ERR_OR_NULL(ihandle))
 				ion_free(qseecom.ion_clnt, ihandle);
 			ret = -EINVAL;
+			ret = -195;
 			goto loadapp_err;
 		}
 
@@ -1407,6 +1421,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			if (!IS_ERR_OR_NULL(ihandle))
 				ion_free(qseecom.ion_clnt, ihandle);
 			ret = -EFAULT;
+			ret = -194;
 			goto loadapp_err;
 		}
 
@@ -1418,6 +1433,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 				if (!IS_ERR_OR_NULL(ihandle))
 					ion_free(qseecom.ion_clnt, ihandle);
 				ret = -EFAULT;
+				ret = -193;
 				goto loadapp_err;
 			}
 		}
@@ -1428,6 +1444,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			if (!IS_ERR_OR_NULL(ihandle))
 				ion_free(qseecom.ion_clnt, ihandle);
 			ret = -EFAULT;
+			ret = 192;
 			goto loadapp_err;
 		}
 
@@ -1437,6 +1454,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		if (!entry) {
 			pr_err("kmalloc failed\n");
 			ret = -ENOMEM;
+			ret = 191;
 			goto loadapp_err;
 		}
 		entry->app_id = app_id;
@@ -1463,7 +1481,9 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		pr_err("copy_to_user failed\n");
 		kzfree(entry);
 		ret = -EFAULT;
+		ret = -190;
 	}
+	pr_err("ret = %d\n", ret);
 
 loadapp_err:
 	__qseecom_disable_clk_scale_down(data);
@@ -1473,6 +1493,7 @@ enable_clk_err:
 		qseecom_unregister_bus_bandwidth_needs(data);
 		mutex_unlock(&qsee_bw_mutex);
 	}
+	pr_err("line 1479: ret = %d\n", ret);
 	return ret;
 }
 
@@ -4686,7 +4707,9 @@ long qseecom_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 			}
 		}
 		if (ret == 0)
+		pr_err("ret = %d\n",ret);
 			ret = qseecom_load_app(data, argp);
+		pr_err("fuck say! ret = %d\n", ret);
 		atomic_dec(&data->ioctl_count);
 		mutex_unlock(&app_access_lock);
 		if (ret)

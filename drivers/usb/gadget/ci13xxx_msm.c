@@ -13,6 +13,9 @@
 #include <linux/gpio.h>
 #include <linux/pinctrl/consumer.h>
 
+/*++ 2014/04/18, USB Team,  PCN00003 ++*/
+#include <linux/usb/htc_info.h>
+/*-- 2014/04/18, USB Team,  PCN00003 --*/
 #include "ci13xxx_udc.c"
 
 #define MSM_USB_BASE	(udc->regs)

@@ -535,6 +535,12 @@ int msm_spm_drv_init(struct msm_spm_driver_data *dev,
 			break;
 		}
 
+	if (dev->major == 0x0 && dev->minor == 0x0) {
+		pr_err("%s: No correct SAW2 version found, WORKAROUND as v3.0 first. \n", __func__);
+		dev->reg_offsets = saw2_info[1].spm_reg_offset_ptr;
+		found = true;
+	}
+
 	if (!found) {
 		pr_err("%s: No SAW2 version found\n", __func__);
 		BUG_ON(!found);

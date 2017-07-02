@@ -39,7 +39,7 @@ static long audio_ioctl_shared(struct file *file, unsigned int cmd,
 		pr_debug("%s[%p]: AUDIO_START session_id[%d]\n", __func__,
 						audio, audio->ac->session);
 		if (audio->feedback == NON_TUNNEL_MODE) {
-			/* Configure PCM output block */
+			
 			rc = q6asm_enc_cfg_blk_pcm(audio->ac,
 					audio->pcm_cfg.sample_rate,
 					audio->pcm_cfg.channel_count);
@@ -70,7 +70,7 @@ static long audio_ioctl_shared(struct file *file, unsigned int cmd,
 				ape_config->numChannels,
 				ape_config->sampleRate,
 				ape_config->seekTablePresent);
-		/* Configure Media format block */
+		
 		rc = q6asm_media_format_block_ape(audio->ac, &ape_cfg,
 							audio->ac->stream_id);
 		if (rc < 0) {
@@ -244,7 +244,7 @@ static int audio_open(struct inode *inode, struct file *file)
 	struct q6audio_aio *audio = NULL;
 	int rc = 0;
 
-	/* 4 bytes represents decoder number, 1 byte for terminate string */
+	
 	char name[sizeof "msm_ape_" + 5];
 	audio = kzalloc(sizeof(struct q6audio_aio), GFP_KERNEL);
 
@@ -278,7 +278,7 @@ static int audio_open(struct inode *inode, struct file *file)
 			__func__, rc);
 		goto fail;
 	}
-	/* open in T/NT mode */
+	
 	if ((file->f_mode & FMODE_WRITE) && (file->f_mode & FMODE_READ)) {
 		rc = q6asm_open_read_write(audio->ac, FORMAT_LINEAR_PCM,
 					   FORMAT_APE);
@@ -288,7 +288,7 @@ static int audio_open(struct inode *inode, struct file *file)
 			goto fail;
 		}
 		audio->feedback = NON_TUNNEL_MODE;
-		/* open APE decoder, expected frames is always 1*/
+		
 		audio->buf_cfg.frames_per_buf = 0x01;
 		audio->buf_cfg.meta_info_enable = 0x01;
 	} else if ((file->f_mode & FMODE_WRITE) &&

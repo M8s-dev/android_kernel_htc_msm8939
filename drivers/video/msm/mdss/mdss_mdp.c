@@ -67,11 +67,70 @@ static int mdss_fb_mem_get_iommu_domain(void)
 	return mdss_get_iommu_domain(MDSS_IOMMU_DOMAIN_UNSECURE);
 }
 
+static int mdss_mdp_fbmem_alloc(struct msm_fb_data_type *mfd)
+{
+	int dom = mdss_fb_mem_get_iommu_domain();
+	void *virt = NULL;
+	struct ion_client *iclient = mdss_get_ionclient();
+	struct ion_handle *ihdl;
+	ion_phys_addr_t phys = 0;
+	size_t size;
+	u32 yres = mfd->fbi->var.yres_virtual;
+	struct platform_device *pdev = mfd->pdev;
+
+	if (mfd->index != 0) {
+		mfd->fbi->screen_base = virt;
+		mfd->fbi->fix.smem_start = phys;
+		mfd->fbi->fix.smem_len = 0;
+		return 0;
+	}
+
+	if (!pdev || !pdev->dev.of_node) {
+		pr_err("Invalid device node\n");
+		return -ENODEV;
+	}
+
+	if (!of_property_read_bool(pdev->dev.of_node, "htc,fbmem-heap-remapping"))
+		return -ENODEV;
+
+	size = PAGE_ALIGN(mfd->fbi->fix.line_length * yres);
+
+	if (!iclient) {
+		pr_err("%s: iclient was NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	ihdl = ion_alloc(iclient, size, SZ_4K,
+			ION_HEAP(ION_FBMEM_HEAP_ID), 0);
+	if (IS_ERR_OR_NULL(ihdl)) {
+		pr_err("unable to alloc fbmem from ion (%p)\n", ihdl);
+		return -ENOMEM;
+	}
+
+	
+	ion_phys(iclient, ihdl, &phys, &size);
+	ion_free(iclient, ihdl);
+
+	virt = ioremap(phys, size);
+	msm_iommu_map_contig_buffer(phys, dom, 0, size, SZ_4K, 0,
+					    &mfd->iova);
+
+	pr_info("allocating 0x%zx bytes at 0x%p (%pa phys) for fb%d\n",
+			size, virt, &phys, mfd->index);
+
+	mfd->fbi->screen_base = virt;
+	mfd->fbi->fix.smem_start = phys;
+	mfd->fbi->fix.smem_len = size;
+
+	return 0;
+}
+
 struct msm_mdp_interface mdp5 = {
 	.init_fnc = mdss_mdp_overlay_init,
 	.fb_mem_get_iommu_domain = mdss_fb_mem_get_iommu_domain,
 	.panel_register_done = mdss_panel_register_done,
 	.fb_stride = mdss_mdp_fb_stride,
+	.fb_mem_alloc_fnc = mdss_mdp_fbmem_alloc,
 	.check_dsi_status = mdss_check_dsi_ctrl_status,
 };
 
@@ -173,18 +232,6 @@ static int mdss_mdp_parse_dt_bus_scale(struct platform_device *pdev);
 static int mdss_iommu_attach(struct mdss_data_type *mdata);
 static int mdss_iommu_dettach(struct mdss_data_type *mdata);
 
-/**
- * mdss_mdp_vbif_axi_halt() - Halt MDSS AXI ports
- * @mdata: pointer to the global mdss data structure.
- *
- * Check if MDSS AXI ports connected to RealTime(RT) VBIF are idle or not. If
- * not send a halt request and wait for it be idle.
- *
- * This function can be called during deep suspend, display off or for
- * debugging purposes. On success it should be assumed that AXI ports connected
- * to RT VBIF are in idle state and would not fetch any more data. This function
- * cannot be called from interrupt context.
- */
 int mdss_mdp_vbif_axi_halt(struct mdss_data_type *mdata)
 {
 	bool is_idle;
@@ -221,10 +268,6 @@ int mdss_mdp_vbif_axi_halt(struct mdss_data_type *mdata)
 
 u32 mdss_mdp_fb_stride(u32 fb_index, u32 xres, int bpp)
 {
-	/* The adreno GPU hardware requires that the pitch be aligned to
-	   32 pixels for color buffers, so for the cases where the GPU
-	   is writing directly to fb0, the framebuffer pitch
-	   also needs to be 32 pixel aligned */
 
 	if (fb_index == 0)
 		return ALIGN(xres, 32) * bpp;
@@ -292,7 +335,7 @@ static int mdss_mdp_bus_scale_register(struct mdss_data_type *mdata)
 		mdata->reg_bus_hdl =
 			msm_bus_scale_register_client(reg_bus_pdata);
 		if (!mdata->reg_bus_hdl) {
-			/* Continue without reg_bus scaling */
+			
 			pr_warn("reg_bus_client register failed\n");
 		} else
 			pr_debug("register reg_bus_hdl=%x\n",
@@ -436,7 +479,6 @@ static inline u32 mdss_mdp_irq_mask(u32 intr_type, u32 intf_num)
 	return 1 << (intr_type + intf_num);
 }
 
-/* function assumes that mdp is clocked to access hw registers */
 void mdss_mdp_irq_clear(struct mdss_data_type *mdata,
 		u32 intr_type, u32 intf_num)
 {
@@ -549,16 +591,6 @@ void mdss_mdp_hist_irq_disable(u32 irq)
 	spin_unlock_irqrestore(&mdp_lock, irq_flags);
 }
 
-/**
- * mdss_mdp_irq_disable_nosync() - disable mdp irq
- * @intr_type:	mdp interface type
- * @intf_num:	mdp interface num
- *
- * This fucntion is called from interrupt context
- * mdp_lock is already held at up stream (mdss_irq_handler)
- * therefore spin_lock(&mdp_lock) is not allowed here
- *
-*/
 void mdss_mdp_irq_disable_nosync(u32 intr_type, u32 intf_num)
 {
 	u32 irq;
@@ -693,14 +725,6 @@ int mdss_iommu_ctrl(int enable)
 		return mdata->iommu_ref_cnt;
 }
 
-/**
- * mdss_mdp_idle_pc_restore() - Restore MDSS settings when exiting idle pc
- *
- * MDSS GDSC can be voted off during idle-screen usecase for MIPI DSI command
- * mode displays, referred to as MDSS idle power collapse. Upon subsequent
- * frame update, MDSS GDSC needs to turned back on and hw state needs to be
- * restored.
- */
 static int mdss_mdp_idle_pc_restore(void)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
@@ -728,15 +752,6 @@ end:
 	return rc;
 }
 
-/**
- * mdss_bus_bandwidth_ctrl() -- place bus bandwidth request
- * @enable:	value of enable or disable
- *
- * Function place bus bandwidth request to allocate saved bandwidth
- * if enabled or free bus bandwidth allocation if disabled.
- * Bus bandwidth is required by mdp.For dsi, it only requires to send
- * dcs coammnd. It returns error if bandwidth request fails.
- */
 void mdss_bus_bandwidth_ctrl(int enable)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
@@ -931,13 +946,13 @@ static int mdss_mdp_irq_clk_setup(struct mdss_data_type *mdata)
 				      MDSS_CLK_MDP_CORE))
 		return -EINVAL;
 
-	/* lut_clk is not present on all MDSS revisions */
+	
 	mdss_mdp_irq_clk_register(mdata, "lut_clk", MDSS_CLK_MDP_LUT);
 
-	/* vsync_clk is optional for non-smart panels */
+	
 	mdss_mdp_irq_clk_register(mdata, "vsync_clk", MDSS_CLK_MDP_VSYNC);
 
-	/* Setting the default clock rate to the max supported.*/
+	
 	mdss_mdp_set_clk_rate(mdata->max_mdp_clk_rate);
 	pr_debug("mdp clk rate=%ld\n", mdss_mdp_get_clk_rate(MDSS_CLK_MDP_SRC));
 
@@ -1114,14 +1129,6 @@ static void mdss_hw_rev_init(struct mdss_data_type *mdata)
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 }
 
-/**
- * mdss_hw_init() - Initialize MDSS target specific register settings
- * @mdata: MDP private data
- *
- * Initialize basic MDSS hardware settings based on the board specific
- * parameters. This function does not explicitly turn on the MDP clocks
- * and so it must be called with the MDP clocks already enabled.
- */
 int mdss_hw_init(struct mdss_data_type *mdata)
 {
 	int i, j;
@@ -1130,11 +1137,11 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 
 	mdss_hw_rev_init(mdata);
 
-	/* Restoring Secure configuration during boot-up */
+	
 	if (mdss_mdp_req_init_restore_cfg(mdata))
 		__mdss_restore_sec_cfg(mdata);
 
-	/* disable hw underrun recovery */
+	
 	writel_relaxed(0x0, mdata->mdp_base +
 			MDSS_MDP_REG_VIDEO_INTF_UNDERFLOW_CTL);
 
@@ -1153,7 +1160,7 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 		for (j = 0; j < ENHIST_LUT_ENTRIES; j++)
 			writel_relaxed(j, offset);
 
-		/* swap */
+		
 		writel_relaxed(1, offset + 4);
 	}
 	vig = mdata->vig_pipes;
@@ -1162,7 +1169,7 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 			MDSS_MDP_REG_VIG_HIST_LUT_BASE;
 		for (j = 0; j < ENHIST_LUT_ENTRIES; j++)
 			writel_relaxed(j, offset);
-		/* swap */
+		
 		writel_relaxed(1, offset + 16);
 	}
 
@@ -1213,14 +1220,6 @@ static u32 mdss_mdp_res_init(struct mdss_data_type *mdata)
 	return rc;
 }
 
-/**
- * mdss_mdp_footswitch_ctrl_splash() - clocks handoff for cont. splash screen
- * @on: 1 to start handoff, 0 to complete the handoff after first frame update
- *
- * MDSS Clocks and GDSC are already on during continous splash screen, but
- * increasing ref count will keep clocks from being turned off until handoff
- * has properly happend after frame update.
- */
 void mdss_mdp_footswitch_ctrl_splash(int on)
 {
 	int ret;
@@ -1277,13 +1276,13 @@ static int mdss_mdp_get_pan_cfg(struct mdss_panel_cfg *pan_cfg)
 	} else if (mdss_mdp_panel[0] == '1') {
 		pan_cfg->lk_cfg = true;
 	} else {
-		/* read from dt */
+		
 		pan_cfg->lk_cfg = true;
 		pan_cfg->pan_intf = MDSS_PANEL_INTF_INVALID;
 		return -EINVAL;
 	}
 
-	/* skip lk cfg and delimiter; ex: "0:" */
+	
 	strlcpy(pan_name, &mdss_mdp_panel[2], MDSS_MAX_PANEL_LEN);
 	t = strnstr(pan_name, ":", MDSS_MAX_PANEL_LEN);
 	if (!t) {
@@ -1296,7 +1295,7 @@ static int mdss_mdp_get_pan_cfg(struct mdss_panel_cfg *pan_cfg)
 		pan_intf_str[i] = *(pan_name + i);
 	pan_intf_str[i] = 0;
 	pr_debug("%d panel intf %s\n", __LINE__, pan_intf_str);
-	/* point to the start of panel name */
+	
 	t = t + 1;
 	strlcpy(&pan_cfg->arg_cfg[0], t, sizeof(pan_cfg->arg_cfg));
 	pr_debug("%d: t=[%s] panel name=[%s]\n", __LINE__,
@@ -1348,7 +1347,7 @@ static int mdss_mdp_get_cmdline_config(struct platform_device *pdev)
 	panel_name = &pan_cfg->arg_cfg[0];
 	intf_type = &pan_cfg->pan_intf;
 
-	/* reads from dt by default */
+	
 	pan_cfg->lk_cfg = true;
 
 	len = strlen(mdss_mdp_panel);
@@ -1362,7 +1361,7 @@ static int mdss_mdp_get_cmdline_config(struct platform_device *pdev)
 	}
 
 	rc = mdss_mdp_parse_dt_pan_intf(pdev);
-	/* if pref pan intf is not present */
+	
 	if (rc)
 		pr_err("unable to parse device tree for pan intf\n");
 	else
@@ -1521,7 +1520,7 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 	mdss_mdp_hw.irq_info->irq = res->start;
 	mdss_mdp_hw.ptr = mdata;
 
-	/*populate hw iomem base info from device tree*/
+	
 	rc = mdss_mdp_parse_dt(pdev);
 	if (rc) {
 		pr_err("unable to parse device tree\n");
@@ -1724,7 +1723,7 @@ static int mdss_mdp_parse_dt(struct platform_device *pdev)
 		return rc;
 	}
 
-	/* Parse the mdp specific register base offset*/
+	
 	rc = of_property_read_u32(pdev->dev.of_node,
 		"qcom,mdss-mdp-reg-offset", &data);
 	if (rc) {
@@ -1787,7 +1786,7 @@ static int  mdss_mdp_parse_dt_pipe_clk_ctrl(struct platform_device *pdev,
 			pipe->clk_ctrl.reg_off = be32_to_cpu(arr[i++]);
 			pipe->clk_ctrl.bit_off = be32_to_cpu(arr[i++]);
 
-			/* status register is next in line to ctrl register */
+			
 			pipe->clk_status.reg_off = pipe->clk_ctrl.reg_off + 4;
 			pipe->clk_status.bit_off = be32_to_cpu(arr[i++]);
 
@@ -2125,7 +2124,7 @@ static int mdss_mdp_parse_dt_pipe(struct platform_device *pdev)
 			mdata->ncursor_pipes);
 		if (rc)
 			goto parse_fail;
-		/* set the fetch id to an invalid value */
+		
 		for (i = 0; i < mdata->ncursor_pipes; i++)
 			ftch_id[i] = -1;
 		rc = mdss_mdp_pipe_addr_setup(mdata, mdata->cursor_pipes,
@@ -2139,13 +2138,13 @@ static int mdss_mdp_parse_dt_pipe(struct platform_device *pdev)
 	goto parse_done;
 
 parse_fail:
-	kfree(mdata->cursor_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->cursor_pipes);
 cursor_alloc_fail:
-	kfree(mdata->dma_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->dma_pipes);
 dma_alloc_fail:
-	kfree(mdata->rgb_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->rgb_pipes);
 rgb_alloc_fail:
-	kfree(mdata->vig_pipes);
+	devm_kfree(&mdata->pdev->dev, mdata->vig_pipes);
 parse_done:
 vig_alloc_fail:
 	kfree(xin_id);
@@ -2394,10 +2393,6 @@ static int mdss_mdp_parse_dt_smp(struct platform_device *pdev)
 	const u32 *arr;
 
 	num = mdss_mdp_parse_dt_prop_len(pdev, "qcom,mdss-smp-data");
-	/*
-	 * This property is optional for targets with fix pixel ram. Rest
-	 * must provide no. of smp and size of each block.
-	 */
 	if (!num)
 		return 0;
 	else if (num != 2)
@@ -2633,41 +2628,21 @@ static int mdss_mdp_parse_dt_misc(struct platform_device *pdev)
 	mdata->has_dst_split = of_property_read_bool(pdev->dev.of_node,
 		 "qcom,mdss-has-dst-split");
 
-	/*
-	 * 2x factor on AB because bus driver will divide by 2
-	 * due to 2x ports to BIMC
-	 */
 	mdata->ab_factor.numer = 2;
 	mdata->ab_factor.denom = 1;
 	mdss_mdp_parse_dt_fudge_factors(pdev, "qcom,mdss-ab-factor",
 		&mdata->ab_factor);
 
-	/*
-	 * 1.2 factor on ib as default value. This value is
-	 * experimentally determined and should be tuned in device
-	 * tree.
-	 */
 	mdata->ib_factor.numer = 6;
 	mdata->ib_factor.denom = 5;
 	mdss_mdp_parse_dt_fudge_factors(pdev, "qcom,mdss-ib-factor",
 		&mdata->ib_factor);
 
-	/*
-	 * Set overlap ib value equal to ib by default. This value can
-	 * be tuned in device tree to be different from ib.
-	 * This factor apply when the max bandwidth per pipe
-	 * is the overlap BW.
-	 */
 	mdata->ib_factor_overlap.numer = mdata->ib_factor.numer;
 	mdata->ib_factor_overlap.denom = mdata->ib_factor.denom;
 	mdss_mdp_parse_dt_fudge_factors(pdev, "qcom,mdss-ib-factor-overlap",
 		&mdata->ib_factor_overlap);
 
-	/*
-	 * 1x factor on ib_factor_cmd as default value. This value is
-	 * experimentally determined and should be tuned in device
-	 * tree
-	 */
 	mdata->ib_factor_cmd.numer = 1;
 	mdata->ib_factor_cmd.denom = 1;
 	mdss_mdp_parse_dt_fudge_factors(pdev, "qcom,mdss-ib-factor-cmd",
@@ -2868,31 +2843,12 @@ void mdss_mdp_batfet_ctrl(struct mdss_data_type *mdata, int enable)
 	}
 }
 
-/**
- * mdss_is_ready() - checks if mdss is probed and ready
- *
- * Checks if mdss resources have been initialized
- *
- * returns true if mdss is ready, else returns false
- */
 bool mdss_is_ready(void)
 {
 	return mdss_mdp_get_mdata() ? true : false;
 }
 EXPORT_SYMBOL(mdss_mdp_get_mdata);
 
-/**
- * mdss_panel_intf_type() - checks if a given intf type is primary
- * @intf_val: panel interface type of the individual controller
- *
- * Individual controller queries with MDP to check if it is
- * configured as the primary interface.
- *
- * returns a pointer to the configured structure mdss_panel_cfg
- * to the controller that's configured as the primary panel interface.
- * returns NULL on error or if @intf_val is not the configured
- * controller.
- */
 struct mdss_panel_cfg *mdss_panel_intf_type(int intf_val)
 {
 	if (!mdss_res || !mdss_res->pan_cfg.init_done)
@@ -2967,16 +2923,6 @@ vreg_set_voltage_fail:
 	return rc;
 }
 
-/**
- * mdss_mdp_footswitch_ctrl() - Disable/enable MDSS GDSC and CX/Batfet rails
- * @mdata: MDP private data
- * @on: 1 to turn on footswitch, 0 to turn off footswitch
- *
- * When no active references to the MDP device node and it's child nodes are
- * held, MDSS GDSC can be turned off. However, any any panels are still
- * active (but likely in an idle state), the vote for the CX and the batfet
- * rails should not be released.
- */
 static void mdss_mdp_footswitch_ctrl(struct mdss_data_type *mdata, int on)
 {
 	int ret;
@@ -3002,10 +2948,6 @@ static void mdss_mdp_footswitch_ctrl(struct mdss_data_type *mdata, int on)
 			pr_debug("Disable MDP FS\n");
 			active_cnt = atomic_read(&mdata->active_intf_cnt);
 			if (active_cnt != 0) {
-				/*
-				 * Turning off GDSC while overlays are still
-				 * active.
-				 */
 				mdata->idle_pc = true;
 				pr_debug("idle pc. active overlays=%d\n",
 					active_cnt);
@@ -3092,11 +3034,6 @@ static int mdss_mdp_pm_resume(struct device *dev)
 
 	dev_dbg(dev, "display pm resume\n");
 
-	/*
-	 * It is possible that the runtime status of the mdp device may
-	 * have been active when the system was suspended. Reset the runtime
-	 * status to suspended state after a complete system resume.
-	 */
 	pm_runtime_disable(dev);
 	pm_runtime_set_suspended(dev);
 	pm_runtime_enable(dev);
@@ -3145,7 +3082,7 @@ static int mdss_mdp_runtime_resume(struct device *dev)
 	dev_dbg(dev, "pm_runtime: resuming. active overlay cnt=%d\n",
 		atomic_read(&mdata->active_intf_cnt));
 
-	/* do not resume panels when coming out of idle power collapse */
+	
 	if (!mdata->idle_pc)
 		device_for_each_child(dev, &device_on, mdss_fb_suspres_panel);
 	mdss_mdp_footswitch_ctrl(mdata, true);
@@ -3179,7 +3116,7 @@ static int mdss_mdp_runtime_suspend(struct device *dev)
 	}
 
 	mdss_mdp_footswitch_ctrl(mdata, false);
-	/* do not suspend panels when going in to idle power collapse */
+	
 	if (!mdata->idle_pc)
 		device_for_each_child(dev, &device_on, mdss_fb_suspres_panel);
 
@@ -3219,10 +3156,6 @@ static struct platform_driver mdss_mdp_driver = {
 	.resume = mdss_mdp_resume,
 	.shutdown = NULL,
 	.driver = {
-		/*
-		 * Driver name must match the device name added in
-		 * platform.c.
-		 */
 		.name = "mdp",
 		.of_match_table = mdss_mdp_dt_match,
 		.pm = &mdss_mdp_pm_ops,

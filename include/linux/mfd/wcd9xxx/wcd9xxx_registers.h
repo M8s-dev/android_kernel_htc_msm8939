@@ -189,9 +189,9 @@
 #define WCD9XXX_A_TX_COM_BIAS			(0x14C)
 #define WCD9XXX_A_TX_COM_BIAS__POR		(0xF0)
 
-#define WCD9XXX_A_MBHC_INSERT_DETECT		(0x14A) /* TAIKO and later */
+#define WCD9XXX_A_MBHC_INSERT_DETECT		(0x14A) 
 #define WCD9XXX_A_MBHC_INSERT_DETECT__POR	(0x00)
-#define WCD9XXX_A_MBHC_INSERT_DET_STATUS	(0x14B) /* TAIKO and later */
+#define WCD9XXX_A_MBHC_INSERT_DET_STATUS	(0x14B) 
 #define WCD9XXX_A_MBHC_INSERT_DET_STATUS__POR	(0x00)
 #define WCD9XXX_A_MAD_ANA_CTRL			(0x150)
 #define WCD9XXX_A_MAD_ANA_CTRL__POR		(0xF1)
@@ -200,7 +200,6 @@
 #define WCD9XXX_A_CDC_CLK_OTHR_CTL			(0x30C)
 #define WCD9XXX_A_CDC_CLK_OTHR_CTL__POR				(0x00)
 
-/* Class H related common registers */
 #define WCD9XXX_A_BUCK_MODE_1			(0x181)
 #define WCD9XXX_A_BUCK_MODE_1__POR				(0x21)
 #define WCD9XXX_A_BUCK_MODE_2			(0x182)
@@ -320,7 +319,6 @@
 #define WCD9330_A_CDC_CTL				(0x034)
 #define WCD9330_A_CDC_CTL__POR					(0x00)
 
-/* Class-H registers for codecs from and above WCD9335 */
 #define WCD9XXX_A_CDC_RX0_RX_PATH_CFG0			(0xB42)
 #define WCD9XXX_A_CDC_RX1_RX_PATH_CFG0			(0xB56)
 #define WCD9XXX_A_CDC_RX2_RX_PATH_CFG0			(0xB6A)

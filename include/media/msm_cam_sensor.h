@@ -39,6 +39,18 @@
 
 #define MAX_LED_TRIGGERS 3
 
+/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+#define MAX_ACT_NAME_SIZE 32
+#define LC898212_HEX_MAX 0x7FFF //0x6A00
+#define LC898212_HEX_MIN 0x8001 //0x9600
+#define LC898212_DEC_MAX 1023
+/*HTC_END, HTC_VCM*/
+
+//HTC_START ISP calibration
+#define ISP_CALIBRATION_AUTO 0xff
+#define ISP_CALIBRATION_MANUAL 0xfe
+//HTC_END
+
 enum flash_type {
 	LED_FLASH = 1,
 	STROBE_FLASH,
@@ -150,6 +162,7 @@ enum csiphy_cfg_type_t {
 enum camera_vreg_type {
 	VREG_TYPE_DEFAULT,
 	VREG_TYPE_CUSTOM,
+	VREG_TYPE_GPIO // HTC ADD
 };
 
 enum sensor_af_t {
@@ -213,15 +226,83 @@ struct camera_vreg_t {
 	uint32_t delay;
 	const char *custom_vreg_name;
 	enum camera_vreg_type type;
+//HTC_CAM_START
+	int32_t gpios_index;
+//HTC_CAM_END
 };
+
+//HTC_START, ISP calibration
+struct ISP_roi{
+	uint16_t width;
+	uint16_t height;
+	uint16_t offsetx;
+	uint16_t offsety;
+};
+struct ISP_AEC{
+	uint16_t Gain;
+	uint32_t N_parameter;
+	uint16_t Luma_Value;
+};
+
+struct ISP_AWB{
+	uint32_t R_Sum;
+	uint32_t G_Sum;
+	uint32_t B_Sum;
+	uint32_t pixel_count;
+};
+//HTC_END
+/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+struct fuse_id{
+	uint32_t fuse_id_word1;
+	uint32_t fuse_id_word2;
+	uint32_t fuse_id_word3;
+	uint32_t fuse_id_word4;
+};
+
+typedef struct{
+	char    ACT_NAME[MAX_ACT_NAME_SIZE]; /*HTC Harvey 20130701 - Set otp af value*/
+	uint8_t VCM_START_MSB;
+	uint8_t VCM_START_LSB;
+	uint8_t AF_INF_MSB;
+	uint8_t AF_INF_LSB;
+	uint8_t AF_MACRO_MSB;
+	uint8_t AF_MACRO_LSB;
+	uint8_t VCM_BIAS;
+	uint8_t VCM_OFFSET;
+	uint8_t VCM_BOTTOM_MECH_MSB;
+	uint8_t VCM_BOTTOM_MECH_LSB;
+	uint8_t VCM_TOP_MECH_MSB;
+	uint8_t VCM_TOP_MECH_LSB;
+	uint8_t VCM_VENDOR_ID_VERSION;
+	uint8_t VCM_VENDOR;
+	uint8_t ACT_ID;
+	uint32_t MODULE_ID_AB;
+}af_value_t;
+/*HTC_END, HTC_VCM*/
 
 struct sensorb_cfg_data {
 	int cfgtype;
+	/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+	int8_t sensor_ver;
+	int8_t lens_id;
+	af_value_t af_value;
+	/*HTC_END, HTC_VCM*/
 	union {
 		struct msm_sensor_info_t      sensor_info;
 		struct msm_sensor_init_params sensor_init_params;
 		void                         *setting;
+		/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+		struct fuse_id fuse;
+		/*HTC_END, HTC_VCM*/
 	} cfg;
+	//HTC_START, ISP calibration
+	int ISP_calibration_mode;
+	uint16_t luma_target;
+	struct ISP_roi AE_roi;
+	struct ISP_roi AWB_roi;
+	struct ISP_AEC isp_aec;
+	struct ISP_AWB isp_awb;
+	//HTC_END
 };
 
 struct csid_cfg_data {
@@ -401,9 +482,20 @@ enum msm_sensor_cfg_type_t {
 	CFG_SET_AUTOFOCUS,
 	CFG_CANCEL_AUTOFOCUS,
 	CFG_SET_STREAM_TYPE,
+/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+	CFG_I2C_IOCTL_R_OTP,
+/*HTC_END, HTC_VCM*/
+//HTC_START, ISP calibration
+	CFG_SET_ISP_CALIBRATION,
+	CFG_GET_ISP_CALIBRATION,
+	CFG_SET_LUMA_TARGET,
+//HTC_END
 };
 
 enum msm_actuator_cfg_type_t {
+/*HTC_START, HTC_VCM, Harvey 20130701 - Set otp af value*/
+	CFG_SET_ACTUATOR_AF_VALUE,
+/*HTC_END, HTC_VCM*/
 	CFG_GET_ACTUATOR_INFO,
 	CFG_SET_ACTUATOR_INFO,
 	CFG_SET_DEFAULT_FOCUS,
@@ -413,6 +505,22 @@ enum msm_actuator_cfg_type_t {
 	CFG_ACTUATOR_POWERUP,
 	CFG_ACTUATOR_INIT,
 };
+/* HTC_START steven pixel order select from board info 20121204 */
+enum msm_camera_pixel_order_default {
+	MSM_CAMERA_PIXEL_ORDER_GR,
+	MSM_CAMERA_PIXEL_ORDER_RG,
+	MSM_CAMERA_PIXEL_ORDER_BG,
+	MSM_CAMERA_PIXEL_ORDER_GB,
+};
+/* HTC_END steven pixel order select from board info 20121204 */
+
+/*HTC_START steven add htc_image flag for isolate rawchip */
+enum htc_camera_image_type {
+	HTC_CAMERA_IMAGE_NONE,
+	HTC_CAMERA_IMAGE_YUSHANII,
+	HTC_CAMERA_IMAGE_MAX,
+};
+/*HTC_END steven add htc_image flag for isolate rawchip */
 
 enum msm_ois_cfg_type_t {
 	CFG_OIS_INIT,
@@ -486,9 +594,22 @@ struct msm_actuator_params_t {
 	struct park_lens_data_t park_lens;
 };
 
+/*HTC_START, HTC_VCM, support multiple I2C access type for actuator modulation*/
+enum actuator_I2C_func_select {
+	WRITE_SEQ_TABLE,
+	WRITE_TABLE_W_MICRODELAY,
+	WRITE_MULTI_TABLE
+};
+/*HTC_END, HTC_VCM*/
+
 struct msm_actuator_set_info_t {
 	struct msm_actuator_params_t actuator_params;
 	struct msm_actuator_tuning_params_t af_tuning_params;
+/*HTC_START, HTC_VCM, for actuator modulation*/
+	uint8_t enable_focus_step_log;
+	uint16_t *step_position_table;                //Move step position table to user space
+	enum actuator_I2C_func_select act_i2c_select; //support multiple I2C access type
+/*HTC_END, HTC_VCM*/
 };
 
 struct msm_actuator_get_info_t {
@@ -518,6 +639,26 @@ enum af_camera_name {
 	ACTUATOR_WEB_CAM_2,
 };
 
+/*HTC_START, HTC_VCM, Harvey 20130701 - Set otp af value*/
+struct msm_actuator_af_OTP_info_t {
+	uint8_t VCM_OTP_Read;
+	uint16_t VCM_Start;
+	uint16_t VCM_Infinity;
+	uint16_t VCM_Macro;
+	/* HTC_START pg 20130220 lc898212 act enable */
+	uint8_t VCM_Bias;
+	uint8_t VCM_Offset;
+	uint16_t VCM_Bottom_Mech;
+	uint16_t VCM_Top_Mech;
+	uint8_t VCM_Vendor_Id_Version;
+	/* HTC_END pg 20130220 lc898212 act enable */
+	uint8_t VCM_Vendor;
+	uint8_t act_id;
+	char act_name[MAX_SENSOR_NAME];
+	uint32_t MODULE_ID_AB;
+};
+/*HTC_END, HTC_VCM*/
+
 struct msm_ois_cfg_data {
 	int cfgtype;
 	union {
@@ -541,6 +682,9 @@ struct msm_actuator_cfg_data {
 		struct msm_actuator_get_info_t get_info;
 		struct msm_actuator_set_position_t setpos;
 		enum af_camera_name cam_name;
+		/*HTC_START, HTC_VCM, Harvey 20130701 - Set otp af value*/
+		af_value_t af_value;
+		/*HTC_END, HTC_VCM*/
 	} cfg;
 };
 
@@ -557,6 +701,9 @@ struct msm_camera_led_cfg_t {
 	uint32_t torch_current[MAX_LED_TRIGGERS];
 	uint32_t flash_current[MAX_LED_TRIGGERS];
 	uint32_t flash_duration[MAX_LED_TRIGGERS];
+	/*HTC_START*/
+	uint32_t ma_value;
+	/*HTC_END*/
 };
 
 struct msm_flash_init_info_t {
@@ -663,6 +810,11 @@ struct msm_actuator_params_t32 {
 struct msm_actuator_set_info_t32 {
 	struct msm_actuator_params_t32 actuator_params;
 	struct msm_actuator_tuning_params_t32 af_tuning_params;
+/*HTC_START, HTC_VCM, for actuator modulation*/
+	uint8_t enable_focus_step_log;
+	compat_uptr_t step_position_table;                //Move step position table to user space
+	enum actuator_I2C_func_select act_i2c_select; //support multiple I2C access type
+/*HTC_END, HTC_VCM*/
 };
 
 struct sensor_init_cfg_data32 {
@@ -692,6 +844,9 @@ struct msm_actuator_cfg_data32 {
 		struct msm_actuator_get_info_t get_info;
 		struct msm_actuator_set_position_t setpos;
 		enum af_camera_name cam_name;
+		/*HTC_START, HTC_VCM, Harvey 20130701 - Set otp af value*/
+		af_value_t af_value;
+		/*HTC_END, HTC_VCM*/
 	} cfg;
 };
 
@@ -705,11 +860,27 @@ struct csiphy_cfg_data32 {
 
 struct sensorb_cfg_data32 {
 	int cfgtype;
+	/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+	int8_t sensor_ver;
+	int8_t lens_id;
+	af_value_t af_value;
+	/*HTC_END, HTC_VCM*/
 	union {
 		struct msm_sensor_info_t      sensor_info;
 		struct msm_sensor_init_params sensor_init_params;
 		compat_uptr_t                 setting;
+		/*HTC_START, HTC_VCM, Harvey 20130628 - Porting read OTP*/
+		struct fuse_id fuse;
+		/*HTC_END, HTC_VCM*/
 	} cfg;
+	//HTC_START, ISP calibration
+	int ISP_calibration_mode;
+	uint16_t luma_target;
+	struct ISP_roi AE_roi;
+	struct ISP_roi AWB_roi;
+	struct ISP_AEC isp_aec;
+	struct ISP_AWB isp_awb;
+	//HTC_END
 };
 
 struct msm_ois_params_t32 {

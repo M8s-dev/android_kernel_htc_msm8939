@@ -104,6 +104,10 @@ static struct ion_heap_desc ion_heap_meta[] = {
 	{
 		.id	= ION_ADSP_HEAP_ID,
 		.name	= ION_ADSP_HEAP_NAME,
+	},
+	{
+		.id	= ION_FBMEM_HEAP_ID,
+		.name	= ION_FBMEM_HEAP_NAME,
 	}
 };
 #endif
@@ -125,13 +129,19 @@ struct ion_client *msm_ion_client_create(const char *name)
 	 * The assumption is that if there is a NULL device, the ion
 	 * driver has not yet probed.
 	 */
+	struct ion_client *client;
 	if (idev == NULL)
 		return ERR_PTR(-EPROBE_DEFER);
 
 	if (IS_ERR(idev))
 		return (struct ion_client *)idev;
 
-	return ion_client_create(idev, name);
+	client = ion_client_create(idev, name);
+
+	if (client)
+		ion_client_set_debug_name(client, name);
+
+	return client;
 }
 EXPORT_SYMBOL(msm_ion_client_create);
 
@@ -141,6 +151,43 @@ int msm_ion_do_cache_op(struct ion_client *client, struct ion_handle *handle,
 	return ion_do_cache_op(client, handle, vaddr, 0, len, cmd);
 }
 EXPORT_SYMBOL(msm_ion_do_cache_op);
+
+static atomic_t ion_alloc_mem_usages[ION_USAGE_MAX]
+			= {[0 ... ION_USAGE_MAX-1] = ATOMIC_INIT(0)};
+
+static inline atomic_t* ion_get_meminfo(const enum ion_heap_mem_usage usage)
+{
+	return (usage < ION_USAGE_MAX) ?
+			&ion_alloc_mem_usages[usage] : NULL;
+}
+
+void ion_alloc_inc_usage(const enum ion_heap_mem_usage usage,
+			 const size_t size)
+{
+	atomic_t * const ion_alloc_usage = ion_get_meminfo(usage);
+
+	if (ion_alloc_usage)
+		atomic_add(size, ion_alloc_usage);
+}
+EXPORT_SYMBOL(ion_alloc_inc_usage);
+
+void ion_alloc_dec_usage(const enum ion_heap_mem_usage usage,
+			 const size_t size)
+{
+	atomic_t * const ion_alloc_usage = ion_get_meminfo(usage);
+
+	if (ion_alloc_usage)
+		atomic_sub(size, ion_alloc_usage);
+}
+EXPORT_SYMBOL(ion_alloc_dec_usage);
+
+uintptr_t msm_ion_heap_meminfo(const bool is_total)
+{
+	atomic_t * const ion_alloc_usage = ion_get_meminfo(
+						is_total? ION_TOTAL : ION_IN_USE);
+	return ion_alloc_usage? atomic_read(ion_alloc_usage) * PAGE_SIZE : 0;
+}
+EXPORT_SYMBOL(msm_ion_heap_meminfo);
 
 static int ion_no_pages_cache_ops(struct ion_client *client,
 			struct ion_handle *handle,
@@ -758,7 +805,28 @@ long msm_ion_custom_ioctl(struct ion_client *client,
 			ion_secure_cma_drain_pool);
 		break;
 	}
+	case ION_IOC_CLIENT_DEBUG_NAME:
+	{
+		struct ion_client_name_data data;
+		int name_len;
+		const size_t ION_CLIENT_DEBUG_NAME_LENGTH = 64;
+		char debug_name[ION_CLIENT_DEBUG_NAME_LENGTH + 1];
 
+		if (copy_from_user(&data, (void __user *)arg,
+					sizeof(struct ion_client_name_data)))
+			return -EFAULT;
+		if (data.len <= 0)
+			return -EFAULT;
+
+		name_len = min(ION_CLIENT_DEBUG_NAME_LENGTH, data.len);
+		if (copy_from_user(debug_name, (void __user *)data.name, name_len))
+			return -EFAULT;
+
+		debug_name[name_len] = '\0';
+
+		return ion_client_set_debug_name(
+				client, debug_name);
+	}
 	default:
 		return -ENOTTY;
 	}
@@ -953,6 +1021,11 @@ static int msm_ion_probe(struct platform_device *pdev)
 	int i;
 	if (pdev->dev.of_node) {
 		pdata = msm_ion_parse_dt(pdev);
+		if (pdata == NULL) {
+			pr_err("msm_ion_probe pdata was NULL\n");
+			err = -EINVAL;
+			goto out;
+		}
 		if (IS_ERR(pdata)) {
 			err = PTR_ERR(pdata);
 			goto out;
@@ -969,7 +1042,7 @@ static int msm_ion_probe(struct platform_device *pdev)
 
 	if (!heaps) {
 		err = -ENOMEM;
-		goto out;
+		goto freepdata;
 	}
 
 	new_dev = ion_device_create(compat_msm_ion_ioctl);
@@ -1021,6 +1094,7 @@ static int msm_ion_probe(struct platform_device *pdev)
 
 freeheaps:
 	kfree(heaps);
+freepdata:
 	if (pdata_needs_to_be_freed)
 		free_pdata(pdata);
 out:

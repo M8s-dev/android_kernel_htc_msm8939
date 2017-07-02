@@ -51,6 +51,15 @@ int of_batterydata_read_data(struct device_node *container_node,
 struct device_node *of_batterydata_get_best_profile(
 		struct device_node *batterydata_container_node,
 		const char *psy_name, const char *batt_type);
+#ifdef CONFIG_SMB1360_CHARGER_FG
+int of_batterydata_read_data_by_id_result(struct device_node *container_node,
+				struct smb1360_battery_data *batt_data,
+				int id_result);
+#else
+int of_batterydata_read_data_by_id_result(struct device_node *container_node,
+				struct bms_battery_data *batt_data,
+				int id_result);
+#endif /* CONFIG_SMB1360_CHARGER_FG */
 #else
 static inline int of_batterydata_read_data(struct device_node *container_node,
 				struct bms_battery_data *batt_data,
@@ -64,4 +73,19 @@ static inline struct device_node *of_batterydata_get_best_profile(
 {
 	return -ENXIO;
 }
+#ifdef CONFIG_SMB1360_CHARGER_FG
+static inline int of_batterydata_read_data_by_id_result(struct device_node *container_node,
+				struct smb1360_battery_data *batt_data,
+				int id_result);
+{
+	return -ENXIO;
+}
+#else
+static inline int of_batterydata_read_data_by_id_result(struct device_node *container_node,
+				struct bms_battery_data *batt_data,
+				int id_result);
+{
+	return -ENXIO;
+}
+#endif /* CONFIG_SMB1360_CHARGER_FG */
 #endif /* CONFIG_OF_QPNP */

@@ -113,7 +113,6 @@ static struct notifier_block sockev_notifier_client = {
 	.priority = 0
 };
 
-/* ***************** Startup/Shutdown *************************************** */
 
 static int __init sockev_client_init(void)
 {

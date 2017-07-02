@@ -24,17 +24,8 @@
 #define HIGH_TEMP_THRESHOLD 45
 #define TEMP_INVALID	0xFFFF
 
-/*
- * wsa881x_get_temp - get wsa temperature
- * @thermal: thermal zone device
- * @temp: temperature value
- *
- * Get the temperature of wsa881x.
- *
- * Return: 0 on success or negative error code on failure.
- */
 int wsa881x_get_temp(struct thermal_zone_device *thermal,
-		     unsigned long *temp)
+		     long *temp) 
 {
 	struct wsa881x_tz_priv *pdata;
 	struct snd_soc_codec *codec;
@@ -71,12 +62,6 @@ int wsa881x_get_temp(struct thermal_zone_device *thermal,
 		pr_err("%s: wsa_temp_reg_read is NULL\n", __func__);
 		return -EINVAL;
 	}
-	/*
-	 * Temperature register values are expected to be in the
-	 * following range.
-	 * d1_msb  = 68 - 92 and d1_lsb  = 0, 64, 128, 192
-	 * d2_msb  = 185 -218 and  d2_lsb  = 0, 64, 128, 192
-	 */
 	if ((reg.d1_msb < 68 || reg.d1_msb > 92) ||
 	    (!(reg.d1_lsb == 0 || reg.d1_lsb == 64 || reg.d1_lsb == 128 ||
 		reg.d1_lsb == 192)) ||
@@ -122,7 +107,7 @@ int wsa881x_init_thermal(struct wsa881x_tz_priv *tz_pdata)
 		pr_err("%s: thermal pdata is NULL\n", __func__);
 		return -EINVAL;
 	}
-	/* Register with the thermal zone */
+	
 	tz_dev = thermal_zone_device_register(tz_pdata->name,
 				0, 0, tz_pdata,
 				&wsa881x_thermal_ops, NULL, 0, 0);

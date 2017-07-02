@@ -22,12 +22,9 @@ static DEFINE_SPINLOCK(mdss_lock);
 int mdss_register_irq(struct mdss_hw *hw)
 {
 	unsigned long irq_flags;
-	u32 ndx_bit;
 
 	if (!hw || hw->hw_ndx >= MDSS_MAX_HW_BLK)
 		return -EINVAL;
-
-	ndx_bit = BIT(hw->hw_ndx);
 
 	spin_lock_irqsave(&mdss_lock, irq_flags);
 	if (!mdss_irq_handlers[hw->hw_ndx])
@@ -98,7 +95,6 @@ void mdss_disable_irq(struct mdss_hw *hw)
 	spin_unlock_irqrestore(&mdss_lock, irq_flags);
 }
 
-/* called from interrupt context */
 void mdss_disable_irq_nosync(struct mdss_hw *hw)
 {
 	u32 ndx_bit;

@@ -578,6 +578,10 @@ const struct file_operations bad_sock_fops = {
 	.llseek = noop_llseek,
 };
 
+#ifdef CONFIG_HTC_FEATURES_RIL_PCN0004_HTC_GARBAGE_FILTER
+int add_or_remove_port(struct sock *sk, int add_or_remove);	/* SSD_RIL: Garbage_Filter_TCP */
+#endif
+
 /**
  *	sock_release	-	close a socket
  *	@sock: socket to close
@@ -589,6 +593,13 @@ const struct file_operations bad_sock_fops = {
 
 void sock_release(struct socket *sock)
 {
+#ifdef CONFIG_HTC_FEATURES_RIL_PCN0004_HTC_GARBAGE_FILTER
+	/* ++SSD_RIL: Garbage_Filter_TCP */
+	if (sock->sk != NULL)
+		add_or_remove_port(sock->sk, 0);
+	/* --SSD_RIL: Garbage_Filter_TCP */
+#endif
+
 	if (sock->ops) {
 		struct module *owner = sock->ops->owner;
 
@@ -1569,6 +1580,13 @@ SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 				sock_put(sock->sk);
 		}
 		fput_light(sock->file, fput_needed);
+
+#ifdef CONFIG_HTC_FEATURES_RIL_PCN0004_HTC_GARBAGE_FILTER
+		/* ++SSD_RIL: Garbage_Filter_TCP */
+		if (sock->sk != NULL)
+			add_or_remove_port(sock->sk, 1);
+		/* --SSD_RIL: Garbage_Filter_TCP */
+#endif
 	}
 	return err;
 }
@@ -1797,6 +1815,8 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
 
 	if (len > INT_MAX)
 		len = INT_MAX;
+	if (unlikely(!access_ok(VERIFY_READ, buff, len)))
+		return -EFAULT;
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;
@@ -1858,6 +1878,8 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 
 	if (size > INT_MAX)
 		size = INT_MAX;
+	if (unlikely(!access_ok(VERIFY_WRITE, ubuf, size)))
+		return -EFAULT;
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
 		goto out;

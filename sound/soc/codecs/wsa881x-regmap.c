@@ -16,12 +16,6 @@
 #include "wsa881x-registers.h"
 #include "wsa881x.h"
 
-/*
- * Default register reset values that are common across different versions
- * are defined here. If a register reset value is changed based on version
- * then remove it from this structure and add it in version specific
- * structures.
- */
 static struct reg_default wsa881x_defaults[] = {
 	{WSA881X_CHIP_ID0, 0x00},
 	{WSA881X_CHIP_ID1, 0x00},
@@ -104,7 +98,7 @@ static struct reg_default wsa881x_defaults[] = {
 	{WSA881X_OTP_REG_26, 0x03},
 	{WSA881X_OTP_REG_27, 0x11},
 	{WSA881X_OTP_REG_63, 0x40},
-	/* WSA881x Analog registers */
+	
 	{WSA881X_BIAS_REF_CTRL, 0x6C},
 	{WSA881X_BIAS_TEST, 0x16},
 	{WSA881X_BIAS_BIAS, 0xF0},
@@ -154,7 +148,6 @@ static struct reg_default wsa881x_defaults[] = {
 	{WSA881X_SPKR_STATUS3, 0x00},
 };
 
-/* Default register reset values for WSA881x rev 1.0 or 1.1 */
 static struct reg_default wsa881x_rev_1_x[] = {
 	{WSA881X_INTR_MASK, 0x1F},
 	{WSA881X_OTP_REG_28, 0xFF},
@@ -178,7 +171,6 @@ static struct reg_default wsa881x_rev_1_x[] = {
 	{WSA881X_BONGO_RESRV_REG2, 0x00},
 };
 
-/* Default register reset values for WSA881x rev 2.0 */
 static struct reg_default wsa881x_rev_2_0[] = {
 	{WSA881X_RESET_CTL, 0x00},
 	{WSA881X_TADC_VALUE_CTL, 0x01},
@@ -205,14 +197,6 @@ static struct reg_default wsa881x_rev_2_0[] = {
 	{WSA881X_BONGO_RESRV_REG2, 0x07},
 };
 
-/*
- * wsa881x_regmap_defaults - update regmap default register values
- * @regmap: pointer to regmap structure
- * @version: wsa881x version id
- *
- * Update regmap default register values based on version id
- *
- */
 void wsa881x_regmap_defaults(struct regmap *regmap, u8 version)
 {
 	u16 ret = 0;

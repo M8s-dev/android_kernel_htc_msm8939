@@ -21,7 +21,7 @@
 #ifndef __ASSEMBLY__
 
 #define sev()		asm volatile("sev" : : : "memory")
-#define wfe()		asm volatile("wfe" : : : "memory")
+#define wfe()		asm volatile("nop");
 #define wfi()		asm volatile("wfi" : : : "memory")
 
 #define isb()		asm volatile("isb" : : : "memory")

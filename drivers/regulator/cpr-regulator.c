@@ -293,8 +293,11 @@ struct cpr_regulator {
 #define CPR_DEBUG_MASK_IRQ	BIT(0)
 #define CPR_DEBUG_MASK_API	BIT(1)
 
-static int cpr_debug_enable;
+static int cpr_debug_enable = 0; //default value is CPR_DEBUG_MASK_IRQ;
 #if defined(CONFIG_DEBUG_FS)
+#ifdef CONFIG_HTC_POWER_DEBUG
+static struct dentry *cpr_apc_voltage_debugfs_entry;
+#endif
 static struct dentry *cpr_debugfs_base;
 #endif
 
@@ -1400,7 +1403,7 @@ static int cpr_pvs_per_corner_init(struct device_node *of_node,
 				cpr_vreg->pvs_corner_v[i],
 				cpr_vreg->step_volt) *
 				cpr_vreg->step_volt;
-		cpr_debug(cpr_vreg, "corner %d: sign = %d, steps = %d, volt = %d uV\n",
+		cpr_info(cpr_vreg, "corner %d: sign = %d, steps = %d, volt = %d uV\n",
 			i, sign, steps, cpr_vreg->pvs_corner_v[i]);
 		fuse_sel += 4;
 	}
@@ -3915,6 +3918,44 @@ static ssize_t cpr_debug_info_read(struct file *file, char __user *buff,
 	return ret;
 }
 
+#ifdef CONFIG_HTC_POWER_DEBUG
+static ssize_t cpr_apc_voltage_debugfs_read(struct file *file, char __user *buff,
+				size_t count, loff_t *ppos)
+{
+	struct cpr_regulator *cpr_vreg = file->private_data;
+	char *debugfs_buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	ssize_t len, ret = 0;
+	int i = 0;
+
+	if (!debugfs_buf)
+		return -ENOMEM;
+
+	mutex_lock(&cpr_vreg->cpr_mutex);
+	len = snprintf(debugfs_buf + ret, PAGE_SIZE - ret,
+			"pvs voltage: \t uV  ceiling voltage: \t uV  floor voltage: \t uV\n");
+	ret += len;
+	for(i = CPR_FUSE_CORNER_MIN; i <= cpr_vreg->num_fuse_corners; i++ ){
+		len = snprintf(debugfs_buf + ret, PAGE_SIZE - ret,
+			"%d uV  %d uV  %d uV\n",
+			cpr_vreg->pvs_corner_v[i],
+			cpr_vreg->ceiling_volt[i],
+			cpr_vreg->floor_volt[i]);
+		ret += len;
+	}
+	mutex_unlock(&cpr_vreg->cpr_mutex);
+
+	ret = simple_read_from_buffer(buff, count, ppos, debugfs_buf, ret);
+	kfree(debugfs_buf);
+	return ret;
+}
+#endif
+
+#ifdef CONFIG_HTC_POWER_DEBUG
+static const struct file_operations cpr_apc_voltage_debugfs_fops = {
+	.read = cpr_apc_voltage_debugfs_read,
+};
+#endif
+
 static const struct file_operations cpr_debug_info_fops = {
 	.open = cpr_debug_info_open,
 	.read = cpr_debug_info_read,
@@ -3942,7 +3983,13 @@ static void cpr_debugfs_init(struct cpr_regulator *cpr_vreg)
 		cpr_err(cpr_vreg, "debug_info node creation failed\n");
 		return;
 	}
-
+#ifdef CONFIG_HTC_POWER_DEBUG
+	cpr_apc_voltage_debugfs_entry = debugfs_create_file("apc_voltage", 0444,
+						cpr_vreg->debugfs, cpr_vreg,
+						&cpr_apc_voltage_debugfs_fops);
+	if (!cpr_apc_voltage_debugfs_entry)
+		pr_err("cpr_apc_voltage_debugfs_entry creation failed.\n");
+#endif
 	temp = debugfs_create_file("cpr_enable", S_IRUGO | S_IWUSR,
 			cpr_vreg->debugfs, cpr_vreg, &cpr_enable_fops);
 	if (IS_ERR_OR_NULL(temp)) {

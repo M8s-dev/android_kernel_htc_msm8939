@@ -644,6 +644,9 @@ int msm_camera_get_dt_gpio_req_tbl(struct device_node *of_node,
 		if (val_array[i] >= gpio_array_size) {
 			pr_err("%s gpio req tbl index %d invalid\n",
 				__func__, val_array[i]);
+//HTC_START, fix klockwork.
+			kfree(val_array);
+//HTC_END
 			return -EINVAL;
 		}
 		gconf->cam_gpio_req_tbl[i].gpio = gpio_array[val_array[i]];
@@ -1154,6 +1157,19 @@ int msm_camera_get_dt_vreg_data(struct device_node *of_node,
 		CDBG("%s cam_vreg[%d].op_mode = %d\n", __func__, i,
 			vreg[i].op_mode);
 	}
+    /*HTC_START*/
+        rc = of_property_read_u32_array(of_node, "qcom,cam-vreg-gpios-index",
+            vreg_array, count);
+        if (rc < 0) {
+            pr_err("%s failed %d\n", __func__, __LINE__);
+            goto ERROR2;
+        }
+        for (i = 0; i < count; i++) {
+            vreg[i].gpios_index = vreg_array[i];
+            CDBG("%s cam_vreg[%d].gpios_index = %d\n", __func__, i,
+                vreg[i].gpios_index);
+        }
+    /*HTC_END*/
 
 	kfree(vreg_array);
 	return rc;
@@ -1221,7 +1237,6 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 {
 	int rc = 0, index = 0, no_gpio = 0, ret = 0;
 	struct msm_sensor_power_setting *power_setting = NULL;
-
 	CDBG("%s:%d\n", __func__, __LINE__);
 	if (!ctrl || !sensor_i2c_client) {
 		pr_err("failed ctrl %p sensor_i2c_client %p\n", ctrl,

@@ -128,9 +128,11 @@ int diag_mux_switch_logging(int new_mode)
 
 	switch (new_mode) {
 	case DIAG_USB_MODE:
+		DIAG_INFO("sdlogging disable\n");
 		new_logger = &usb_logger;
 		break;
 	case DIAG_MEMORY_DEVICE_MODE:
+		DIAG_INFO("sdlogging enable\n");
 		new_logger = &md_logger;
 		break;
 	default:

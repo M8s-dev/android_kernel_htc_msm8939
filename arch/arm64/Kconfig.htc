@@ -1,0 +1,70 @@
+config HTC_DEBUG_RTB
+	default y
+	depends on HTC_DEBUG && MSM_RTB
+	bool "HTC style rtb debug features"
+	help
+	  Say Y here if you want the HTC style rtb debug features
+
+config HTC_FEATURES_SSR
+       bool "HTC style ssr features"
+       depends on MSM_SUBSYSTEM_RESTART
+       default n
+       help
+         Say Y here if you want the HTC style ssr features
+
+config HTC_DEBUG_DSP
+       bool "Trigger ramdump for audio error"
+       default n
+       depends on HTC_DEBUG
+       help
+         Say Y here if you want the HTC audio debug enable
+
+config HTC_FEATURES_SSR_MODEM_ENABLE
+       bool "HTC style modem ssr features"
+       depends on HTC_FEATURES_SSR
+       default n
+       help
+         Say Y here if you want the HTC style for modem ssr features
+
+config HTC_FEATURES_SSR_WCNSS_ENABLE
+       bool "HTC style wcnss ssr features"
+       depends on HTC_FEATURES_SSR
+       default n
+       help
+
+config HTC_DEBUG_SSR
+       bool "HTC style subsys restart debug features"
+       depends on HTC_DEBUG && MSM_SUBSYSTEM_RESTART
+       help
+         Say Y here if you want the HTC style subsys restart debug features
+
+config AUD_8x16_MI2S
+       bool "HTC audio speaker with mi2s on 8x16"
+       default n
+       help
+
+config AUD_MICB_INT_RBIAS_DISABLE
+       bool "HTC audio not pull up on  MICB1 RBIAS setting"
+       default n
+       help
+
+config AUD_ALL_MIC_CHN_ODM
+       bool "CEI hw audio change register of 0x143 to 0x08 when ENABLE mic"
+       default n
+       help
+
+config HTC_AUD_MBHC
+       bool "Control MBHC disable or enable"
+       default n
+       help
+
+config HTC_AUD_MIC_REG_SETTING_8916
+       bool "Control MIC and MIC2 register 0140 to 84 and 0143 to 08"
+       default n
+       help
+
+config LMK_ZYGOTE_PROTECT
+       bool "LMK zygote protect"
+       default n
+       help
+

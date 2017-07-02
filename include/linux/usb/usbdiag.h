@@ -23,6 +23,38 @@
 
 #include <linux/err.h>
 
+
+/*DRIVER_DIAG_FUNCTION*/
+#define DIAG_ERR(fmt, args...) \
+	printk(KERN_ERR "[USBDIAG:ERR] " fmt, ## args)
+#define DIAG_WARNING(fmt, args...) \
+	printk(KERN_WARNING "[USBDIAG] " fmt, ## args)
+#define DIAG_INFO(fmt, args...) \
+	printk(KERN_INFO "[USBDIAG] " fmt, ## args)
+#define DIAG_DBUG(fmt, args...) \
+	printk(KERN_DEBUG "[USBDIAG] " fmt, ## args)
+
+/*DRIVER_DIAGFWD_FUNCTION*/
+#define DIAGFWD_ERR(fmt, args...) \
+	printk(KERN_ERR "[USBDIAG:ERR] " fmt, ## args)
+#define DIAGFWD_WARNING(fmt, args...) \
+	printk(KERN_WARNING "[USBDIAG] " fmt, ## args)
+#define DIAGFWD_INFO(fmt, args...) \
+	printk(KERN_INFO "[USBDIAG] " fmt, ## args)
+#define DIAGFWD_DBUG(fmt, args...) \
+	printk(KERN_DEBUG "[USBDIAG] " fmt, ## args)
+
+/* DRIVER_SDLOG_FUNCTION*/
+#define SDLOG_ERR(fmt, args...) \
+	printk(KERN_ERR "[USBDIAG:ERR] " fmt, ## args)
+#define SDLOG_WARNING(fmt, args...) \
+	printk(KERN_WARNING "[USBDIAG] " fmt, ## args)
+#define SDLOG_INFO(fmt, args...) \
+	printk(KERN_INFO "[USBDIAG] " fmt, ## args)
+#define SDLOG_DBUG(fmt, args...) \
+	printk(KERN_DEBUG "[USBDIAG] " fmt, ## args)
+
+
 #define DIAG_LEGACY		"diag"
 #define DIAG_MDM		"diag_mdm"
 #define DIAG_QSC		"diag_qsc"

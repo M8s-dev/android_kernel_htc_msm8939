@@ -401,8 +401,11 @@
 	};
 
 	gpio@c200 { /* GPIO 3 */
-		/* External regulator control for WTR */
-		status = "disabled";
+		qcom,mode = <1>;	/* Digitial output */
+		qcom,pull = <0>;	/* Pull-up */
+		qcom,vin-sel = <0>;	/* VPH_PWR */
+		qcom,src-sel = <0>;	/* GPIO */
+		qcom,master-en = <1>;
 	};
 
 	gpio@c300 { /* GPIO 4 */

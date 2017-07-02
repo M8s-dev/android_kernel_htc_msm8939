@@ -228,7 +228,10 @@ static void pcpu_set_page_chunk(struct page *page, struct pcpu_chunk *pcpu)
 /* obtain pointer to a chunk from a page struct */
 static struct pcpu_chunk *pcpu_get_page_chunk(struct page *page)
 {
-	return (struct pcpu_chunk *)page->index;
+	if (page!=NULL) 
+	    return (struct pcpu_chunk *)page->index;
+	else 
+	    return NULL;
 }
 
 static int __maybe_unused pcpu_page_idx(unsigned int cpu, int page_idx)

@@ -59,7 +59,7 @@ struct adreno_context {
 	unsigned int type;
 	spinlock_t lock;
 
-	/* Dispatcher */
+	
 	struct kgsl_cmdbatch *cmdqueue[ADRENO_CONTEXT_CMDQUEUE_SIZE];
 	unsigned int cmdqueue_head;
 	unsigned int cmdqueue_tail;
@@ -78,23 +78,9 @@ struct adreno_context {
 	int ticks_index;
 };
 
-/* Flag definitions for flag field in adreno_context */
 
-/* Set when sync timer of cmdbatch belonging to the context times out */
 #define ADRENO_CONTEXT_CMDBATCH_FLAG_FENCE_LOG	BIT(0)
 
-/**
- * enum adreno_context_priv - Private flags for an adreno draw context
- * @ADRENO_CONTEXT_FAULT - set if the context has faulted (and recovered)
- * @ADRENO_CONTEXT_GPU_HANG - Context has caused a GPU hang
- * @ADRENO_CONTEXT_GPU_HANG_FT - Context has caused a GPU hang
- *      and fault tolerance was successful
- * @ADRENO_CONTEXT_SKIP_EOF - Context skip IBs until the next end of frame
- *      marker.
- * @ADRENO_CONTEXT_FORCE_PREAMBLE - Force the preamble for the next submission.
- * @ADRENO_CONTEXT_SKIP_CMD - Context's command batch is skipped during
-	fault tolerance.
- */
 enum adreno_context_priv {
 	ADRENO_CONTEXT_FAULT = KGSL_CONTEXT_PRIV_DEVICE_SPECIFIC,
 	ADRENO_CONTEXT_GPU_HANG,
@@ -130,4 +116,4 @@ void adreno_drawctxt_invalidate(struct kgsl_device *device,
 void adreno_drawctxt_dump(struct kgsl_device *device,
 		struct kgsl_context *context);
 
-#endif  /* __ADRENO_DRAWCTXT_H */
+#endif  

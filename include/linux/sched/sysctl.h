@@ -65,7 +65,7 @@ extern int sysctl_sched_upmigrate_min_nice;
 extern unsigned int sysctl_sched_prefer_idle;
 extern unsigned int sysctl_sched_powerband_limit_pct;
 extern unsigned int sysctl_sched_boost;
-
+extern unsigned int sysctl_sched_move_to_big;
 #else /* CONFIG_SCHED_HMP */
 
 #define sysctl_sched_enable_hmp_task_placement 0

@@ -44,7 +44,6 @@ static struct apr_client client[APR_DEST_MAX][APR_CLIENT_MAX];
 static wait_queue_head_t dsp_wait;
 static wait_queue_head_t modem_wait;
 static bool is_modem_up = 0;
-/* Subsystem restart: QDSP6 data, functions */
 static struct workqueue_struct *apr_reset_workqueue;
 static void apr_reset_deregister(struct work_struct *work);
 struct apr_reset_work {
@@ -229,7 +228,7 @@ int apr_wait_for_device_up(int dest_id)
 				    (1 * HZ));
 	else
 		pr_err("%s: unknown dest_id %d\n", __func__, dest_id);
-	/* returns left time */
+	
 	return rc;
 }
 
@@ -337,7 +336,7 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 	if (!strcmp(dest, "ADSP"))
 		domain_id = APR_DOMAIN_ADSP;
 	else if (!strcmp(dest, "MODEM")) {
-		/* Register voice services if destination permits */
+		
 		if (!apr_register_voice_svc())
 			goto done;
 		domain_id = APR_DOMAIN_MODEM;
@@ -688,7 +687,6 @@ void apr_reset(void *handle)
 	queue_work(apr_reset_workqueue, &apr_reset_worker->work);
 }
 
-/* Dispatch the Reset events to Modem and audio clients */
 void dispatch_event(unsigned long code, uint16_t proc)
 {
 	struct apr_client *apr_client;
@@ -700,7 +698,7 @@ void dispatch_event(unsigned long code, uint16_t proc)
 	data.opcode = RESET_EVENTS;
 	data.reset_event = code;
 
-	/* Service domain can be different from the processor */
+	
 	data.reset_proc = apr_get_reset_domain(proc);
 
 	clnt = APR_CLIENT_AUDIO;
@@ -801,9 +799,9 @@ static int lpass_notifier_cb(struct notifier_block *this, unsigned long code,
 		apr_set_q6_state(APR_SUBSYS_DOWN);
 		dispatch_event(code, APR_DEST_QDSP6);
 		if (data && data->crashed) {
-			/* Send NMI to QDSP6 via an SCM call. */
+			
 			scm_call_atomic1(SCM_SVC_UTIL, SCM_Q6_NMI_CMD, 0x1);
-			/* The write should go through before q6 is shutdown */
+			
 			mb();
 			pr_debug("L-Notify: Q6 NMI was sent.\n");
 		}
@@ -837,7 +835,7 @@ static int panic_handler(struct notifier_block *this,
 				unsigned long event, void *ptr)
 {
 	if (powered_on)
-		/* Send NMI to QDSP6 via an SCM call. */
+		
 		scm_call_atomic1(SCM_SVC_UTIL, SCM_Q6_NMI_CMD, 0x1);
 	return NOTIFY_DONE;
 }

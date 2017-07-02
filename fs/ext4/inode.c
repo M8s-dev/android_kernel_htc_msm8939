@@ -2466,6 +2466,10 @@ static int ext4_da_writepages(struct address_space *mapping,
 	if (unlikely(sbi->s_mount_flags & EXT4_MF_FS_ABORTED))
 		return -EROFS;
 
+	/* return immediately if filesystem is mounted RDONLY */
+	if (unlikely(inode->i_sb->s_flags & MS_RDONLY))
+		return -EROFS;
+
 	if (wbc->range_start == 0 && wbc->range_end == LLONG_MAX)
 		range_whole = 1;
 
@@ -3575,6 +3579,7 @@ int ext4_can_truncate(struct inode *inode)
 
 int ext4_punch_hole(struct file *file, loff_t offset, loff_t length)
 {
+#if 0
 	struct inode *inode = file_inode(file);
 	struct super_block *sb = inode->i_sb;
 	ext4_lblk_t first_block, stop_block;
@@ -3760,6 +3765,12 @@ out_dio:
 out_mutex:
 	mutex_unlock(&inode->i_mutex);
 	return ret;
+#else
+	/*
+	 * Disabled as per b/28760453
+	 */
+	return -EOPNOTSUPP;
+#endif
 }
 
 /*

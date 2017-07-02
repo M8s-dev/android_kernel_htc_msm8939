@@ -27,12 +27,47 @@
 #define SCM_SVC_HDCP			0x11
 #define SCM_SVC_LMH			0x13
 #define SCM_SVC_TZSCHEDULER		0xFC
+#define SCM_SVC_OEM			0xFE
 
 #define SCM_FUSE_READ			0x7
 #define SCM_CMD_HDCP			0x01
 
 /* SCM Features */
 #define SCM_SVC_SEC_CAMERA		0xD
+
+#define TZ_HTC_SVC_READ_SIMLOCK_MASK	0x0D
+#define TZ_HTC_SVC_SIMLOCK_UNLOCK	0x0E
+#define TZ_HTC_SVC_GET_SECURITY_LEVEL	0x10
+#define TZ_HTC_SVC_MEMPROT		0x15
+#define TZ_HTC_SVC_LOG_OPERATOR		0x16
+#define TZ_HTC_SVC_ACCESS_ITEM		0x1A
+#define TZ_HTC_SVC_3RD_PARTY		0x1B
+
+#define ITEM_MDM9K_SERIAL		0
+#define ITEM_CRYPTO_RAMDUMP		1
+#define ITEM_ENCRYPT_RAMDUMP		3
+
+#define ITEM_KEYBOX_PROVISION		0x11
+#define ITEM_KEYBOX_DATA		0x21
+#define ITEM_DEVICE_ID			0x22
+#define ITEM_RAND_DATA			0x23
+#define ITEM_VALIDATE_KEYBOX		0x26
+#define ITEM_READ_MEM			0x28
+#define ITEM_CPRMKEY_ADDR		0x31
+#define ITEM_CPRMKEY_DATA		0x32
+#define ITEM_SD_KEY_ENCRYPT		0x33
+#define ITEM_SD_KEY_DECRYPT		0x34
+#define ITEM_SEC_ATS			0x39
+#define ITEM_REMOTE_MSG         	0x3A
+#define ITEM_GDRIVE_DATA        	0x3C
+#define ITEM_VOUCHER_SIG_DATA   	0x3E
+
+typedef struct {
+	u8 enable;
+	u8 chk_cln;
+	u32 addr;
+	u32 len;
+} mem_chk_t;
 
 #define DEFINE_SCM_BUFFER(__n) \
 static char __n[PAGE_SIZE] __aligned(PAGE_SIZE);
@@ -128,6 +163,18 @@ struct scm_hdcp_req {
 	u32 addr;
 	u32 val;
 };
+
+#ifdef CONFIG_HTC_SCM
+extern int secure_read_simlock_mask(void);
+extern int secure_simlock_unlock(unsigned int unlock, unsigned char *code);
+extern int secure_get_security_level(void);
+extern int secure_memprot(void);
+extern int secure_log_operation(unsigned int address, unsigned int size,
+		unsigned int buf_addr, unsigned int buf_len, int revert);
+extern int secure_access_item(unsigned int is_write, unsigned int id, unsigned int buf_len, unsigned char *buf);
+extern void scm_flush_range(unsigned long start, unsigned long end);
+extern void scm_inv_range(unsigned long start, unsigned long end);
+#endif
 
 #else
 

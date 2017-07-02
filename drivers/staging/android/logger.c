@@ -820,7 +820,13 @@ static int __init logger_init(void)
 	if (unlikely(ret))
 		goto out;
 
-	ret = create_log(LOGGER_LOG_RADIO, CONFIG_LOGCAT_SIZE*1024);
+//+SSD_RIL: enlarge radio log buffer
+#ifdef CONFIG_HTC_FEATURES_RIL_PCN0008_ENLARGE_RADIO_BUFFER
+        ret = create_log(LOGGER_LOG_RADIO, (CONFIG_LOGCAT_SIZE * 1024 * 2));
+#else
+        ret = create_log(LOGGER_LOG_RADIO, CONFIG_LOGCAT_SIZE*1024);
+#endif
+//-SSD_RIL: enlarge radio log buffer
 	if (unlikely(ret))
 		goto out;
 

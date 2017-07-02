@@ -15,7 +15,7 @@
 #include <linux/usb/composite.h>
 #include <linux/usb/cdc.h>
 
-#define MAX_U_SERIAL_PORTS	4
+#define MAX_U_SERIAL_PORTS 8
 
 struct f_serial_opts {
 	struct usb_function_instance func_inst;
@@ -89,6 +89,7 @@ int gsmd_write(u8 portno, char *buf, unsigned int size);
 
 
 /* functions are bound to configurations by a config or gadget driver */
+int acm_bind_config(struct usb_configuration *c, u8 port_num);
 int gser_bind_config(struct usb_configuration *c, u8 port_num);
 int obex_bind_config(struct usb_configuration *c, u8 port_num);
 

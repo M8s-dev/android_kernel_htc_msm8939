@@ -33,6 +33,8 @@
 		qcom,charging-disabled;
 		qcom,empty-soc-disabled;
 		qcom,chg-inhibit-disabled;
+		qcom,otg-fet-present;
+		qcom,otg-fet-enable-gpio = <&pm8916_gpios 3 0>;
 		qcom,float-voltage-mv = <4200>;
 		qcom,iterm-ma = <200>;
 		qcom,recharge-thresh-mv = <100>;

@@ -20,8 +20,14 @@
 DEFINE_MSM_MUTEX(msm_actuator_mutex);
 
 #undef CDBG
+#ifdef MSM_ACUTUATOR_DEBUG
+#define CDBG(fmt, args...) pr_info("[CAM] : " fmt, ##args)
+#else
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
+#endif
+
 #define MAX_QVALUE  4096
+
 static struct v4l2_file_operations msm_actuator_v4l2_subdev_fops;
 static int32_t msm_actuator_power_up(struct msm_actuator_ctrl_t *a_ctrl);
 static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl);
@@ -37,6 +43,765 @@ static struct msm_actuator *actuators[] = {
 	&msm_hvcm_actuator_table,
 };
 
+
+#define DEFAULT_BIAS 0x63     
+#define DEFAULT_OFFSET 0x57   
+#define DEFAULT_INFINITY 0x7000
+#define DEFAULT_MACRO -0x7000
+
+static struct msm_camera_i2c_reg_array lc898212_settings_1[] = {
+{0x80, 0x34},
+{0x81, 0x20},
+{0x84, 0xE0},
+{0x87, 0x05},
+{0xA4, 0x24},
+{0x8B, 0x80},
+{0x3A, 0x00},
+{0x3B, 0x00},
+{0x04, 0x00},
+{0x05, 0x00},
+{0x02, 0x00},
+{0x03, 0x00},
+{0x18, 0x00},
+{0x19, 0x00},
+{0x28, 0x80},
+{0x29, 0x80},
+{0x83, 0x2C},
+{0x84, 0xE3},
+{0x97, 0x00},
+{0x98, 0x42},
+{0x99, 0x00},
+{0x9A, 0x00},
+};
+
+static struct msm_camera_i2c_reg_array lc898212_settings_2_MTM[] = {
+{0x88, 0x68},
+{0x92, 0x00},
+{0xA0, 0x01},
+{0x7A, 0x68},
+{0x7B, 0x00},
+{0x7E, 0x78},
+{0x7F, 0x00},
+{0x7C, 0x01},
+{0x7D, 0x00},
+{0x93, 0xC0},
+{0x86, 0x60},
+
+{0x40, 0x80},
+{0x41, 0x10},
+{0x42, 0x75},
+{0x43, 0x70},
+{0x44, 0x8B},
+{0x45, 0x50},
+{0x46, 0x6A},
+{0x47, 0x10},
+{0x48, 0x5A},
+{0x49, 0x90},
+{0x76, 0x0C},
+{0x77, 0x50},
+{0x4A, 0x20},
+{0x4B, 0x30},
+{0x50, 0x04},
+{0x51, 0xF0},
+{0x52, 0x76},
+{0x53, 0x10},
+{0x54, 0x14},
+{0x55, 0x50},
+{0x56, 0x00},
+{0x57, 0x00},
+{0x58, 0x7F},
+{0x59, 0xF0},
+{0x4C, 0x32},
+{0x4D, 0xF0},
+{0x78, 0x20},
+{0x79, 0x00},
+{0x4E, 0x7F},
+{0x4F, 0xF0},
+{0x6E, 0x00},
+{0x6F, 0x00},
+{0x72, 0x18},
+{0x73, 0xE0},
+{0x74, 0x4E},
+{0x75, 0x30},
+{0x30, 0x00},
+{0x31, 0x00},
+{0x5A, 0x06},
+{0x5B, 0x80},
+{0x5C, 0x72},
+{0x5D, 0xF0},
+{0x5E, 0x7F},
+{0x5F, 0x70},
+{0x60, 0x7E},
+{0x61, 0xD0},
+{0x62, 0x7F},
+{0x63, 0xF0},
+{0x64, 0x00},
+{0x65, 0x00},
+{0x66, 0x00},
+{0x67, 0x00},
+{0x68, 0x51},
+{0x69, 0x30},
+{0x6A, 0x72},
+{0x6B, 0xF0},
+{0x70, 0x00},
+{0x71, 0x00},
+{0x6C, 0x80},
+{0x6D, 0x10},
+
+{0x76, 0x0c},
+{0x77, 0x50},
+{0x78, 0x20},
+{0x79, 0x00},
+{0x30, 0x00},
+{0x31, 0x00},
+};
+
+static struct msm_camera_i2c_reg_array lc898212_settings_2_TDK[] = {
+{0x88, 0x70},
+{0x92, 0x00},
+{0xA0, 0x02},
+{0x7A, 0x68},
+{0x7B, 0x00},
+{0x7E, 0x78},
+{0x7F, 0x00},
+{0x7C, 0x01},
+{0x7D, 0x00},
+{0x93, 0xC0},
+{0x86, 0x60},
+
+{0x40, 0x40},
+{0x41, 0x30},
+{0x42, 0x71},
+{0x43, 0x50},
+{0x44, 0x8F},
+{0x45, 0x90},
+{0x46, 0x61},
+{0x47, 0xB0},
+{0x48, 0x7F},
+{0x49, 0xF0},
+{0x76, 0x0C},
+{0x77, 0x50},
+{0x4A, 0x39},
+{0x4B, 0x30},
+{0x50, 0x04},
+{0x51, 0xF0},
+{0x52, 0x76},
+{0x53, 0x10},
+{0x54, 0x20},
+{0x55, 0x30},
+{0x56, 0x00},
+{0x57, 0x00},
+{0x58, 0x7F},
+{0x59, 0xF0},
+{0x4C, 0x40},
+{0x4D, 0x30},
+{0x78, 0x40},
+{0x79, 0x00},
+{0x4E, 0x80},
+{0x4F, 0x10},
+{0x6E, 0x00},
+{0x6F, 0x00},
+{0x72, 0x18},
+{0x73, 0xE0},
+{0x74, 0x4E},
+{0x75, 0x30},
+{0x30, 0x00},
+{0x31, 0x00},
+{0x5A, 0x06},
+{0x5B, 0x80},
+{0x5C, 0x72},
+{0x5D, 0xF0},
+{0x5E, 0x7F},
+{0x5F, 0x70},
+{0x60, 0x7E},
+{0x61, 0xD0},
+{0x62, 0x7F},
+{0x63, 0xF0},
+{0x64, 0x00},
+{0x65, 0x00},
+{0x66, 0x00},
+{0x67, 0x00},
+{0x68, 0x51},
+{0x69, 0x30},
+{0x6A, 0x72},
+{0x6B, 0xF0},
+{0x70, 0x00},
+{0x71, 0x00},
+{0x6C, 0x80},
+{0x6D, 0x10},
+
+{0x76, 0x0c},
+{0x77, 0x50},
+{0x78, 0x40},
+{0x79, 0x00},
+{0x30, 0x00},
+{0x31, 0x00},
+};
+
+static struct msm_camera_i2c_reg_array lc898212_settings_3[] = {
+{0x3A, 0x00},
+{0x3B, 0x00}, 
+{0x04, 0x00},
+{0x05, 0x00}, 
+{0x02, 0x00},
+{0x03, 0x00}, 
+{0x85, 0xC0}, 
+};
+static struct msm_camera_i2c_reg_array lc898212_settings_4[] = {
+{0x5A, 0x08},
+{0x5B, 0x00},
+{0x83, 0xac},
+};
+
+static struct msm_camera_i2c_reg_array lc898212_settings_2_0x13[] = {
+{0x88, 0x70},
+{0x92, 0x00},
+{0xA0, 0x01},
+{0x7A, 0x68},
+{0x7B, 0x00},
+{0x7E, 0x78},
+{0x7F, 0x00},
+{0x7C, 0x01},
+{0x7D, 0x00},
+{0x93, 0xC0},
+{0x86, 0x60},
+
+{0x40, 0x80},
+{0x41, 0x10},
+{0x42, 0x71},
+{0x43, 0x50},
+{0x44, 0x8F},
+{0x45, 0x90},
+{0x46, 0x61},
+{0x47, 0xB0},
+{0x48, 0x65},
+{0x49, 0xB0},
+{0x76, 0x0C},
+{0x77, 0x50},
+{0x4A, 0x28},
+{0x4B, 0x70},
+{0x50, 0x04},
+{0x51, 0xF0},
+{0x52, 0x76},
+{0x53, 0x10},
+{0x54, 0x16},
+{0x55, 0xC0},
+{0x56, 0x00},
+{0x57, 0x00},
+{0x58, 0x7F},
+{0x59, 0xF0},
+{0x4C, 0x40},
+{0x4D, 0x30},
+{0x78, 0x40},
+{0x79, 0x00},
+{0x4E, 0x7F},
+{0x4F, 0xF0},
+{0x6E, 0x00},
+{0x6F, 0x00},
+{0x72, 0x18},
+{0x73, 0xE0},
+{0x74, 0x4E},
+{0x75, 0x30},
+{0x30, 0x00},
+{0x31, 0x00},
+{0x5A, 0x06},
+{0x5B, 0x80},
+{0x5C, 0x72},
+{0x5D, 0xF0},
+{0x5E, 0x7F},
+{0x5F, 0x70},
+{0x60, 0x7E},
+{0x61, 0xD0},
+{0x62, 0x7F},
+{0x63, 0xF0},
+{0x64, 0x00},
+{0x65, 0x00},
+{0x66, 0x00},
+{0x67, 0x00},
+{0x68, 0x51},
+{0x69, 0x30},
+{0x6A, 0x72},
+{0x6B, 0xF0},
+{0x70, 0x00},
+{0x71, 0x00},
+{0x6C, 0x80},
+{0x6D, 0x10},
+
+{0x76, 0x0c},
+{0x77, 0x50},
+{0x78, 0x40},
+{0x79, 0x00},
+{0x30, 0x00},
+{0x31, 0x00},
+};
+
+#define STORE_OTP_INF 
+
+#ifdef STORE_OTP_INF
+int g_infinity_pos = 100;
+#endif
+
+static int16_t af_actuator_lc898212_dec2hex(int input_dec)
+{
+	int16_t hex_min = LC898212_HEX_MIN;
+	int16_t hex_max = LC898212_HEX_MAX;
+	int dec_max_Pos = LC898212_DEC_MAX;
+	int16_t hex_output_position = 0;
+
+	if (dec_max_Pos == 0) {
+		pr_err("dec_max_Pos = 0!");
+		return 0;
+	}
+	hex_output_position = hex_max - (dec_max_Pos - input_dec) * (hex_max - hex_min) / dec_max_Pos;
+
+	CDBG("input_dec:%d. hex_output_position:0x%x (%d)", input_dec, (uint16_t)hex_output_position, hex_output_position);
+	return hex_output_position;
+}
+
+static int32_t lc898212_wrapper_i2c_write(struct msm_actuator_ctrl_t *a_ctrl,
+    int16_t next_lens_position, int8_t dir)
+{
+    int32_t rc = 0;
+    
+
+    CDBG("%s next_lens_position: %x (%d)\n", __func__, next_lens_position, (int16_t)next_lens_position);
+
+    CDBG("%s addr_type: %d, sid 0x%x (0x%x), \n", __func__, a_ctrl->i2c_client.addr_type, a_ctrl->i2c_client.cci_client->sid, (a_ctrl->i2c_client.cci_client->sid<<1));
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client,
+            0xa1,
+            next_lens_position,
+            MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s 0xa1 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client,
+         0x16,
+         (dir > 0) ? 0xfe80 : 0x180,
+         MSM_CAMERA_I2C_WORD_DATA);
+
+    if (rc < 0) {
+        pr_err("%s 0x16 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client,
+         0x8a,
+         0xd,
+         MSM_CAMERA_I2C_BYTE_DATA);
+    if (rc < 0) {
+         pr_err("%s 0x8a i2c write failed (%d)\n", __func__, rc);
+         return rc;
+    }
+
+    return rc;
+}
+
+static int32_t lc898212_act_init_focus(struct msm_actuator_ctrl_t *a_ctrl,
+    uint16_t size, enum msm_actuator_data_type type,
+    struct reg_settings_t *settings)
+{
+    int32_t rc = 0;
+    uint16_t data=0;
+    uint16_t step=0;
+    uint8_t bias = DEFAULT_BIAS;
+    uint8_t offset = DEFAULT_OFFSET;
+    
+    uint16_t infinity = 0x0000;
+    struct msm_camera_i2c_reg_setting lc898212_settings = {
+        .addr_type = MSM_CAMERA_I2C_BYTE_ADDR,
+        .data_type = MSM_CAMERA_I2C_BYTE_DATA,
+        .delay = 0,
+        
+    };
+
+    if (a_ctrl->af_OTP_info.VCM_OTP_Read) {
+        bias = a_ctrl->af_OTP_info.VCM_Bias;
+        offset = a_ctrl->af_OTP_info.VCM_Offset;
+        infinity = a_ctrl->af_OTP_info.VCM_Infinity;
+    }
+
+    lc898212_settings.reg_setting = lc898212_settings_1;
+    lc898212_settings.size = ARRAY_SIZE(lc898212_settings_1);
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(&a_ctrl->i2c_client, &lc898212_settings);
+    if (rc < 0) {
+        pr_err("%s: lc898212_settings_1 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+    mdelay(1);
+    CDBG("%s: lc898212_settings_1 i2c write done (%d)\n", __func__, rc);
+
+    switch (a_ctrl->af_OTP_info.VCM_Vendor_Id_Version)
+    {
+        case 0x61:
+            lc898212_settings.reg_setting = lc898212_settings_2_MTM;
+            lc898212_settings.size = ARRAY_SIZE(lc898212_settings_2_MTM);
+            break;
+        case 0x71:
+        case 0x72:
+            lc898212_settings.reg_setting = lc898212_settings_2_TDK;
+            lc898212_settings.size = ARRAY_SIZE(lc898212_settings_2_TDK);
+            break;
+        case 0x13:
+            lc898212_settings.reg_setting = lc898212_settings_2_0x13;
+            lc898212_settings.size = ARRAY_SIZE(lc898212_settings_2_0x13);
+            
+            break;
+        default:
+            lc898212_settings.reg_setting = lc898212_settings_2_MTM;
+            lc898212_settings.size = ARRAY_SIZE(lc898212_settings_2_MTM);
+            break;
+    }
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(&a_ctrl->i2c_client, &lc898212_settings);
+
+
+    if (rc < 0) {
+        pr_err("%s: lc898212_settings_2 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x28, offset, MSM_CAMERA_I2C_BYTE_DATA); 
+    if (rc < 0) {
+        pr_err("%s 0x28 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x29, bias, MSM_CAMERA_I2C_BYTE_DATA); 
+    if (rc < 0) {
+        pr_err("%s 0x29 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    lc898212_settings.reg_setting = lc898212_settings_3;
+    lc898212_settings.size = ARRAY_SIZE(lc898212_settings_3);
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(&a_ctrl->i2c_client, &lc898212_settings);
+    if (rc < 0) {
+        pr_err("%s: lc898212_settings_3 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+    mdelay(1);
+    pr_err("%s: lc898212_settings_3 i2c write done (%d)\n", __func__, rc);
+
+    
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_read(&a_ctrl->i2c_client, 0x3c, &data, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s: i2c read failed (%d)\n", __func__, rc);
+        return rc;
+    }
+    else
+    {
+        pr_err("%s: read current position1 = 0x%x\n", __func__, data);
+	}
+    
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x4, data, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s: 0x87 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x18, data, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s: 0x18 i2c read failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x87, 0x85, MSM_CAMERA_I2C_BYTE_DATA);
+    if (rc < 0) {
+        pr_err("%s: 0x87 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    lc898212_settings.reg_setting = lc898212_settings_4;
+    lc898212_settings.size = ARRAY_SIZE(lc898212_settings_4);
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(&a_ctrl->i2c_client, &lc898212_settings);
+    if (rc < 0) {
+        pr_err("%s: lc898212_settings_4 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+    pr_err("%s: lc898212_settings_4 i2c write done (%d)\n", __func__, rc);
+
+    
+    switch (a_ctrl->af_OTP_info.VCM_Vendor_Id_Version)
+    {
+        case 0x61:
+            rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0xA0, 0x01, MSM_CAMERA_I2C_BYTE_DATA);
+            break;
+        case 0x71:
+        case 0x72:
+            rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0xA0, 0x02, MSM_CAMERA_I2C_BYTE_DATA);
+            break;
+        default:
+            rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0xA0, 0x01, MSM_CAMERA_I2C_BYTE_DATA);
+            break;
+    }
+    if (rc < 0) {
+        pr_err("%s: 0xA0 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_read(&a_ctrl->i2c_client, 0x3c, &data, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s: i2c read failed (%d)\n", __func__, rc);
+        return rc;
+    }
+    else
+    {
+        pr_err("%s: read current position2 = 0x%x\n", __func__, data);
+	}
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x18, data, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s: 0x18 i2c read failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0xa1, infinity, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s 0xa1 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    switch (a_ctrl->af_OTP_info.VCM_Vendor_Id_Version)
+    {
+        case 0x61:
+            pr_err("[blossom]%s: VCM_Vendor_Id_Version = 0x61\n", __func__);
+            step = (signed short)infinity > (signed short)data ? 0x0180 : 0xfe80;
+            break;
+        case 0x71:
+        case 0x72:
+            pr_err("[blossom]%s: VCM_Vendor_Id_Version = 0x71\n", __func__);
+            step = (signed short)infinity > (signed short)data ? 0xfe80 : 0x0180;
+            break;
+        default:
+            step = (signed short)infinity > (signed short)data ? 0x0180 : 0xfe80;
+            break;
+    }
+    pr_err("%s: step = 0x%x, infinity = 0x%x\n", __func__, step, infinity);
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x16, step, MSM_CAMERA_I2C_WORD_DATA);
+    if (rc < 0) {
+        pr_err("%s 0x16 i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+    rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client, 0x8a, 0xd, MSM_CAMERA_I2C_BYTE_DATA);
+    if (rc < 0) {
+        pr_err("%s 0x8a i2c write failed (%d)\n", __func__, rc);
+        return rc;
+    }
+
+
+    return rc;
+
+}
+
+static int32_t msm_actuator_set_af_value(struct msm_actuator_ctrl_t *a_ctrl, af_value_t af_value)
+{
+	#if 1 
+	a_ctrl->af_OTP_info.VCM_OTP_Read = true;
+	a_ctrl->af_OTP_info.VCM_Infinity = (af_value.AF_INF_MSB<<8) | af_value.AF_INF_LSB;
+	a_ctrl->af_OTP_info.VCM_Bias = af_value.VCM_BIAS;
+	a_ctrl->af_OTP_info.VCM_Offset = af_value.VCM_OFFSET;
+	a_ctrl->af_OTP_info.VCM_Vendor_Id_Version = af_value.VCM_VENDOR_ID_VERSION;
+	if(!strcmp(af_value.ACT_NAME, "lc898212"))
+	{
+		a_ctrl->act_i2c_select = WRITE_MULTI_TABLE;
+	}
+	else
+	{
+		a_ctrl->act_i2c_select = WRITE_TABLE_W_MICRODELAY;
+	}
+
+	if(strcmp(af_value.ACT_NAME, "lc898212_act") == 0)
+	{
+		a_ctrl->act_i2c_select = WRITE_MULTI_TABLE;
+	}
+
+	pr_info("%s: VCM_Infinity = 0x%x (%d)\n",       __func__, a_ctrl->af_OTP_info.VCM_Infinity,     (int16_t)a_ctrl->af_OTP_info.VCM_Infinity);
+	pr_info("%s: VCM_Bias = 0x%x (%d)\n",           __func__, a_ctrl->af_OTP_info.VCM_Bias,         (int16_t)a_ctrl->af_OTP_info.VCM_Bias);
+	pr_info("%s: VCM_Offset = 0x%x (%d)\n",         __func__, a_ctrl->af_OTP_info.VCM_Offset,       (int16_t)a_ctrl->af_OTP_info.VCM_Offset);
+	pr_info("%s: VCM_Vendor_Id_Version = 0x%x (%d)\n", __func__, a_ctrl->af_OTP_info.VCM_Vendor_Id_Version, a_ctrl->af_OTP_info.VCM_Vendor_Id_Version);
+    pr_info("%s: act_i2c_select = %d af_value.ACT_NAME = %s \n",       __func__, a_ctrl->act_i2c_select, af_value.ACT_NAME);
+
+	return 0;
+	#else
+	uint8_t i;
+	int32_t rc = 0;
+
+	strlcpy(a_ctrl->af_OTP_info.act_name, af_value.ACT_NAME, sizeof(a_ctrl->af_OTP_info.act_name));
+
+	for(i=0; i< (sizeof(act_func)/sizeof(act_func_t)); i++) {
+		if (!strcmp(a_ctrl->af_OTP_info.act_name, act_func[i].act_name)) {
+			rc = act_func[i].set_af_value(a_ctrl, af_value);
+		}
+	}
+	return rc;
+    #endif
+}
+
+void msm_actuator_dump_step_table(struct msm_actuator_ctrl_t *a_ctrl, int total_step)
+{
+	int i = 0;
+	int remainder = total_step % 10;
+	for (i = 0; i < total_step; i += 10) {
+		if (a_ctrl->act_i2c_select == WRITE_MULTI_TABLE) {
+			if (i + 10 < total_step) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d),[%d]:%d(%d)," \
+					" [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]),
+					i+4, a_ctrl->step_position_table[i+4], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+4]),
+					i+5, a_ctrl->step_position_table[i+5], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+5]),
+					i+6, a_ctrl->step_position_table[i+6], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+6]),
+					i+7, a_ctrl->step_position_table[i+7], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+7]),
+					i+8, a_ctrl->step_position_table[i+8], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+8]),
+					i+9, a_ctrl->step_position_table[i+9], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+9]));
+			}
+			else if (remainder == 9) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d),[%d]:%d(%d)," \
+					" [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]),
+					i+4, a_ctrl->step_position_table[i+4], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+4]),
+					i+5, a_ctrl->step_position_table[i+5], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+5]),
+					i+6, a_ctrl->step_position_table[i+6], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+6]),
+					i+7, a_ctrl->step_position_table[i+7], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+7]),
+					i+8, a_ctrl->step_position_table[i+8], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+8]));
+			}
+			else if (remainder == 8) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d),[%d]:%d(%d)," \
+					" [%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]),
+					i+4, a_ctrl->step_position_table[i+4], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+4]),
+					i+5, a_ctrl->step_position_table[i+5], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+5]),
+					i+6, a_ctrl->step_position_table[i+6], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+6]),
+					i+7, a_ctrl->step_position_table[i+7], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+7]));
+			}
+			else if (remainder == 7) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d),[%d]:%d(%d)," \
+					" [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]),
+					i+4, a_ctrl->step_position_table[i+4], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+4]),
+					i+5, a_ctrl->step_position_table[i+5], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+5]),
+					i+6, a_ctrl->step_position_table[i+6], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+6]));
+			}
+			else if (remainder == 6) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d),[%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]),
+					i+4, a_ctrl->step_position_table[i+4], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+4]),
+					i+5, a_ctrl->step_position_table[i+5], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+5]));
+			}
+			else if (remainder == 5) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]),
+					i+4, a_ctrl->step_position_table[i+4], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+4]));
+			}
+			else if (remainder == 4) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]),
+					i+3, a_ctrl->step_position_table[i+3], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+3]));
+			}
+			else if (remainder == 3) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]),
+					i+2, a_ctrl->step_position_table[i+2], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+2]));
+			}
+			else if (remainder == 2) {
+				pr_info("[%d]:%d(%d), [%d]:%d(%d)\n",
+					i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]),
+					i+1, a_ctrl->step_position_table[i+1], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i+1]));
+			}
+			else if (remainder == 1) {
+				pr_info("[%d]:%d(%d)\n", i, a_ctrl->step_position_table[i], af_actuator_lc898212_dec2hex(a_ctrl->step_position_table[i]));
+			}
+		}
+		else {
+			if (i + 10 < total_step) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d,[%d]:%d," \
+					" [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3],
+					i+4, a_ctrl->step_position_table[i+4], i+5, a_ctrl->step_position_table[i+5],
+					i+6, a_ctrl->step_position_table[i+6], i+7, a_ctrl->step_position_table[i+7],
+					i+8, a_ctrl->step_position_table[i+8], i+9, a_ctrl->step_position_table[i+9]);
+			}
+			else if (remainder == 9) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d,[%d]:%d," \
+					" [%d]:%d, [%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3],
+					i+4, a_ctrl->step_position_table[i+4], i+5, a_ctrl->step_position_table[i+5],
+					i+6, a_ctrl->step_position_table[i+6], i+7, a_ctrl->step_position_table[i+7],
+					i+8, a_ctrl->step_position_table[i+8]);
+			}
+			else if (remainder == 8) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d,[%d]:%d," \
+					" [%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3],
+					i+4, a_ctrl->step_position_table[i+4], i+5, a_ctrl->step_position_table[i+5],
+					i+6, a_ctrl->step_position_table[i+6], i+7, a_ctrl->step_position_table[i+7]);
+			}
+			else if (remainder == 7) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d,[%d]:%d," \
+					" [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3],
+					i+4, a_ctrl->step_position_table[i+4], i+5, a_ctrl->step_position_table[i+5],
+					i+6, a_ctrl->step_position_table[i+6]);
+			}
+			else if (remainder == 6) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d,[%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3],
+					i+4, a_ctrl->step_position_table[i+4], i+5, a_ctrl->step_position_table[i+5]);
+			}
+			else if (remainder == 5) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3],
+					i+4, a_ctrl->step_position_table[i+4]);
+			}
+			else if (remainder == 4) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2], i+3, a_ctrl->step_position_table[i+3]);
+			}
+			else if (remainder == 3) {
+				pr_info("[%d]:%d, [%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1],
+					i+2, a_ctrl->step_position_table[i+2]);
+			}
+			else if (remainder == 2) {
+				pr_info("[%d]:%d, [%d]:%d\n",
+					i, a_ctrl->step_position_table[i], i+1, a_ctrl->step_position_table[i+1]);
+			}
+			else if (remainder == 1) {
+				pr_info("[%d]:%d\n", i, a_ctrl->step_position_table[i]);
+			}
+		}
+	}
+}
 static int32_t msm_actuator_piezo_set_default_focus(
 	struct msm_actuator_ctrl_t *a_ctrl,
 	struct msm_actuator_move_params_t *move_params)
@@ -80,8 +845,6 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 	struct msm_camera_i2c_reg_array *i2c_tbl = a_ctrl->i2c_reg_tbl;
 	CDBG("Enter\n");
 	for (i = 0; i < size; i++) {
-		/* check that the index into i2c_tbl cannot grow larger that
-		the allocated size of i2c_tbl */
 		if ((a_ctrl->total_steps + 1) < (a_ctrl->i2c_tbl_index)) {
 			break;
 		}
@@ -95,7 +858,13 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 				i2c_byte1 = write_arr[i].reg_addr;
 				i2c_byte2 = value;
 				if (size != (i+1)) {
+                
+                #if 1
+					i2c_byte2 = (value & 0xFF00) >> 8;
+                #else
 					i2c_byte2 = value & 0xFF;
+                #endif
+                
 					CDBG("byte1:0x%x, byte2:0x%x\n",
 						i2c_byte1, i2c_byte2);
 					i2c_tbl[a_ctrl->i2c_tbl_index].
@@ -107,7 +876,13 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 					a_ctrl->i2c_tbl_index++;
 					i++;
 					i2c_byte1 = write_arr[i].reg_addr;
+                
+                #if 1
+					i2c_byte2 = value & 0xFF;
+                #else
 					i2c_byte2 = (value & 0xFF00) >> 8;
+                #endif
+                
 				}
 			} else {
 				i2c_byte1 = (value & 0xFF00) >> 8;
@@ -196,7 +971,9 @@ static void msm_actuator_write_focus(
 	int8_t sign_direction,
 	int16_t code_boundary)
 {
+#if 0
 	int16_t next_lens_pos = 0;
+#endif
 	uint16_t damping_code_step = 0;
 	uint16_t wait_time = 0;
 	CDBG("Enter\n");
@@ -204,7 +981,8 @@ static void msm_actuator_write_focus(
 	damping_code_step = damping_params->damping_step;
 	wait_time = damping_params->damping_delay;
 
-	/* Write code based on damping_code_step in a loop */
+#if 0
+	
 	for (next_lens_pos =
 		curr_lens_pos + (sign_direction * damping_code_step);
 		(sign_direction * next_lens_pos) <=
@@ -216,10 +994,16 @@ static void msm_actuator_write_focus(
 			next_lens_pos, damping_params->hw_params, wait_time);
 		curr_lens_pos = next_lens_pos;
 	}
+#endif
 
 	if (curr_lens_pos != code_boundary) {
-		a_ctrl->func_tbl->actuator_parse_i2c_params(a_ctrl,
-			code_boundary, damping_params->hw_params, wait_time);
+        
+        if(a_ctrl->act_i2c_select == WRITE_MULTI_TABLE)
+            lc898212_wrapper_i2c_write(a_ctrl, code_boundary, sign_direction);
+        else
+        
+		    a_ctrl->func_tbl->actuator_parse_i2c_params(a_ctrl,
+		        code_boundary, damping_params->hw_params, wait_time);
 	}
 	CDBG("Exit\n");
 }
@@ -315,12 +1099,36 @@ static int32_t msm_actuator_move_focus(
 	if (dest_step_pos > a_ctrl->total_steps) {
 		pr_err("Step pos greater than total steps = %d\n",
 		dest_step_pos);
+        #if 0 
 		return -EFAULT;
+        #endif 
 	}
 	curr_lens_pos = a_ctrl->step_position_table[a_ctrl->curr_step_pos];
 	a_ctrl->i2c_tbl_index = 0;
 	CDBG("curr_step_pos =%d dest_step_pos =%d curr_lens_pos=%d\n",
 		a_ctrl->curr_step_pos, dest_step_pos, curr_lens_pos);
+    
+	#ifdef STORE_OTP_INF
+    if(g_infinity_pos <= dest_step_pos)   
+    {
+        pr_info("%s move focus for dual camera calibration, dest_step_pos=%d\n", __func__, dest_step_pos);
+        target_step_pos = dest_step_pos;
+        target_lens_pos =
+				a_ctrl->step_position_table[target_step_pos];
+		CDBG("target_step_pos %d, target_lens_pos %d\n", target_step_pos, target_lens_pos); 
+		a_ctrl->func_tbl->actuator_write_focus(a_ctrl,
+					curr_lens_pos,
+					&(move_params->
+						ringing_params[a_ctrl->
+						curr_region_index]),
+					sign_dir,
+					target_lens_pos);
+		a_ctrl->curr_step_pos = dest_step_pos;
+    }
+    else
+    {
+	#endif
+    
 
 	while (a_ctrl->curr_step_pos != dest_step_pos) {
 		step_boundary =
@@ -354,13 +1162,25 @@ static int32_t msm_actuator_move_focus(
 		}
 		a_ctrl->curr_step_pos = target_step_pos;
 	}
+    
+#ifdef STORE_OTP_INF
+    }
+#endif
+    CDBG("sid = 0x%x (0x%x)\n",a_ctrl->i2c_client.cci_client->sid, a_ctrl->i2c_client.cci_client->sid<<1); 
+    
 
+	if(a_ctrl->act_i2c_select == WRITE_MULTI_TABLE)
+	{}
+	else
+	{
 	move_params->curr_lens_pos = curr_lens_pos;
 	reg_setting.reg_setting = a_ctrl->i2c_reg_tbl;
 	reg_setting.data_type = a_ctrl->i2c_data_type;
 	reg_setting.size = a_ctrl->i2c_tbl_index;
 	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table_w_microdelay(
 		&a_ctrl->i2c_client, &reg_setting);
+	}
+
 	if (rc < 0) {
 		pr_err("i2c write error:%d\n", rc);
 		return rc;
@@ -414,7 +1234,7 @@ static int32_t msm_actuator_park_lens(struct msm_actuator_ctrl_t *a_ctrl)
 			return rc;
 		}
 		a_ctrl->i2c_tbl_index = 0;
-		/* Use typical damping time delay to avoid tick sound */
+		
 		usleep_range(10000, 12000);
 	}
 
@@ -449,14 +1269,35 @@ static int32_t msm_actuator_init_step_table(struct msm_actuator_ctrl_t *a_ctrl,
 		set_info->af_tuning_params.total_steps);
 		return -EFAULT;
 	}
-	/* Fill step position table */
+	
+    
+#ifdef STORE_OTP_INF 
+    a_ctrl->step_position_table =
+    kmalloc(sizeof(uint16_t) *(set_info->af_tuning_params.total_steps + 5), GFP_KERNEL);   
+    g_infinity_pos = set_info->af_tuning_params.total_steps + 1;
+    pr_info("g_infinity_pos: %d\n", g_infinity_pos);
+#else
 	a_ctrl->step_position_table =
 		kzalloc(sizeof(uint16_t) *
 		(set_info->af_tuning_params.total_steps + 1), GFP_KERNEL);
+#endif
+    
 
 	if (a_ctrl->step_position_table == NULL)
 		return -ENOMEM;
 
+	if(set_info->step_position_table != NULL){
+	    int i =0;
+		#ifdef STORE_OTP_INF
+		for (i = 0; i <= a_ctrl->total_steps + 4; i++)   
+		#else
+		for (i = 0; i <= a_ctrl->total_steps; i++)
+		#endif
+		{
+			a_ctrl->step_position_table[i] = set_info->step_position_table[i];
+			CDBG("step_position_table(%d):%d;",i, a_ctrl->step_position_table[i]);
+		}
+	} else {
 	cur_code = set_info->af_tuning_params.initial_code;
 	a_ctrl->step_position_table[step_index++] = cur_code;
 	for (region_index = 0;
@@ -491,6 +1332,8 @@ static int32_t msm_actuator_init_step_table(struct msm_actuator_ctrl_t *a_ctrl,
 			a_ctrl->step_position_table[step_index]);
 		}
 	}
+	}
+
 	CDBG("Exit\n");
 	return 0;
 }
@@ -501,7 +1344,8 @@ static int32_t msm_actuator_set_default_focus(
 {
 	int32_t rc = 0;
 	CDBG("Enter\n");
-
+	pr_info("[CAM]msm_actuator_set_default_focus , set a_ctrl->curr_step_pos = 1\n");
+        a_ctrl->curr_step_pos = 1;
 	if (a_ctrl->curr_step_pos != 0)
 		rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl, move_params);
 	CDBG("Exit\n");
@@ -550,12 +1394,6 @@ static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl)
 	CDBG("Enter\n");
 	if (a_ctrl->actuator_state != ACTUATOR_POWER_DOWN) {
 
-		if (a_ctrl->func_tbl && a_ctrl->func_tbl->actuator_park_lens) {
-			rc = a_ctrl->func_tbl->actuator_park_lens(a_ctrl);
-			if (rc < 0)
-				pr_err("%s:%d Lens park failed.\n",
-					__func__, __LINE__);
-		}
 
 		rc = msm_actuator_vreg_control(a_ctrl, 0);
 		if (rc < 0) {
@@ -674,6 +1512,11 @@ static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 
 	a_ctrl->i2c_data_type = set_info->actuator_params.i2c_data_type;
 	a_ctrl->i2c_client.addr_type = set_info->actuator_params.i2c_addr_type;
+	
+	if (a_ctrl->act_i2c_select != WRITE_MULTI_TABLE)
+	    a_ctrl->act_i2c_select = set_info->act_i2c_select;
+
+    CDBG("act_i2c_select : %d\n",a_ctrl->act_i2c_select);
 	if (set_info->actuator_params.reg_tbl_size <=
 		MAX_ACTUATOR_REG_TBL_SIZE) {
 		a_ctrl->reg_tbl_size = set_info->actuator_params.reg_tbl_size;
@@ -696,6 +1539,7 @@ static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 		return -ENOMEM;
 	}
 
+
 	if (copy_from_user(&a_ctrl->reg_tbl,
 		(void *)set_info->actuator_params.reg_tbl_params,
 		a_ctrl->reg_tbl_size *
@@ -704,7 +1548,16 @@ static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 		a_ctrl->i2c_reg_tbl = NULL;
 		return -EFAULT;
 	}
-
+	a_ctrl->enable_focus_step_log = set_info->enable_focus_step_log;
+	if(a_ctrl->act_i2c_select == WRITE_MULTI_TABLE)
+	{
+        rc = lc898212_act_init_focus(a_ctrl,
+				set_info->actuator_params.init_setting_size,
+				a_ctrl->i2c_data_type,
+				init_settings);
+	}
+	else
+	{
 	if (set_info->actuator_params.init_setting_size &&
 		set_info->actuator_params.init_setting_size
 		<= MAX_ACTUATOR_INIT_SET) {
@@ -741,8 +1594,9 @@ static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 			}
 		}
 	}
+	}
 
-	/* Park lens data */
+	
 	a_ctrl->park_lens = set_info->actuator_params.park_lens;
 	a_ctrl->initial_code = set_info->af_tuning_params.initial_code;
 	if (a_ctrl->func_tbl->actuator_init_step_table)
@@ -784,6 +1638,14 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 	CDBG("Enter\n");
 	CDBG("%s type %d\n", __func__, cdata->cfgtype);
 	switch (cdata->cfgtype) {
+	case CFG_SET_ACTUATOR_AF_VALUE:
+	#if 1
+		rc = msm_actuator_set_af_value(a_ctrl, (af_value_t)cdata->cfg.af_value);
+		if (rc < 0) {
+			pr_err("%s set af value failed %d\n", __func__, rc);
+		}
+	#endif
+		break;
 	case CFG_ACTUATOR_INIT:
 		rc = msm_actuator_init(a_ctrl);
 		if (rc < 0)
@@ -888,7 +1750,7 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 	struct msm_actuator_ctrl_t *a_ctrl =  v4l2_get_subdevdata(sd);
 	CDBG("Enter\n");
 	if (!a_ctrl || !a_ctrl->i2c_client.i2c_func_tbl) {
-		/* check to make sure that init happens before release */
+		
 		pr_err("failed\n");
 		return -EINVAL;
 	}
@@ -1014,7 +1876,8 @@ static long msm_actuator_subdev_do_ioctl(
 
 			actuator_data.cfg.set_info.actuator_params.park_lens =
 				u32->cfg.set_info.actuator_params.park_lens;
-
+			actuator_data.cfg.set_info.step_position_table = compat_ptr(
+				u32->cfg.set_info.step_position_table);
 			parg = &actuator_data;
 			break;
 		case CFG_SET_DEFAULT_FOCUS:
@@ -1045,6 +1908,20 @@ static long msm_actuator_subdev_do_ioctl(
 			memcpy(&actuator_data.cfg.setpos, &(u32->cfg.setpos),
 				sizeof(struct msm_actuator_set_position_t));
 			break;
+		
+		case CFG_SET_ACTUATOR_AF_VALUE:
+		#if 0
+			actuator_data.cfgtype = u32->cfgtype;
+			actuator_data.cfg.af_value.AF_INF_MSB = u32->cfg.af_value.AF_INF_MSB;
+			actuator_data.cfg.af_value.AF_INF_LSB = u32->cfg.af_value.AF_INF_LSB;
+			actuator_data.cfg.af_value.VCM_BIAS = u32->cfg.af_value.VCM_BIAS;
+			actuator_data.cfg.af_value.VCM_OFFSET = u32->cfg.af_value.VCM_OFFSET;
+			actuator_data.cfg.af_value.VCM_VENDOR_ID_VERSION = u32->cfg.af_value.VCM_VENDOR_ID_VERSION;
+			strlcpy(actuator_data.cfg.af_value.ACT_NAME, u32->cfg.af_value.ACT_NAME, sizeof(u32->cfg.af_value.ACT_NAME));
+			parg = &actuator_data;
+		#endif
+			break;
+		
 		default:
 			actuator_data.cfgtype = u32->cfgtype;
 			parg = &actuator_data;
@@ -1177,18 +2054,18 @@ static int32_t msm_actuator_i2c_probe(struct i2c_client *client,
 	act_ctrl_t->curr_step_pos = 0,
 	act_ctrl_t->curr_region_index = 0,
 	act_ctrl_t->actuator_state = ACTUATOR_POWER_DOWN;
-	/* Set device type as I2C */
+	
 	act_ctrl_t->act_device_type = MSM_CAMERA_I2C_DEVICE;
 	act_ctrl_t->i2c_client.i2c_func_tbl = &msm_sensor_qup_func_tbl;
 	act_ctrl_t->act_v4l2_subdev_ops = &msm_actuator_subdev_ops;
 	act_ctrl_t->actuator_mutex = &msm_actuator_mutex;
 	act_ctrl_t->cam_name = act_ctrl_t->subdev_id;
 	CDBG("act_ctrl_t->cam_name: %d", act_ctrl_t->cam_name);
-	/* Assign name for sub device */
+	
 	snprintf(act_ctrl_t->msm_sd.sd.name, sizeof(act_ctrl_t->msm_sd.sd.name),
 		"%s", act_ctrl_t->i2c_driver->driver.name);
 
-	/* Initialize sub device */
+	
 	v4l2_i2c_subdev_init(&act_ctrl_t->msm_sd.sd,
 		act_ctrl_t->i2c_client.client,
 		act_ctrl_t->act_v4l2_subdev_ops);
@@ -1273,9 +2150,9 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 	msm_actuator_t->actuator_mutex = &msm_actuator_mutex;
 	msm_actuator_t->cam_name = pdev->id;
 
-	/* Set platform device handle */
+	
 	msm_actuator_t->pdev = pdev;
-	/* Set device type as platform device */
+	
 	msm_actuator_t->act_device_type = MSM_CAMERA_PLATFORM_DEVICE;
 	msm_actuator_t->i2c_client.i2c_func_tbl = &msm_sensor_cci_func_tbl;
 	msm_actuator_t->i2c_client.cci_client = kzalloc(sizeof(

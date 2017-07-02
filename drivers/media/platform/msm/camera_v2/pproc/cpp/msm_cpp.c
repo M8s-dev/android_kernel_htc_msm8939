@@ -60,14 +60,12 @@
 #define CPP_FW_VERSION_1_6_0	0x10060000
 #define CPP_FW_VERSION_1_8_0	0x10080000
 
-/* stripe information offsets in frame command */
 #define STRIPE_BASE_FW_1_2_0	130
 #define STRIPE_BASE_FW_1_4_0	140
 #define STRIPE_BASE_FW_1_6_0	464
 #define STRIPE_BASE_FW_1_8_0	493
 
 
-/* dump the frame command before writing to the hardware */
 #define  MSM_CPP_DUMP_FRM_CMD 0
 
 #define CPP_CLK_INFO_MAX 16
@@ -90,7 +88,6 @@ static int msm_cpp_buffer_ops(struct cpp_device *cpp_dev,
 			((to) ? "to" : "from"))
 #define ERR_COPY_FROM_USER() ERR_USER_COPY(0)
 
-/* CPP bus bandwidth definitions */
 static struct msm_bus_vectors msm_cpp_init_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_CPP,
@@ -613,12 +610,6 @@ static void msm_cpp_poll_rx_empty(void __iomem *cpp_base)
 
 	tmp = msm_camera_io_r(cpp_base + MSM_CPP_MICRO_FIFO_RX_STAT);
 	while (((tmp & 0x2) != 0x0) && (retry++ < MSM_CPP_POLL_RETRIES)) {
-		/*
-		* Below usleep values are chosen based on experiments
-		* and this was the smallest number which works. This
-		* sleep is needed to leave enough time for Microcontroller
-		* to read rx fifo.
-		*/
 		usleep_range(200, 300);
 		tmp = msm_camera_io_r(cpp_base + MSM_CPP_MICRO_FIFO_RX_STAT);
 	}
@@ -774,7 +765,7 @@ void msm_cpp_do_tasklet(unsigned long data)
 					&& (atomic_read(&cpp_timer.used))) {
 					CPP_DBG("Frame done!!\n");
 					CPP_DBG("delete timer.\n");
-					/* delete CPP timer */
+					
 					msm_cpp_clear_timer(cpp_dev);
 					msm_cpp_notify_frame_done(cpp_dev, 0);
 				} else if ((msg_id ==
@@ -873,10 +864,6 @@ static int cpp_init_hardware(struct cpp_device *cpp_dev)
 		clk_put(cpp_dev->cpp_clk[msm_micro_iface_idx]);
 		goto remap_failed;
 	}
-	/*Below usleep values are chosen based on experiments
-	and this was the smallest number which works. This
-	sleep is needed to leave enough time for Microcontroller
-	to resets all its registers.*/
 	usleep_range(10000, 12000);
 
 	rc = clk_reset(cpp_dev->cpp_clk[msm_micro_iface_idx],
@@ -886,10 +873,6 @@ static int cpp_init_hardware(struct cpp_device *cpp_dev)
 		clk_put(cpp_dev->cpp_clk[msm_micro_iface_idx]);
 		goto remap_failed;
 	}
-	/*Below usleep values are chosen based on experiments and
-	this was the smallest number which works. This sleep is
-	needed to leave enough time for Microcontroller to
-	resets all its registers.*/
 	usleep_range(1000, 1200);
 
 	clk_put(cpp_dev->cpp_clk[msm_micro_iface_idx]);
@@ -1072,7 +1055,7 @@ static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 		msm_camera_io_w(0xFFFFFFFF, cpp_dev->base +
 			MSM_CPP_MICRO_IRQGEN_CLR);
 
-		/*Start firmware loading*/
+		
 		msm_cpp_write(MSM_CPP_CMD_FW_LOAD, cpp_dev->base);
 		if (fw)
 			msm_cpp_write(fw->size, cpp_dev->base);
@@ -1096,7 +1079,7 @@ static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 		msm_cpp_poll(cpp_dev->base, MSM_CPP_MSG_ID_CMD);
 	}
 
-	/*Trigger MC to jump to start address*/
+	
 	msm_cpp_write(MSM_CPP_CMD_EXEC_JUMP, cpp_dev->base);
 	msm_cpp_write(MSM_CPP_JUMP_ADDRESS, cpp_dev->base);
 
@@ -1105,12 +1088,12 @@ static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 	msm_cpp_poll(cpp_dev->base, MSM_CPP_MSG_ID_JUMP_ACK);
 	msm_cpp_poll(cpp_dev->base, MSM_CPP_MSG_ID_TRAILER);
 
-	/*Get Bootloader Version*/
+	
 	msm_cpp_write(MSM_CPP_CMD_GET_BOOTLOADER_VER, cpp_dev->base);
 	pr_info("MC Bootloader Version: 0x%x\n",
 		   msm_cpp_read(cpp_dev->base));
 
-	/*Get Firmware Version*/
+	
 	msm_cpp_write(MSM_CPP_CMD_GET_FW_VER, cpp_dev->base);
 	msm_cpp_write(MSM_CPP_MSG_ID_CMD, cpp_dev->base);
 	msm_cpp_write(0x1, cpp_dev->base);
@@ -1124,9 +1107,7 @@ static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 	pr_info("CPP FW Version: 0x%08x\n", cpp_dev->fw_version);
 	msm_cpp_poll(cpp_dev->base, MSM_CPP_MSG_ID_TRAILER);
 
-	/*Disable MC clock*/
-	/*msm_camera_io_w(0x0, cpp_dev->base +
-					   MSM_CPP_MICRO_CLKEN_CTL);*/
+	
 }
 
 static int cpp_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
@@ -1477,7 +1458,7 @@ static int msm_cpp_send_frame_to_hardware(struct cpp_device *cpp_dev,
 
 		cpp_timer.data.processed_frame = process_frame;
 		atomic_set(&cpp_timer.used, 1);
-		/* install timer for cpp timeout */
+		
 		init_timer(&cpp_timer.cpp_timer);
 		CPP_DBG("Installing cpp_timer\n");
 		setup_timer(&cpp_timer.cpp_timer,
@@ -1641,7 +1622,7 @@ static int msm_cpp_cfg_frame(struct cpp_device *cpp_dev,
 	}
 	out_phyaddr1 = out_phyaddr0;
 
-	/* get buffer for duplicate output */
+	
 	if (new_frame->duplicate_output) {
 		CPP_DBG("duplication enabled, dup_id=0x%x",
 			new_frame->duplicate_identity);
@@ -1674,7 +1655,7 @@ static int msm_cpp_cfg_frame(struct cpp_device *cpp_dev,
 				&dup_buff_mgr_info);
 			goto phyaddr_err;
 		}
-		/* set duplicate enable bit */
+		
 		cpp_frame_msg[5] |= 0x1;
 		CPP_DBG("out_phyaddr1= %08x\n", (uint32_t)out_phyaddr1);
 	}
@@ -1795,6 +1776,7 @@ phyaddr_err:
 		msm_cpp_buffer_ops(cpp_dev, VIDIOC_MSM_BUF_MNGR_PUT_BUF,
 			&buff_mgr_info);
 frame_msg_err:
+    kfree(new_frame);
 	kfree(cpp_frame_msg);
 	return rc;
 }
@@ -1853,7 +1835,7 @@ static int msm_cpp_copy_from_ioctl_ptr(void *dst_ptr,
 		return -EINVAL;
 	}
 
-	/* For compat task, source ptr is in kernel space */
+	
 	if (is_compat_task()) {
 		memcpy(dst_ptr, ioctl_ptr->ioctl_ptr, ioctl_ptr->len);
 		ret = 0;
@@ -2180,6 +2162,7 @@ long msm_cpp_subdev_ioctl(struct v4l2_subdev *sd,
 			msm_cpp_core_clk_idx = get_clock_index("cpp_core_clk");
 			if (msm_cpp_core_clk_idx < 0) {
 				pr_err(" Fail to get clock index\n");
+				mutex_unlock(&cpp_dev->mutex); 
 				return -EINVAL;
 			}
 			if (cpp_dev->bus_master_flag)
@@ -2490,7 +2473,7 @@ static struct msm_cpp_frame_info_t *get_64bit_cpp_frame_from_compat(
 	new_frame->duplicate_output = new_frame32->duplicate_output;
 	new_frame->duplicate_identity = new_frame32->duplicate_identity;
 
-	/* Convert the 32 bit pointer to 64 bit pointer */
+	
 	new_frame->cookie = compat_ptr(new_frame32->cookie);
 	new_frame->status = compat_ptr(new_frame32->status);
 	cpp_cmd_msg_64bit = compat_ptr(new_frame32->cpp_cmd_msg);
@@ -2500,6 +2483,9 @@ static struct msm_cpp_frame_info_t *get_64bit_cpp_frame_from_compat(
 			__LINE__, new_frame->msg_len);
 		goto frame_err;
 	}
+
+	
+	new_frame->status = compat_ptr(new_frame32->status);
 
 	cpp_frame_msg = kzalloc(sizeof(uint32_t)*new_frame->msg_len,
 		GFP_KERNEL);
@@ -2589,30 +2575,21 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 			vdev, cpp_dev);
 		return -EINVAL;
 	}
-	/*
-	 * copy the user space 32 bit pointer to kernel space 32 bit compat
-	 * pointer
-	 */
 	if (copy_from_user(&up32_ioctl, (void __user *)up,
 		sizeof(up32_ioctl)))
 		return -EFAULT;
 
-	/* copy the data from 32 bit compat to kernel space 64 bit pointer */
+	
 	kp_ioctl.id = up32_ioctl.id;
 	kp_ioctl.len = up32_ioctl.len;
 	kp_ioctl.trans_code = up32_ioctl.trans_code;
-	/* Convert the 32 bit pointer to 64 bit pointer */
+	
 	kp_ioctl.ioctl_ptr = compat_ptr(up32_ioctl.ioctl_ptr);
 	if (!kp_ioctl.ioctl_ptr) {
 		pr_err("%s: Invalid ioctl pointer\n", __func__);
 		return -EINVAL;
 	}
 
-	/*
-	 * Convert 32 bit IOCTL ID's to 64 bit IOCTL ID's
-	 * except VIDIOC_MSM_CPP_CFG32, which needs special
-	 * processing
-	 */
 	switch (cmd) {
 	case VIDIOC_MSM_CPP_CFG32:
 	{
@@ -2623,10 +2600,19 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		struct msm_cpp_frame_info_t *cpp_frame = NULL;
 		int32_t *status;
 
-		/* Get the cpp frame pointer */
+		
 		cpp_frame = get_64bit_cpp_frame_from_compat(&kp_ioctl);
 
-		/* Configure the cpp frame */
+		
+		if (cpp_frame) {
+			status = cpp_frame->status;
+			cpp_frame->status = NULL;
+		} else {
+			
+			status = compat_ptr(u32_frame_info->status);
+		}
+
+		
 		if (cpp_frame)
 			rc = msm_cpp_cfg_frame(cpp_dev, cpp_frame);
 		else {
@@ -2636,13 +2622,18 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 
 		kp_ioctl.trans_code = rc;
 
-		/* Convert the 32 bit pointer to 64 bit pointer */
-		status = compat_ptr(u32_frame_info->status);
+                
+                status = compat_ptr(u32_frame_info->status);
 
+#if 1
+		if (copy_to_user((void __user *)status, &rc,
+			sizeof(int32_t)))
+			pr_err("error cannot copy error\n");
+#else
 		if (copy_to_user((void __user *)cpp_frame->status, &rc,
 			sizeof(int32_t)))
 			pr_err("error cannot copy error\n");
-
+#endif
 		cmd = VIDIOC_MSM_CPP_CFG;
 		break;
 	}

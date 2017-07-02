@@ -22,6 +22,11 @@
 #include <linux/spinlock.h>
 #include <linux/syscore_ops.h>
 #include "pinctrl-msm.h"
+#if defined(CONFIG_HTC_POWER_DEBUG) && defined(CONFIG_PINCTRL_MSM_TLMM)
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
+#endif
+
 
 /* config translations */
 #define drv_str_to_rval(drv)	((drv >> 1) - 1)
@@ -789,6 +794,32 @@ static irqreturn_t msm_tlmm_gp_handle_irq(int irq, struct msm_tlmm_irq_chip *ic)
 	chained_irq_exit(chip, desc);
 	return IRQ_HANDLED;
 }
+
+#if defined(CONFIG_HTC_POWER_DEBUG) && defined(CONFIG_PINCTRL_MSM_TLMM)
+void __msm_gpio_get_dump_info(struct gpio_chip *gc, unsigned gpio, struct msm_gpio_dump_info *data)
+{
+        struct msm_pintype_info *pinfo = gc_to_pintype(gc);
+        unsigned int cfg_dump;
+
+        cfg_dump = readl_relaxed(TLMM_GP_CFG(pinfo, gpio));
+        data->pull = cfg_dump & 0x3;
+        data->func_sel = (cfg_dump >> 2) & 0xf;
+        data->drv = (cfg_dump >> 6) & 0x7;
+        data->dir = (cfg_dump >> 9) & 0x1;
+
+        if (data->dir)
+                data->value = (readl_relaxed(TLMM_GP_INOUT(pinfo, gpio)) >> 1) & 0x1;
+        else {
+                data->value = readl_relaxed(TLMM_GP_INOUT(pinfo, gpio)) & 0x1;
+                data->int_en = readl_relaxed(TLMM_GP_INTR_CFG(pinfo, gpio)) & 0x1;
+                if (data->int_en)
+                        data->int_owner = (readl_relaxed(TLMM_GP_INTR_CFG(pinfo, gpio)) >> 5) & 0x7;
+        }
+
+       return;
+}
+#endif
+
 
 static void msm_tlmm_irq_ack(struct irq_data *d)
 {

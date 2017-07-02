@@ -24,10 +24,10 @@
 #define PC_TEMP_ROWS		31
 #define PC_TEMP_COLS		8
 
-#define ACC_IBAT_ROWS		4
-#define ACC_TEMP_COLS		3
+#define ACC_IBAT_ROWS		5
+#define ACC_TEMP_COLS		7
 
-#define MAX_SINGLE_LUT_COLS	20
+#define MAX_SINGLE_LUT_COLS	30
 
 #define MAX_BATT_ID_NUM		4
 #define DEGC_SCALE		10
@@ -137,13 +137,23 @@ struct bms_battery_data {
 	int			cutoff_uv;
 	int			iterm_ua;
 	int			batt_id_kohm;
+	int			vddmax_mv;
+	int			coolmax_mv;
+	int			warmmax_mv;
+	bool		batt_disabled_by_sw;
 	const char		*battery_type;
+};
+
+struct smb1360_battery_data {
+	struct single_row_lut   *vth_sf_lut;
+	struct single_row_lut   *rbatt_temp_lut;
 };
 
 #if defined(CONFIG_PM8921_BMS) || \
 	defined(CONFIG_PM8921_BMS_MODULE) || \
 	defined(CONFIG_QPNP_BMS) || \
-	defined(CONFIG_QPNP_VM_BMS)
+	defined(CONFIG_QPNP_VM_BMS) || \
+	defined(CONFIG_SMB1360_CHARGER_FG)
 extern struct bms_battery_data  palladium_1500_data;
 extern struct bms_battery_data  desay_5200_data;
 extern struct bms_battery_data  oem_batt_data;
@@ -151,6 +161,8 @@ extern struct bms_battery_data QRD_4v35_2000mAh_data;
 extern struct bms_battery_data  qrd_4v2_1300mah_data;
 
 int interpolate_fcc(struct single_row_lut *fcc_temp_lut, int batt_temp);
+int interpolate_vth(struct single_row_lut *vth_sf_lut, int batt_temp);
+int interpolate_rbatt_temp(struct single_row_lut *rbatt_temp_lut, int batt_temp);
 int interpolate_scalingfactor(struct sf_lut *sf_lut, int row_entry, int pc);
 int interpolate_scalingfactor_fcc(struct single_row_lut *fcc_sf_lut,
 				int cycles);
@@ -167,6 +179,14 @@ int is_between(int left, int right, int value);
 #else
 static inline int interpolate_fcc(struct single_row_lut *fcc_temp_lut,
 			int batt_temp)
+{
+	return -EINVAL;
+}
+static inline int interpolate_vth(struct single_row_lut *vth_sf_lut, int batt_temp)
+{
+	return -EINVAL;
+}
+static inline int interpolate_rbatt_temp(struct single_row_lut *rbatt_temp_lut, int batt_temp)
 {
 	return -EINVAL;
 }

@@ -476,6 +476,10 @@ struct input_keymap_entry {
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
+#define KEY_APP_SWITCH		249
+#define HALL_N_POLE             251     /* HALL Sensor N pole*/
+#define HALL_S_POLE             252     /* HALL Sensor S pole*/
+
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
 #define BTN_MISC		0x100
@@ -838,6 +842,8 @@ struct input_keymap_entry {
 
 #define ABS_MISC		0x28
 
+#define ABS_MT_POSITION         0x2a    /* Group a set of X and Y */
+#define ABS_MT_AMPLITUDE        0x2b    /* Group a set of Z and W */
 #define ABS_MT_SLOT		0x2f	/* MT slot being modified */
 #define ABS_MT_TOUCH_MAJOR	0x30	/* Major axis of touching ellipse */
 #define ABS_MT_TOUCH_MINOR	0x31	/* Minor axis (omit if circular) */

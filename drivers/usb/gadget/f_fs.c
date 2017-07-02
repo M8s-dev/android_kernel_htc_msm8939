@@ -993,9 +993,12 @@ ffs_epfile_release(struct inode *inode, struct file *file)
 	struct ffs_epfile *epfile = inode->i_private;
 
 	ENTER();
-
-	atomic_set(&epfile->error, 1);
-	ffs_data_closed(epfile->ffs);
+/*++ 2014/06/20, USB Team, PCN00019 ++*/
+	if (epfile) {
+		atomic_set(&epfile->error, 1);
+		ffs_data_closed(epfile->ffs);
+	}
+/*-- 2014/06/20, USB Team, PCN00019 --*/
 	file->private_data = NULL;
 
 	return 0;
@@ -1620,6 +1623,11 @@ static void ffs_func_free(struct ffs_function *func)
 	/* cleanup after autoconfig */
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
 	do {
+/*++ 2014/5/15, USB Team, PCN00009 ++*/
+		// Avoid ffs being free twice
+		if (!count)
+			break;
+/*-- 2014/5/15, USB Team, PCN00009 --*/
 		if (ep->ep && ep->req)
 			usb_ep_free_request(ep->ep, ep->req);
 		ep->req = NULL;
@@ -1671,7 +1679,14 @@ static int ffs_func_eps_enable(struct ffs_function *func)
 	unsigned count            = ffs->eps_count;
 	unsigned long flags;
 	int ret = 0;
-
+/*++ 2014/5/15, USB Team, PCN00009 ++*/
+	// Protection strategy: Avoid to access null pointer
+	if (!ffs->gadget) {
+		printk(KERN_WARNING "[USB]%s:ffs->gadget=%p\n", __func__, ffs->gadget);
+		ret = -EINVAL;
+		return ret;
+	}
+/*-- 2014/5/15, USB Team, PCN00009 --*/
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
 	do {
 		struct usb_endpoint_descriptor *ds;

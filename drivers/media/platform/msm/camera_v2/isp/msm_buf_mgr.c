@@ -491,7 +491,7 @@ static int msm_isp_get_buf(struct msm_isp_buf_mgr *buf_mgr, uint32_t id,
 		(*buf_info)->state = MSM_ISP_BUFFER_STATE_DEQUEUED;
 		if (bufq->buf_type == ISP_SHARE_BUF) {
 			memset((*buf_info)->buf_used, 0,
-				   sizeof(uint8_t) * bufq->buf_client_count);
+				   sizeof((*buf_info)->buf_used)); /* HTC Klocwork */
 			(*buf_info)->buf_used[id] = 1;
 			(*buf_info)->buf_get_count = 1;
 			(*buf_info)->buf_put_count = 0;

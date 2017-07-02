@@ -47,12 +47,12 @@ struct lsm_out_fmt_cfg {
 };
 
 struct cpe_lsm_session {
-	/* sound model related */
+	
 	void *snd_model_data;
 	u8 *conf_levels;
 	void *cmi_reg_handle;
 
-	/* Clients private data */
+	
 	void *priv_d;
 
 	void (*event_cb) (void *priv_data,

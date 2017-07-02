@@ -394,6 +394,18 @@ config SMB1360_CHARGER_FG
 	  The driver reports the status via the power supply framework.
 	  A status change triggers an IRQ via the device STAT pin.
 
+config QPNP_LINEAR_CHARGER_SMB1360
+	tristate "QPNP Linear Charger driver"
+	depends on SPMI
+#	depends on OF_SPMI
+#	depends on MSM_QPNP_INT
+#	depends on THERMAL_QPNP_ADC_TM
+	depends on SMB1360_CHARGER_FG
+	help
+	  Say Y here to enable the Linear battery charger which supports USB
+	  detection and charging. The driver also offers relevant information
+	  to userspace via the power supply framework.
+
 config SMB358_CHARGER
 	tristate "SMB358 Battery Charger"
 	depends on I2C
@@ -495,6 +507,16 @@ config BATTERY_GOLDFISH
 	help
 	  Say Y to enable support for the battery and AC power in the
 	  Goldfish emulator.
+
+config HTC_BATT_CORE
+	depends on POWER_SUPPLY
+	default n
+	bool "HTC battery core driver"
+
+config HTC_BATT_8960
+	depends on HTC_BATT_CORE
+	default n
+	bool "HTC battery driver for 8960"
 
 config QPNP_VM_BMS
 	tristate "QPNP Voltage-Mode Battery Monitoring System driver"

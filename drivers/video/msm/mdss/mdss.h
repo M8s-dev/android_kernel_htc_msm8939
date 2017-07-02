@@ -80,9 +80,9 @@ struct mdss_perf_tune {
 #define MDSS_IRQ_REQ		0
 
 struct mdss_intr {
-	/* requested intr */
+	
 	u32 req;
-	/* currently enabled intr */
+	
 	u32 curr;
 	int state;
 	spinlock_t lock;
@@ -334,4 +334,4 @@ static inline int mdss_get_sd_client_cnt(void)
 #define MDSS_REG_READ(mdata, offset) \
 		dss_reg_r(&mdata->mdss_io, offset, 0)
 
-#endif /* MDSS_H */
+#endif 

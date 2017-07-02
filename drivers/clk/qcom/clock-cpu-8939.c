@@ -112,6 +112,30 @@ static struct clk_lookup cpu_clocks_8939[] = {
 static struct mux_div_clk *a53ssmux[] = {&a53ssmux_bc,
 						&a53ssmux_lc, &a53ssmux_cci};
 
+#if defined(CONFIG_HTC_DEBUG_FOOTPRINT)
+/* get effective cpu idx by clk */
+int clk_get_cpu_idx(struct clk *c)
+{
+	/* cpu0 ~ cpu3 are little cluster. */
+	if (c == &a53ssmux_bc.c)
+		return 0;
+
+	/* cpu4 ~ cpu7 are big cluster. */
+	if (c == &a53ssmux_lc.c)
+		return 4;
+
+	return -1;
+}
+
+int clk_get_l2_idx(struct clk *c)
+{
+	if (c == &a53ssmux_cci.c)
+		return 0;
+
+	return -1;
+}
+#endif
+
 static int of_get_fmax_vdd_class(struct platform_device *pdev, struct clk *c,
 								char *prop_name)
 {

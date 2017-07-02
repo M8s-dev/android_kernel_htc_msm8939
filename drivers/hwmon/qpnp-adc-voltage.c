@@ -2136,7 +2136,7 @@ hwmon_err_sens:
 }
 
 static int qpnp_vadc_get_temp(struct thermal_zone_device *thermal,
-			     unsigned long *temp)
+			       long *temp)
 {
 	struct qpnp_vadc_thermal_data *vadc_therm = thermal->devdata;
 	struct qpnp_vadc_chip *vadc = vadc_therm->vadc_dev;

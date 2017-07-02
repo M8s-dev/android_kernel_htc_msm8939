@@ -43,7 +43,6 @@ DEFINE_LED_TRIGGER(wlan_indication_led);
 
 #define PRONTO_IRIS_REG_READ_OFFSET       0x1134
 #define PRONTO_IRIS_REG_CHIP_ID           0x04
-/* IRIS card chip ID's */
 #define WCN3660       0x0200
 #define WCN3660A      0x0300
 #define WCN3660B      0x0400
@@ -54,10 +53,10 @@ DEFINE_LED_TRIGGER(wlan_indication_led);
 
 #define WCNSS_PMU_CFG_IRIS_XO_CFG          BIT(3)
 #define WCNSS_PMU_CFG_IRIS_XO_EN           BIT(4)
-#define WCNSS_PMU_CFG_IRIS_XO_CFG_STS      BIT(6) /* 1: in progress, 0: done */
+#define WCNSS_PMU_CFG_IRIS_XO_CFG_STS      BIT(6) 
 
 #define WCNSS_PMU_CFG_IRIS_RESET           BIT(7)
-#define WCNSS_PMU_CFG_IRIS_RESET_STS       BIT(8) /* 1: in progress, 0: done */
+#define WCNSS_PMU_CFG_IRIS_RESET_STS       BIT(8) 
 #define WCNSS_PMU_CFG_IRIS_XO_READ         BIT(9)
 #define WCNSS_PMU_CFG_IRIS_XO_READ_STS     BIT(10)
 
@@ -83,7 +82,6 @@ struct vregs_info {
 	struct regulator *regulator;
 };
 
-/* IRIS regulators for Riva hardware */
 static struct vregs_info iris_vregs_riva[] = {
 	{"iris_vddxo",  VREG_NULL_CONFIG, 1800000, 0, 1800000, 10000,  NULL},
 	{"iris_vddrfa", VREG_NULL_CONFIG, 1300000, 0, 1300000, 100000, NULL},
@@ -91,15 +89,13 @@ static struct vregs_info iris_vregs_riva[] = {
 	{"iris_vdddig", VREG_NULL_CONFIG, 1200000, 0, 1225000, 10000,  NULL},
 };
 
-/* WCNSS regulators for Riva hardware */
 static struct vregs_info riva_vregs[] = {
-	/* Riva */
+	
 	{"riva_vddmx",  VREG_NULL_CONFIG, 1050000, 0, 1150000, 0,      NULL},
 	{"riva_vddcx",  VREG_NULL_CONFIG, 1050000, 0, 1150000, 0,      NULL},
 	{"riva_vddpx",  VREG_NULL_CONFIG, 1800000, 0, 1800000, 0,      NULL},
 };
 
-/* IRIS regulators for Pronto hardware */
 static struct vregs_info iris_vregs_pronto[] = {
 	{"qcom,iris-vddxo",  VREG_NULL_CONFIG, 1800000, 0,
 		1800000, 10000,  NULL},
@@ -111,7 +107,6 @@ static struct vregs_info iris_vregs_pronto[] = {
 		1800000, 10000,  NULL},
 };
 
-/* WCNSS regulators for Pronto hardware */
 static struct vregs_info pronto_vregs[] = {
 	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG, 950000,  0,
 		1150000, 0,    NULL},
@@ -122,7 +117,6 @@ static struct vregs_info pronto_vregs[] = {
 		1800000, 0,    NULL},
 };
 
-/* IRIS regulators for Pronto v2 hardware */
 static struct vregs_info iris_vregs_pronto_v2[] = {
 	{"qcom,iris-vddxo",  VREG_NULL_CONFIG, 1800000, 0,
 		1800000, 10000,  NULL},
@@ -134,7 +128,6 @@ static struct vregs_info iris_vregs_pronto_v2[] = {
 		1800000, 10000,  NULL},
 };
 
-/* WCNSS regulators for Pronto v2 hardware */
 static struct vregs_info pronto_vregs_pronto_v2[] = {
 	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG,
 		RPM_REGULATOR_CORNER_SUPER_TURBO,  0,
@@ -146,7 +139,6 @@ static struct vregs_info pronto_vregs_pronto_v2[] = {
 		1800000, 0,    NULL},
 };
 
-/* WCNSS regulators for Pronto v3 hardware */
 static struct vregs_info pronto_vregs_pronto_v3[] = {
 	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG, RPM_REGULATOR_CORNER_NORMAL,
 		RPM_REGULATOR_CORNER_NONE, RPM_REGULATOR_CORNER_SUPER_TURBO,
@@ -165,7 +157,7 @@ struct host_driver {
 };
 
 enum {
-	IRIS_3660, /* also 3660A and 3680 */
+	IRIS_3660, 
 	IRIS_3620,
 	IRIS_3610
 };
@@ -255,16 +247,16 @@ int validate_iris_chip_id(u32 reg)
 
 void  wcnss_iris_reset(u32 reg, void __iomem *pmu_conf_reg)
 {
-	/* Reset IRIS */
+	
 	reg |= WCNSS_PMU_CFG_IRIS_RESET;
 	writel_relaxed(reg, pmu_conf_reg);
 
-	/* Wait for PMU_CFG.iris_reg_reset_sts */
+	
 	while (readl_relaxed(pmu_conf_reg) &
 			WCNSS_PMU_CFG_IRIS_RESET_STS)
 		cpu_relax();
 
-	/* Reset iris reset bit */
+	
 	reg &= ~WCNSS_PMU_CFG_IRIS_RESET;
 	writel_relaxed(reg, pmu_conf_reg);
 }
@@ -316,16 +308,13 @@ configure_iris_xo(struct device *dev,
 			goto fail;
 		}
 
-		/* Enable IRIS XO */
+		
 		rc = clk_prepare_enable(clk);
 		if (rc) {
 			pr_err("clk enable failed\n");
 			goto fail;
 		}
 
-		/* NV bit is set to indicate that platform driver is capable
-		 * of doing NV download.
-		 */
 		pr_debug("wcnss: Indicate NV bin download\n");
 		spare_reg = msm_wcnss_base + spare_offset;
 		reg = readl_relaxed(spare_reg);
@@ -352,12 +341,12 @@ configure_iris_xo(struct device *dev,
 			iris_reg |= PRONTO_IRIS_REG_CHIP_ID;
 			writel_relaxed(iris_reg, iris_read_reg);
 			do {
-				/* Iris read */
+				
 				reg = readl_relaxed(pmu_conf_reg);
 				reg |= WCNSS_PMU_CFG_IRIS_XO_READ;
 				writel_relaxed(reg, pmu_conf_reg);
 
-				/* Wait for PMU_CFG.iris_reg_read_sts */
+				
 				while (readl_relaxed(pmu_conf_reg) &
 						WCNSS_PMU_CFG_IRIS_XO_READ_STS)
 					cpu_relax();
@@ -368,11 +357,8 @@ configure_iris_xo(struct device *dev,
 				if (validate_iris_chip_id(iris_reg) && i >= 4) {
 					pr_info("wcnss: IRIS Card absent/invalid\n");
 					auto_detect = WCNSS_XO_INVALID;
-					/* Reset iris read bit */
+					
 					reg &= ~WCNSS_PMU_CFG_IRIS_XO_READ;
-					/* Clear XO_MODE[b2:b1] bits.
-					 * Clear implies 19.2 MHz TCXO
-					 */
 					reg &= ~(WCNSS_PMU_CFG_IRIS_XO_MODE);
 					goto xo_configure;
 				} else if (!validate_iris_chip_id(iris_reg)) {
@@ -385,18 +371,18 @@ configure_iris_xo(struct device *dev,
 			} while (i++ < 5);
 			auto_detect = xo_auto_detect(iris_reg);
 
-			/* Reset iris read bit */
+			
 			reg &= ~WCNSS_PMU_CFG_IRIS_XO_READ;
 
 		} else if (wcnss_xo_auto_detect_enabled())
-			/* Default to 48 MHZ */
+			
 			auto_detect = WCNSS_XO_48MHZ;
 		else
 			auto_detect = WCNSS_XO_INVALID;
 
 		cfg->iris_id = iris_reg;
 
-		/* Clear XO_MODE[b2:b1] bits. Clear implies 19.2 MHz TCXO */
+		
 		reg &= ~(WCNSS_PMU_CFG_IRIS_XO_MODE);
 
 		if ((use_48mhz_xo && auto_detect == WCNSS_XO_INVALID)
@@ -412,16 +398,16 @@ xo_configure:
 
 		wcnss_iris_reset(reg, pmu_conf_reg);
 
-		/* Start IRIS XO configuration */
+		
 		reg |= WCNSS_PMU_CFG_IRIS_XO_CFG;
 		writel_relaxed(reg, pmu_conf_reg);
 
-		/* Wait for XO configuration to finish */
+		
 		while (readl_relaxed(pmu_conf_reg) &
 						WCNSS_PMU_CFG_IRIS_XO_CFG_STS)
 			cpu_relax();
 
-		/* Stop IRIS XO configuration */
+		
 		reg &= ~(WCNSS_PMU_CFG_GC_BUS_MUX_SEL_TOP |
 				WCNSS_PMU_CFG_IRIS_XO_CFG);
 		writel_relaxed(reg, pmu_conf_reg);
@@ -455,7 +441,7 @@ xo_configure:
 		clk_disable_unprepare(clk_rf);
 	}
 
-	/* Add some delay for XO to settle */
+	
 	msleep(20);
 
 fail:
@@ -467,7 +453,6 @@ fail:
 	return rc;
 }
 
-/* Helper routine to turn off all WCNSS & IRIS vregs */
 static void wcnss_vregs_off(struct vregs_info regulators[], uint size)
 {
 	int i, rc = 0;
@@ -480,12 +465,12 @@ static void wcnss_vregs_off(struct vregs_info regulators[], uint size)
 		return;
 	}
 
-	/* Regulators need to be turned off in the reverse order */
+	
 	for (i = (size-1); i >= 0; i--) {
 		if (regulators[i].state == VREG_NULL_CONFIG)
 			continue;
 
-		/* Remove PWM mode */
+		
 		if (regulators[i].state & VREG_OPTIMUM_MODE_MASK) {
 			rc = regulator_set_optimum_mode(
 					regulators[i].regulator, 0);
@@ -494,7 +479,7 @@ static void wcnss_vregs_off(struct vregs_info regulators[], uint size)
 						regulators[i].name, rc);
 		}
 
-		/* Set voltage to lowest level */
+		
 		if (regulators[i].state & VREG_SET_VOLTAGE_MASK) {
 
 			if (cfg->vbatt < WCNSS_VBATT_THRESHOLD
@@ -511,7 +496,7 @@ static void wcnss_vregs_off(struct vregs_info regulators[], uint size)
 						regulators[i].name, rc);
 		}
 
-		/* Disable regulator */
+		
 		if (regulators[i].state & VREG_ENABLE_MASK) {
 			rc = regulator_disable(regulators[i].regulator);
 			if (rc < 0)
@@ -519,7 +504,7 @@ static void wcnss_vregs_off(struct vregs_info regulators[], uint size)
 						regulators[i].name, rc);
 		}
 
-		/* Free the regulator source */
+		
 		if (regulators[i].state & VREG_GET_REGULATOR_MASK)
 			regulator_put(regulators[i].regulator);
 
@@ -527,7 +512,6 @@ static void wcnss_vregs_off(struct vregs_info regulators[], uint size)
 	}
 }
 
-/* Common helper routine to turn on all WCNSS & IRIS vregs */
 static int wcnss_vregs_on(struct device *dev,
 		struct vregs_info regulators[], uint size)
 {
@@ -542,7 +526,7 @@ static int wcnss_vregs_on(struct device *dev,
 	}
 
 	for (i = 0; i < size; i++) {
-			/* Get regulator source */
+			
 		regulators[i].regulator =
 			regulator_get(dev, regulators[i].name);
 		if (IS_ERR(regulators[i].regulator)) {
@@ -553,7 +537,7 @@ static int wcnss_vregs_on(struct device *dev,
 		}
 		regulators[i].state |= VREG_GET_REGULATOR_MASK;
 		reg_cnt = regulator_count_voltages(regulators[i].regulator);
-		/* Set voltage to nominal. Exclude swtiches e.g. LVS */
+		
 		if ((regulators[i].nominal_min || regulators[i].max_voltage)
 				&& (reg_cnt > 0)) {
 
@@ -575,7 +559,7 @@ static int wcnss_vregs_on(struct device *dev,
 			regulators[i].state |= VREG_SET_VOLTAGE_MASK;
 		}
 
-		/* Vote for PWM/PFM mode if needed */
+		
 		if (regulators[i].uA_load && (reg_cnt > 0)) {
 			rc = regulator_set_optimum_mode(regulators[i].regulator,
 					regulators[i].uA_load);
@@ -587,7 +571,7 @@ static int wcnss_vregs_on(struct device *dev,
 			regulators[i].state |= VREG_OPTIMUM_MODE_MASK;
 		}
 
-		/* Enable the regulator */
+		
 		rc = regulator_enable(regulators[i].regulator);
 		if (rc) {
 			pr_err("vreg %s enable failed (%d)\n",
@@ -717,19 +701,19 @@ int wcnss_wlan_power(struct device *dev,
 
 	down(&wcnss_power_on_lock);
 	if (on) {
-		/* RIVA regulator settings */
+		
 		rc = wcnss_core_vregs_on(dev, hw_type,
 			cfg);
 		if (rc)
 			goto fail_wcnss_on;
 
-		/* IRIS regulator settings */
+		
 		rc = wcnss_iris_vregs_on(dev, hw_type,
 			cfg);
 		if (rc)
 			goto fail_iris_on;
 
-		/* Configure IRIS XO */
+		
 		rc = configure_iris_xo(dev, cfg,
 				WCNSS_WLAN_SWITCH_ON, iris_xo_set);
 		if (rc)
@@ -760,12 +744,6 @@ fail_wcnss_on:
 }
 EXPORT_SYMBOL(wcnss_wlan_power);
 
-/*
- * During SSR WCNSS should not be 'powered on' until all the host drivers
- * finish their shutdown routines.  Host drivers use below APIs to
- * synchronize power-on. WCNSS will not be 'powered on' until all the
- * requests(to lock power-on) are freed.
- */
 int wcnss_req_power_on_lock(char *driver_name)
 {
 	struct host_driver *node;
@@ -779,7 +757,7 @@ int wcnss_req_power_on_lock(char *driver_name)
 	strlcpy(node->name, driver_name, sizeof(node->name));
 
 	mutex_lock(&list_lock);
-	/* Lock when the first request is added */
+	
 	if (list_empty(&power_on_lock_list))
 		down(&wcnss_power_on_lock);
 	list_add(&node->list, &power_on_lock_list);
@@ -809,7 +787,7 @@ int wcnss_free_power_on_lock(char *driver_name)
 			break;
 		}
 	}
-	/* unlock when the last host driver frees the lock */
+	
 	if (list_empty(&power_on_lock_list))
 		up(&wcnss_power_on_lock);
 	mutex_unlock(&list_lock);

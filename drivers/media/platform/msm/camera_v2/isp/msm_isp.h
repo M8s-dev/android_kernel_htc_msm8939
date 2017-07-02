@@ -83,11 +83,11 @@ enum msm_isp_camif_update_state {
 };
 
 struct msm_isp_timestamp {
-	/*Monotonic clock for v4l2 buffer*/
+	
 	struct timeval buf_time;
-	/*Monotonic clock for VT */
+	
 	struct timeval vt_time;
-	/*Wall clock for userspace event*/
+	
 	struct timeval event_time;
 };
 
@@ -95,9 +95,6 @@ struct msm_vfe_irq_ops {
 	void (*read_irq_status) (struct vfe_device *vfe_dev,
 		uint32_t *irq_status0, uint32_t *irq_status1);
 	void (*process_reg_update) (struct vfe_device *vfe_dev,
-		uint32_t irq_status0, uint32_t irq_status1,
-		struct msm_isp_timestamp *ts);
-	void (*process_epoch_irq)(struct vfe_device *vfe_dev,
 		uint32_t irq_status0, uint32_t irq_status1,
 		struct msm_isp_timestamp *ts);
 	void (*process_reset_irq) (struct vfe_device *vfe_dev,
@@ -164,7 +161,7 @@ struct msm_vfe_axi_ops {
 };
 
 struct msm_vfe_core_ops {
-	void (*reg_update) (struct vfe_device *vfe_dev, uint32_t input_src);
+	void (*reg_update) (struct vfe_device *vfe_dev);
 	long (*reset_hw) (struct vfe_device *vfe_dev, uint32_t first_start,
 		uint32_t blocking_call);
 	int (*init_hw) (struct vfe_device *vfe_dev);
@@ -238,7 +235,7 @@ struct msm_vfe_ops {
 
 struct msm_vfe_hardware_info {
 	int num_iommu_ctx;
-	/* secure iommu ctx nums */
+	
 	int num_iommu_secure_ctx;
 	int vfe_clk_idx;
 	struct msm_vfe_ops vfe_ops;
@@ -296,7 +293,7 @@ struct msm_vfe_axi_stream {
 	enum msm_vfe_axi_stream_src stream_src;
 	uint8_t num_planes;
 	uint8_t wm[MAX_PLANES_PER_STREAM];
-	uint32_t output_format;/*Planar/RAW/Misc*/
+	uint32_t output_format;
 	struct msm_vfe_axi_plane_cfg plane_cfg[MAX_PLANES_PER_STREAM];
 	uint8_t comp_mask_index;
 	struct msm_isp_buffer *buf[2];
@@ -313,21 +310,21 @@ struct msm_vfe_axi_stream {
 	enum msm_vfe_frame_skip_pattern frame_skip_pattern;
 	uint32_t framedrop_period;
 	uint32_t framedrop_pattern;
-	uint32_t num_burst_capture;/*number of frame to capture*/
+	uint32_t num_burst_capture;
 	uint32_t init_frame_drop;
-	uint32_t burst_frame_count;/*number of sof before burst stop*/
+	uint32_t burst_frame_count;
 	uint8_t framedrop_update;
 	spinlock_t lock;
 
-	/*Bandwidth calculation info*/
+	
 	uint32_t max_width;
-	/*Based on format plane size in Q2. e.g NV12 = 1.5*/
+	
 	uint32_t format_factor;
 	uint32_t bandwidth;
 
-	/*Run time update variables*/
+	
 	uint32_t runtime_init_frame_drop;
-	uint32_t runtime_burst_frame_count;/*number of sof before burst stop*/
+	uint32_t runtime_burst_frame_count;
 	uint32_t runtime_num_burst_capture;
 	uint8_t  runtime_framedrop_update;
 	uint8_t  runtime_framedrop_update_burst;
@@ -348,7 +345,7 @@ struct msm_vfe_src_info {
 	enum msm_vfe_inputmux input_mux;
 	uint32_t width;
 	long pixel_clock;
-	uint32_t input_format;/*V4L2 pix format with bayer pattern*/
+	uint32_t input_format;
 	uint32_t last_updt_frm_id;
 };
 
@@ -547,7 +544,7 @@ struct vfe_device {
 	void __iomem *vfe_vbif_base;
 
 	struct device *iommu_ctx[MAX_IOMMU_CTX];
-	/*Add secure context banks*/
+	
 	struct device *iommu_secure_ctx[MAX_IOMMU_CTX];
 
 	struct regulator *fs_vfe;

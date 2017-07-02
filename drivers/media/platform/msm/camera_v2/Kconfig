@@ -164,6 +164,97 @@ config MT9M114
 		and snapshot. The preview and snapshot resolution shall be
 		1280 * 270. It does not support auto focus. It supports
 		few special effects like saturation.
+
+config OV13850_HTC
+       bool "Sensor OV13850_HTC"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for OV13850_HTC sensor driver.
+
+config OV8858_HTC
+       bool "Sensor OV8858_HTC"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for OV8858_HTC sensor driver.
+
+config VD6869_HTC
+       bool "Sensor VD6869_HTC"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for VD6869_HTC sensor driver.
+
+config IMX214_HTC
+       bool "Sensor IMX214_HTC"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for IMX214_HTC sensor driver.
+
+config S5K5E_HTC
+       bool "Sensor S5K5E_HTC"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for S5K5E_HTC sensor driver.
+
+config OV13850_FRONT
+       bool "Sensor OV13850_FRONT"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for OV13850_FRONT sensor driver.
+
+config OV4688_FRONT
+       bool "Sensor OV4688_FRONT (BAYER 4MP)"
+       depends on MSMB_CAMERA
+       ---help---
+               Support for OV4688_FRONT sensor driver.
+               
+config OV2722_YUV
+       bool "Sensor OV2722_YUV"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for OV2722_YUV sensor driver.
+
+config CAMERA_AIT
+	bool "CAMERA_AIT"
+	depends on MSMB_CAMERA
+	default n
+	---help---
+	  AIT ISP
+
+config S5K5E_YUV
+       bool "Sensor S5K5E_YUV"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for S5K5E_YUV sensor driver.
+
+config S5K5E2_FRONT
+       bool "Sensor s5k5e2"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for s5k5e2 sensor driver.
+
+config MCLK_23M
+       bool "MCLK 23.88M"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for MCLK 23.88M.
+
+config OV8858_HTC_NEW
+       bool "Sensor OV8858_HTC_NEW"
+       depends on MSMB_CAMERA
+       default n
+       ---help---
+         Support for OV8858_HTC_NEW sensor driver.
+
 config OV5645
 	bool "Sensor OV5645 (YUV 5.0MP)"
 	depends on MSMB_CAMERA

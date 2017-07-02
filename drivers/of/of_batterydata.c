@@ -19,6 +19,7 @@
 #include <linux/types.h>
 #include <linux/batterydata-lib.h>
 #include <linux/power_supply.h>
+#include <linux/qpnp/qpnp-adc.h>
 
 static int of_batterydata_read_lut(const struct device_node *np,
 			int max_cols, int max_rows, int *ncols, int *nrows,
@@ -88,6 +89,7 @@ static int of_batterydata_read_lut(const struct device_node *np,
 	return 0;
 }
 
+#ifndef CONFIG_SMB1360_CHARGER_FG
 static int of_batterydata_read_sf_lut(struct device_node *data_node,
 				const char *name, struct sf_lut *lut)
 {
@@ -160,6 +162,7 @@ static int of_batterydata_read_ibat_temp_acc_lut(struct device_node *data_node,
 
 	return 0;
 }
+#endif /* CONFIG_SMB1360_CHARGER_FG */
 
 static int of_batterydata_read_single_row_lut(struct device_node *data_node,
 				const char *name, struct single_row_lut *lut)
@@ -185,6 +188,7 @@ static int of_batterydata_read_single_row_lut(struct device_node *data_node,
 	return 0;
 }
 
+#if !(defined(CONFIG_HTC_BATT_8960))
 static int of_batterydata_read_batt_id_kohm(const struct device_node *np,
 				const char *propname, struct batt_ids *batt_ids)
 {
@@ -213,6 +217,7 @@ static int of_batterydata_read_batt_id_kohm(const struct device_node *np,
 
 	return 0;
 }
+#endif
 
 #define OF_PROP_READ(property, qpnp_dt_property, node, rc, optional)	\
 do {									\
@@ -230,11 +235,37 @@ do {									\
 	}								\
 } while (0)
 
+#ifdef CONFIG_SMB1360_CHARGER_FG
+static int of_batterydata_load_battery_data(struct device_node *node,
+				int best_id_kohm,
+				struct smb1360_battery_data *batt_data)
+{
+	int rc;
+
+	rc = of_batterydata_read_single_row_lut(node, "htc,vth-sf-lut",
+			batt_data->vth_sf_lut);
+	if (rc) {
+		pr_err("battery data vth_sf_lut is not defined\n");
+		return rc;
+	}
+
+	rc = of_batterydata_read_single_row_lut(node, "htc,rbatt-temp-lut",
+			batt_data->rbatt_temp_lut);
+	if (rc) {
+		pr_err("battery data rbatt_temp_lut is not defined\n");
+		return rc;
+	}
+
+	return rc;
+}
+#else /* CONFIG_SMB1360_CHARGER_FG */
 static int of_batterydata_load_battery_data(struct device_node *node,
 				int best_id_kohm,
 				struct bms_battery_data *batt_data)
 {
 	int rc;
+
+	htc_load_temperature_data(node);
 
 	rc = of_batterydata_read_single_row_lut(node, "qcom,fcc-temp-lut",
 			batt_data->fcc_temp_lut);
@@ -276,12 +307,18 @@ static int of_batterydata_load_battery_data(struct device_node *node,
 			"max-voltage-uv", node, rc, true);
 	OF_PROP_READ(batt_data->cutoff_uv, "v-cutoff-uv", node, rc, true);
 	OF_PROP_READ(batt_data->iterm_ua, "chg-term-ua", node, rc, true);
+	OF_PROP_READ(batt_data->vddmax_mv, "vddmax-mv", node, rc, true);
+	OF_PROP_READ(batt_data->coolmax_mv, "cool-bat-mv", node, rc, true);
+	OF_PROP_READ(batt_data->warmmax_mv, "warm-bat-mv", node, rc, true);
+	batt_data->batt_disabled_by_sw = of_property_read_bool(node, "qcom,batt-disabled-by-sw");
 
 	batt_data->batt_id_kohm = best_id_kohm;
 
 	return rc;
 }
+#endif /* CONFIG_SMB1360_CHARGER_FG */
 
+#if !(defined(CONFIG_HTC_BATT_8960))
 static int64_t of_batterydata_convert_battery_id_kohm(int batt_id_uv,
 				int rpull_up, int vadc_vdd)
 {
@@ -449,5 +486,53 @@ int of_batterydata_read_data(struct device_node *batterydata_container_node,
 	return of_batterydata_load_battery_data(best_node,
 					best_id_kohm, batt_data);
 }
+#else /* !CONFIG_HTC_BATT_8960 */
+#ifdef CONFIG_SMB1360_CHARGER_FG
+int of_batterydata_read_data_by_id_result(struct device_node *batterydata_container_node,
+				struct smb1360_battery_data *batt_data,
+				int id_result)
+#else
+int of_batterydata_read_data_by_id_result(struct device_node *batterydata_container_node,
+				struct bms_battery_data *batt_data,
+				int id_result)
+#endif /* CONFIG_SMB1360_CHARGER_FG */
+{
+	struct device_node *node, *best_node = NULL;
+	int id_from_dt;
+	int rc = 0;
+
+	node = batterydata_container_node;
+
+	/*
+	 * Find the battery data with a battery id detect result closest to this one
+	 */
+	for_each_child_of_node(batterydata_container_node, node) {
+		best_node = node;
+
+		rc = of_property_read_u32(node, "htc,batt_id", &id_from_dt);
+		if (rc) {
+			pr_warn("get batt_id from dt failed rc=%d\n", rc);
+			continue;
+		}
+
+		/*get correct batterydata node otherwise loading unknown battery params*/
+		if (id_result == id_from_dt)
+			break;
+
+		pr_debug("current node: %s, id_result:%d, id_from_dt:%d\n",
+				best_node->name, id_result, id_from_dt);
+	}
+
+	if (best_node == NULL) {
+		pr_err("No battery data found\n");
+		return -ENODATA;
+	}
+
+	pr_info("batterydata node: %s, id_from_dt:%d, id_result:%d\n",
+				best_node->name, id_from_dt, id_result);
+
+	return of_batterydata_load_battery_data(best_node, id_from_dt, batt_data);
+}
+#endif /* !CONFIG_HTC_BATT_8960 */
 
 MODULE_LICENSE("GPL v2");

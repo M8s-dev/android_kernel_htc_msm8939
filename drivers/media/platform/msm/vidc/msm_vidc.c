@@ -21,6 +21,7 @@
 #include "msm_vidc_common.h"
 #include <linux/delay.h>
 #include "vidc_hfi_api.h"
+#include "htc_msm_smem.h"
 
 #define MAX_EVENTS 30
 
@@ -337,16 +338,21 @@ struct buffer_info *device_to_uvaddr(struct msm_vidc_list *buf_list,
 
 	mutex_lock(&buf_list->lock);
 	list_for_each_entry(temp, &buf_list->list, list) {
-		for (i = 0; (i < temp->num_planes)
-			&& (i < VIDEO_MAX_PLANES); i++) {
-			if (temp && !temp->inactive &&
-				temp->device_addr[i] == device_addr)  {
-				dprintk(VIDC_INFO,
-				"Found same fd buffer\n");
-				found = 1;
-				break;
-			}
-		}
+        /* HTC_START: Fix k Issue 3858 */
+        /* TO AVOID NULL POINTER ACCESS */
+        if (temp) {
+            for (i = 0; (i < temp->num_planes)
+                && (i < VIDEO_MAX_PLANES); i++) {
+                if (temp && !temp->inactive &&
+                    temp->device_addr[i] == device_addr)  {
+                    dprintk(VIDC_INFO,
+                    "Found same fd buffer\n");
+                    found = 1;
+                    break;
+                }
+            }
+        }
+        /* HTC_END*/
 		if (found)
 			break;
 	}
@@ -544,6 +550,21 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 			binfo->handle[i] = same_fd_handle;
 		} else {
 			if (inst->map_output_buffer) {
+                               /* HTC_START: ION debug mechanism enhancement
+                                * The alphabet after Alloc_/Import_/Free_ represents for different meaning.
+                                * I: Input buffer
+                                * O: Output buffer
+                                * S: Scratch buffer
+                                * V: Venus hfi buffer
+                                * U: Unknown buffer
+                                */
+#if 1
+                                dprintk(VIDC_WARN,
+                                        "[Vidc_Mem][%p] Import_%s: UsrAddr(%lx) FD(%d)\n",
+                                        inst, ((get_hal_buffer_type(inst, b) == HAL_BUFFER_INPUT)? "I":"O"),
+                                        binfo->uvaddr[i], b->m.planes[i].reserved[0]);
+#endif
+                                /* HTC_END */
 				binfo->handle[i] =
 					map_buffer(inst, &b->m.planes[i],
 						get_hal_buffer_type(inst, b));
@@ -1257,6 +1278,7 @@ void *msm_vidc_open(int core_id, int session_type)
 {
 	struct msm_vidc_inst *inst = NULL;
 	struct msm_vidc_core *core = NULL;
+        struct smem_client *smem_client = NULL;
 	int rc = 0;
 	int i = 0;
 	if (core_id >= MSM_VIDC_CORES_MAX ||
@@ -1303,12 +1325,20 @@ void *msm_vidc_open(int core_id, int session_type)
 		i <= SESSION_MSG_INDEX(SESSION_MSG_END); i++) {
 		init_completion(&inst->completions[i]);
 	}
-	inst->mem_client = msm_smem_new_client(SMEM_ION,
+	inst->mem_client = htc_msm_smem_new_client(SMEM_ION,
 					&inst->core->resources);
 	if (!inst->mem_client) {
 		dprintk(VIDC_ERR, "Failed to create memory client\n");
 		goto fail_mem_client;
 	}
+
+        /* HTC_START: ION debug mechanism enhancement
+         * Add the additional video instance inside struct smem_client
+         */
+        smem_client = inst->mem_client;
+        smem_client->inst = inst;
+        /* HTC_END */
+
 	if (session_type == MSM_VIDC_DECODER) {
 		msm_vdec_inst_init(inst);
 		msm_vdec_ctrl_init(inst);

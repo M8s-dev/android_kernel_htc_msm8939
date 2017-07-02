@@ -79,11 +79,11 @@ enum cpe_svc_codec_version {
 };
 
 struct cpe_svc_codec_info_v1 {
-	u16			major_version;/*must be 1*/
-	u16			minor_version;/*must be 0*/
+	u16			major_version;
+	u16			minor_version;
 	u32			id;
 	u32			version;
-	/*Add 1.1 version fields after this line*/
+	
 };
 
 struct cpe_svc_notification {
@@ -174,4 +174,4 @@ enum cpe_svc_result cpe_svc_set_debug_mode(void *cpe_handle, u32 mode);
 
 const struct cpe_svc_hw_cfg *cpe_svc_get_hw_cfg(void *cpe_handle);
 enum cpe_svc_result cpe_svc_toggle_lab(void *cpe_handle, bool enable);
-#endif /*__CPE_SERVICES__*/
+#endif 

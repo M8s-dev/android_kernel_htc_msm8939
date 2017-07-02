@@ -44,21 +44,14 @@
 #define MAX_TIME_RESOLUTION 0xFFFFFF
 #define DEFAULT_TIME_RESOLUTION 0x7530
 
-/*
- * Default 601 to 709 conversion coefficients for resolution: 176x144 negative
- * coeffs are converted to s4.9 format (e.g. -22 converted to ((1<<13) - 22)
- * 3x3 transformation matrix coefficients in s4.9 fixed point format
- */
 static u32 vpe_csc_601_to_709_matrix_coeff[HAL_MAX_MATRIX_COEFFS] = {
 	470, 8170, 8148, 0, 490, 50, 0, 34, 483
 };
 
-/* offset coefficients in s9 fixed point format */
 static u32 vpe_csc_601_to_709_bias_coeff[HAL_MAX_BIAS_COEFFS] = {
 	34, 0, 4
 };
 
-/* clamping value for Y/U/V([min,max] for Y/U/V) */
 static u32 vpe_csc_601_to_709_limit_coeff[HAL_MAX_LIMIT_COEFFS] = {
 	16, 235, 16, 240, 16, 240
 };
@@ -1078,7 +1071,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.name = "Set Encoder Operating rate",
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.minimum = 0,
-		.maximum = 300 << 16,  /* 300 fps in Q16 format*/
+		.maximum = 300 << 16,  
 		.default_value = 0,
 		.step = 1,
 		.qmenu = NULL,
@@ -1534,11 +1527,10 @@ static struct v4l2_ctrl *get_ctrl_from_cluster(int id,
 	return NULL;
 }
 
-/* Helper function to translate V4L2_* to HAL_* */
 static inline int venc_v4l2_to_hal(int id, int value)
 {
 	switch (id) {
-	/* MPEG4 */
+	
 	case V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL:
 		switch (value) {
 		case V4L2_MPEG_VIDEO_MPEG4_LEVEL_0:
@@ -1567,7 +1559,7 @@ static inline int venc_v4l2_to_hal(int id, int value)
 		default:
 			goto unknown_value;
 		}
-	/* H264 */
+	
 	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
 		switch (value) {
 		case V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE:
@@ -1630,7 +1622,7 @@ static inline int venc_v4l2_to_hal(int id, int value)
 		default:
 			goto unknown_value;
 		}
-	/* H263 */
+	
 	case V4L2_CID_MPEG_VIDC_VIDEO_H263_PROFILE:
 		switch (value) {
 		case V4L2_MPEG_VIDC_VIDEO_H263_PROFILE_BASELINE:
@@ -1844,7 +1836,7 @@ static int try_set_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	}
 	hdev = inst->core->device;
 
-	/* Small helper macro for quickly getting a control and err checking */
+	
 #define TRY_GET_CTRL(__ctrl_id) ({ \
 		struct v4l2_ctrl *__temp; \
 		__temp = get_ctrl_from_cluster( \
@@ -1853,8 +1845,8 @@ static int try_set_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		if (!__temp) { \
 			dprintk(VIDC_ERR, "Can't find %s (%x) in cluster\n", \
 				#__ctrl_id, __ctrl_id); \
-			/* Clusters are hardcoded, if we can't find */ \
-			/* something then things are massively screwed up */ \
+			 \
+			 \
 			BUG_ON(1); \
 		} \
 		__temp; \
@@ -1924,16 +1916,12 @@ static int try_set_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		int final_mode = 0;
 		struct v4l2_ctrl update_ctrl = {.id = 0};
 
-		/* V4L2_CID_MPEG_VIDEO_BITRATE_MODE and _RATE_CONTROL
-		 * manipulate the same thing.  If one control's state
-		 * changes, try to mirror the state in the other control's
-		 * value */
 		if (ctrl->id == V4L2_CID_MPEG_VIDEO_BITRATE_MODE) {
 			if (ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_VBR) {
 				final_mode = HAL_RATE_CONTROL_VBR_CFR;
 				update_ctrl.val =
 				V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL_VBR_CFR;
-			} else {/* ...if (ctrl->val == _BITRATE_MODE_CBR) */
+			} else {
 				final_mode = HAL_RATE_CONTROL_CBR_CFR;
 				update_ctrl.val =
 				V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL_CBR_CFR;
@@ -2758,11 +2746,6 @@ static int try_set_ext_ctrl(struct msm_vidc_inst *inst,
 					"Invalid LTR count %d. Supported max: %d\n",
 					ltr_mode.count,
 					cap->ltr_count.max);
-				/*
-				 * FIXME: Return an error (-EINVALID)
-				 * here once VP8 supports LTR count
-				 * capability
-				 */
 				ltr_mode.count = 1;
 			}
 			ltr_mode.trust_mode = 1;
@@ -2964,9 +2947,6 @@ int msm_venc_cmd(struct msm_vidc_inst *inst, struct v4l2_encoder_cmd *enc)
 			dprintk(VIDC_ERR, "Failed to release persist buf:%d\n",
 				rc);
 		rc = msm_comm_try_state(inst, MSM_VIDC_CLOSE_DONE);
-		/* Clients rely on this event for joining poll thread.
-		 * This event should be returned even if firmware has
-		 * failed to respond */
 		msm_vidc_queue_v4l2_event(inst, V4L2_EVENT_MSM_VIDC_CLOSE_DONE);
 		break;
 	}
@@ -3216,7 +3196,7 @@ int msm_venc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 			hal_fmt.format = HAL_COLOR_FORMAT_NV21;
 			break;
 		default:
-			/* we really shouldn't be here */
+			
 			rc = -ENOTSUPP;
 			goto exit;
 		}
@@ -3682,7 +3662,7 @@ int msm_venc_ctrl_init(struct msm_vidc_inst *inst)
 		inst->ctrls[idx] = ctrl;
 	}
 
-	/* Construct a super cluster of all controls */
+	
 	inst->cluster = get_super_cluster(inst, &cluster_size);
 	if (!inst->cluster || !cluster_size) {
 		dprintk(VIDC_WARN,

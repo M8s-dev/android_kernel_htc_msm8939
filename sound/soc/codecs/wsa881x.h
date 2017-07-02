@@ -39,4 +39,4 @@ extern int wsa881x_codec_info_create_codec_entry(
 					struct snd_soc_codec *codec);
 void wsa881x_regmap_defaults(struct regmap *regmap, u8 version);
 
-#endif /* _WSA881X_H */
+#endif 

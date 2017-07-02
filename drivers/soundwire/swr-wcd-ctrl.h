@@ -15,13 +15,13 @@
 #include <linux/module.h>
 #include <linux/soundwire/swr-wcd.h>
 
-#define SWR_MAX_ROW		0 /* Rows = 48 */
-#define SWR_MAX_COL		7 /* Cols = 16 */
-#define SWR_MIN_COL		0 /* Cols = 2 */
+#define SWR_MAX_ROW		0 
+#define SWR_MAX_COL		7 
+#define SWR_MIN_COL		0 
 
 #define SWR_WCD_NAME	"swr-wcd"
 
-#define SWR_MSTR_PORT_LEN	8 /* Number of master ports */
+#define SWR_MSTR_PORT_LEN	8 
 
 enum {
 	SWR_MSTR_PAUSE,
@@ -60,7 +60,7 @@ struct swrm_mports {
 };
 
 struct swr_ctrl_platform_data {
-	void *handle; /* holds priv data */
+	void *handle; 
 	int (*read)(void *handle, int reg);
 	int (*write)(void *handle, int reg, int val);
 	int (*bulk_write)(void *handle, u32 *reg, u32 *val, size_t len);
@@ -80,7 +80,7 @@ struct swr_mstr_ctrl {
 	struct mutex reslock;
 	u8 rcmd_id;
 	u8 wcmd_id;
-	void *handle; /* SWR Master handle from client for read and writes */
+	void *handle; 
 	int (*read)(void *handle, int reg);
 	int (*write)(void *handle, int reg, int val);
 	int (*bulk_write)(void *handle, u32 *reg, u32 *val, size_t len);
@@ -96,4 +96,4 @@ struct swr_mstr_ctrl {
 	struct platform_device *pdev;
 };
 
-#endif /* _SWR_WCD_CTRL_H */
+#endif 

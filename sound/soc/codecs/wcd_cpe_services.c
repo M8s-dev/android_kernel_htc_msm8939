@@ -544,7 +544,7 @@ static void *cpe_register_generic(struct cpe_info *t_info,
 	n->name = name;
 
 	CPE_SVC_GRAB_LOCK(&cpe_d.cpe_svc_lock, "cpe_svc");
-	/* Make sure CPE core service is first */
+	
 	if (service == CMI_CPE_CORE_SERVICE_ID)
 		list_add(&n->list, &t_info->client_list);
 	else
@@ -780,7 +780,7 @@ static enum cpe_svc_result cpe_process_clk_change_req(
 	cpe_d.cpe_change_freq_plan_cb(cpe_d.cdc_priv,
 				      req->clk_freq);
 
-	/*send a basic response*/
+	
 	cpe_send_msg_to_inbox(t_info,
 		CPE_CMI_BASIC_RSP_OPCODE, NULL);
 
@@ -955,7 +955,7 @@ static enum cpe_process_result cpe_boot_initialize(struct cpe_info *t_info,
 		return rc;
 	}
 
-	/* boot was successful */
+	
 	if (p->version ==
 	    CPE_CORE_VERSION_SYSTEM_BOOT_EVENT) {
 		cpe_d.cpe_debug_vector.debug_address =
@@ -1021,12 +1021,12 @@ static void cpe_clk_plan_work(struct work_struct *work)
 		return;
 	}
 
-	/* Register the core service */
+	
 	cpe_d.cpe_cmi_handle = cmi_register(
 					cpe_svc_core_cmi_handler,
 					CMI_CPE_CORE_SERVICE_ID);
 
-	/* send the clk plan command */
+	
 	if (!cpe_d.cpe_query_freq_plans_cb) {
 		pr_err("%s: No support for querying clk plans\n",
 			__func__);
@@ -1057,7 +1057,7 @@ static void cpe_clk_plan_work(struct work_struct *work)
 	       size);
 	cmi_send_msg(cmi_msg);
 
-	/* Wait for clk plan command to complete */
+	
 	rc = wait_for_completion_timeout(&t_info->core_svc_cmd_compl,
 					 (10 * HZ));
 	if (!rc) {
@@ -1066,7 +1066,7 @@ static void cpe_clk_plan_work(struct work_struct *work)
 		goto cmd_fail;
 	}
 
-	/* clk plan cmd is successful, send start notification */
+	
 	if (t_info->cpe_start_notification)
 		t_info->cpe_start_notification(t_info);
 	else
@@ -1199,7 +1199,7 @@ static enum cpe_process_result cpe_process_incoming(
 			break;
 		}
 	} else {
-		/* if service id if for a CMI client, notify client */
+		
 		pr_debug("%s: Message received, notifying client\n",
 			 __func__);
 		cpe_notify_cmi_client(t_info,
@@ -1232,10 +1232,6 @@ static enum cpe_process_result cpe_process_kill_thread(
 	payload.event = CPE_SVC_OFFLINE;
 	payload.payload = NULL;
 	payload.private_data = t_info->client_context;
-	/*
-	 * Make state as offline before broadcasting
-	 * the message to clients.
-	 */
 	cpe_change_state(t_info, CPE_STATE_OFFLINE,
 			 CPE_SS_IDLE);
 	cpe_broadcast_notification(t_info, &payload);
@@ -1292,7 +1288,7 @@ static enum cpe_process_result cpe_mt_process_cmd(
 		while (retries < CPE_SVC_INACTIVE_STATE_RETRIES_MAX) {
 			if (t_info->tgt->tgt_is_active()) {
 				++retries;
-				/* Wait for CPE to be inactive */
+				
 				usleep_range(5000, 5100);
 			} else {
 				break;
@@ -2565,17 +2561,17 @@ static enum cpe_svc_result cpe_tgt_wcd9335_read_RAM(struct cpe_info *t_info,
 	lastaddr = ~addr;
 	do {
 		if (!autoinc || (ptr_update)) {
-			/* write LSB only if modified */
+			
 			if ((lastaddr & 0xFF) != (addr & 0xFF))
 				rc |= cpe_register_write(
 						WCD9335_CPE_SS_MEM_PTR_0,
 						(addr & 0xFF));
-			/* write middle byte only if modified */
+			
 			if (((lastaddr >> 8) & 0xFF) != ((addr >> 8) & 0xFF))
 				rc |= cpe_register_write(
 						WCD9335_CPE_SS_MEM_PTR_1,
 						((addr>>8) & 0xFF));
-			/* write MSB only if modified */
+			
 			if (((lastaddr >> 16) & 0xFF) != ((addr >> 16) & 0xFF))
 				rc |= cpe_register_write(
 						WCD9335_CPE_SS_MEM_PTR_2,

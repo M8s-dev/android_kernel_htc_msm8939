@@ -135,23 +135,23 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 
 	if (!strncmp("VoLTE", substream->pcm->id, 5)) {
 		voice = &voice_info[VOLTE_SESSION_INDEX];
-		pr_debug("%s: Open VoLTE Substream Id=%s\n",
+		pr_info("%s: Open VoLTE Substream Id=%s\n",
 			 __func__, substream->pcm->id);
 	} else if (!strncmp("Voice2", substream->pcm->id, 6)) {
 		voice = &voice_info[VOICE2_SESSION_INDEX];
-		pr_debug("%s: Open Voice2 Substream Id=%s\n",
+		pr_info("%s: Open Voice2 Substream Id=%s\n",
 			 __func__, substream->pcm->id);
 	} else if (!strncmp("QCHAT", substream->pcm->id, 5)) {
 		voice = &voice_info[QCHAT_SESSION_INDEX];
-		pr_debug("%s: Open QCHAT Substream Id=%s\n",
+		pr_info("%s: Open QCHAT Substream Id=%s\n",
 			 __func__, substream->pcm->id);
 	} else if (!strncmp("VoWLAN", substream->pcm->id, 6)) {
 		voice = &voice_info[VOWLAN_SESSION_INDEX];
-		pr_debug("%s: Open VoWLAN Substream Id=%s\n",
+		pr_info("%s: Open VoWLAN Substream Id=%s\n",
 			 __func__, substream->pcm->id);
 	} else {
 		voice = &voice_info[VOICE_SESSION_INDEX];
-		pr_debug("%s: Open VOICE Substream Id=%s\n",
+		pr_info("%s: Open VOICE Substream Id=%s\n",
 			 __func__, substream->pcm->id);
 	}
 	mutex_lock(&voice->lock);
@@ -267,18 +267,18 @@ static int msm_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct msm_voice *prtd = runtime->private_data;
 	uint32_t session_id = 0;
 
-	pr_debug("%s: cmd = %d\n", __func__, cmd);
+	pr_info("%s: cmd = %d\n", __func__, cmd);
 
 	session_id = get_session_id(prtd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_STOP:
-		pr_debug("Start & Stop Voice call not handled in Trigger.\n");
+		pr_info("Start & Stop Voice call not handled in Trigger.\n");
 	break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		pr_debug("%s: resume call session_id = %d\n", __func__,
+		pr_info("%s: resume call session_id = %d\n", __func__,
 			 session_id);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			ret = msm_pcm_playback_prepare(substream);
@@ -291,7 +291,7 @@ static int msm_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		pr_debug("%s: pause call session_id=%d\n",
+		pr_info("%s: pause call session_id=%d\n",
 			 __func__, session_id);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			if (prtd->playback_start)
@@ -378,7 +378,7 @@ static int msm_voice_gain_put(struct snd_kcontrol *kcontrol,
 		goto done;
 	}
 
-	pr_debug("%s: volume: %d session_id: %#x ramp_duration: %d\n", __func__,
+	pr_info("%s: volume: %d session_id: %#x ramp_duration: %d\n", __func__,
 		volume, session_id, ramp_duration);
 
 	voc_set_rx_vol_step(session_id, RX_PATH, volume, ramp_duration);
@@ -403,7 +403,7 @@ static int msm_voice_mute_put(struct snd_kcontrol *kcontrol,
 		goto done;
 	}
 
-	pr_debug("%s: mute=%d session_id=%#x ramp_duration=%d\n", __func__,
+	pr_info("%s: mute=%d session_id=%#x ramp_duration=%d\n", __func__,
 		mute, session_id, ramp_duration);
 
 	ret = voc_set_tx_mute(session_id, TX_PATH, mute, ramp_duration);

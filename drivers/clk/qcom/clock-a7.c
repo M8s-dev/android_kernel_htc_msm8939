@@ -78,7 +78,7 @@ static void print_opp_table(int a7_cpu)
 	oppfmin = dev_pm_opp_find_freq_exact(get_cpu_device(a7_cpu), apc0_fmin,
 						true);
 
-	/* One time information during boot. */
+	
 	pr_info("clock_cpu: a7: OPP voltage for %lu: %ld\n", apc0_fmin,
 			dev_pm_opp_get_voltage(oppfmin));
 	pr_info("clock_cpu: a7: OPP voltage for %lu: %ld\n", apc0_fmax,
@@ -111,11 +111,6 @@ static int add_opp(struct clk *c, struct device *cpudev, struct device *vregdev,
 
 		uv = corner = c->vdd_class->vdd_uv[level];
 
-		/*
-		 * Populate both CPU and regulator devices with the
-		 * freq-to-corner OPP table to maintain backward
-		 * compatibility.
-		 */
 		ret = dev_pm_opp_add(cpudev, rate, corner);
 		if (ret) {
 			pr_warn("clock-cpu: couldn't add OPP for %lu\n",
@@ -165,7 +160,7 @@ static void populate_opp_table(struct platform_device *pdev)
 				"Failed to add OPP levels for A7\n");
 	}
 
-	/* One time print during bootup */
+	
 	pr_info("clock-a7: OPP tables populated (cpu %d)\n", a7_cpu);
 
 	print_opp_table(a7_cpu);
@@ -399,7 +394,7 @@ static int clock_a7_probe(struct platform_device *pdev)
 
 	a7ssmux.num_parents = rc;
 
-	/* Override the existing safe operating frequency */
+	
 	prop = of_get_property(pdev->dev.of_node, "qcom,safe-freq", NULL);
 	if (prop)
 		a7ssmux.safe_freq = of_read_ulong(prop, 1);
@@ -413,7 +408,7 @@ static int clock_a7_probe(struct platform_device *pdev)
 			"qcom,speed%d-bin-v%d", speed_bin, version);
 	rc = of_get_fmax_vdd_class(pdev, &a7ssmux.c, prop_name);
 	if (rc) {
-		/* Fall back to most conservative PVS table */
+		
 		dev_err(&pdev->dev, "Unable to load voltage plan %s!\n",
 								prop_name);
 		rc = of_get_fmax_vdd_class(pdev, &a7ssmux.c,
@@ -433,7 +428,7 @@ static int clock_a7_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	/* Force a PLL reconfiguration */
+	
 	aux_clk = a7ssmux.parents[0].src;
 	main_pll = a7ssmux.parents[1].src;
 
@@ -443,13 +438,6 @@ static int clock_a7_probe(struct platform_device *pdev)
 	clk_set_rate(main_pll, clk_round_rate(main_pll, 1));
 	clk_set_rate(&a7ssmux.c, rate);
 
-	/*
-	 * We don't want the CPU clocks to be turned off at late init
-	 * if CPUFREQ or HOTPLUG configs are disabled. So, bump up the
-	 * refcount of these clocks. Any cpufreq/hotplug manager can assume
-	 * that the clocks have already been prepared and enabled by the time
-	 * they take over.
-	 */
 	get_online_cpus();
 	for_each_online_cpu(cpu)
 		WARN(clk_prepare_enable(&a7ssmux.c),
@@ -488,7 +476,6 @@ static int __init clock_a7_init(void)
 }
 arch_initcall(clock_a7_init);
 
-/* CPU devices are not currently available in arch_initcall */
 static int __init cpu_clock_a7_init_opp(void)
 {
 	if (cpu_clock_a7_dev)

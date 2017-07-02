@@ -1339,7 +1339,7 @@ smem_targ_info_done:
 		}
 	}
 	/* Initialize main SMEM region and SSR ramdump region */
-	smem_areas_tmp = kmalloc_array(num_smem_areas, sizeof(struct smem_area),
+	smem_areas_tmp = kcalloc(num_smem_areas, sizeof(struct smem_area),
 				GFP_KERNEL);
 	if (!smem_areas_tmp) {
 		LOG_ERR("%s: smem areas kmalloc failed\n", __func__);

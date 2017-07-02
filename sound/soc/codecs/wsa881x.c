@@ -84,10 +84,6 @@ enum {
 	WSA881X_DEV_UP,
 };
 
-/*
- * Private data Structure for wsa881x. All parameters related to
- * WSA881X codec needs to be defined here.
- */
 struct wsa881x_priv {
 	struct regmap *regmap;
 	struct device *dev;
@@ -197,16 +193,6 @@ static struct snd_info_entry_ops wsa881x_codec_info_ops = {
 	.read = wsa881x_codec_version_read,
 };
 
-/*
- * wsa881x_codec_info_create_codec_entry - creates wsa881x module
- * @codec_root: The parent directory
- * @codec: Codec instance
- *
- * Creates wsa881x module and version entry under the given
- * parent directory.
- *
- * Return: 0 on success or negative error code on failure.
- */
 int wsa881x_codec_info_create_codec_entry(struct snd_info_entry *codec_root,
 					  struct snd_soc_codec *codec)
 {
@@ -296,7 +282,7 @@ static ssize_t wsa881x_swrslave_reg_show(char __user *ubuf, size_t count,
 			continue;
 		swr_read(dbgwsa881x->swr_slave, devnum,
 			i, &reg_val, 1);
-		len = snprintf(tmp_buf, 25, "0x%.3x: 0x%.2x\n", i,
+		len = snprintf(tmp_buf, sizeof(tmp_buf), "0x%.3x: 0x%.2x\n", i, 
 			       (reg_val & 0xFF));
 		if ((total + len) >= count - 1)
 			break;
@@ -361,7 +347,7 @@ static ssize_t codec_debug_write(struct file *filp,
 
 	lbuf[cnt] = '\0';
 	if (!strcmp(access_str, "swrslave_poke")) {
-		/* write */
+		
 		rc = get_parameters(lbuf, param, 3);
 		if ((param[0] <= SWR_SLV_MAX_REG_ADDR) && (param[1] <= 0xFF) &&
 			(rc == 0))
@@ -370,7 +356,7 @@ static ssize_t codec_debug_write(struct file *filp,
 		else
 			rc = -EINVAL;
 	} else if (!strcmp(access_str, "swrslave_peek")) {
-		/* read */
+		
 		rc = get_parameters(lbuf, param, 2);
 		if ((param[0] <= SWR_SLV_MAX_REG_ADDR) && (rc == 0))
 			swr_read(dbgwsa881x->swr_slave, param[1],
@@ -378,7 +364,7 @@ static ssize_t codec_debug_write(struct file *filp,
 		else
 			rc = -EINVAL;
 	} else if (!strcmp(access_str, "swrslave_reg_dump")) {
-		/* reg dump */
+		
 		rc = get_parameters(lbuf, param, 1);
 		if ((rc == 0) && (param[0] > 0) &&
 		    (param[0] <= SWR_SLV_MAX_DEVICES))
@@ -440,10 +426,6 @@ static int wsa881x_boost_ctrl(struct snd_soc_codec *codec, bool enable)
 		snd_soc_update_bits(codec, WSA881X_BOOST_EN_CTL, 0x80, 0x80);
 	else
 		snd_soc_update_bits(codec, WSA881X_BOOST_EN_CTL, 0x80, 0x00);
-	/*
-	 * 1.5ms sleep is needed after boost enable/disable as per
-	 * HW requirement
-	 */
 	usleep_range(1500, 1510);
 	return 0;
 }
@@ -470,10 +452,6 @@ static int wsa881x_visense_txfe_ctrl(struct snd_soc_codec *codec, bool enable,
 	} else {
 		snd_soc_update_bits(codec, WSA881X_SPKR_PROT_FE_VSENSE_VCM,
 				    0x08, 0x08);
-		/*
-		 * 200us sleep is needed after visense txfe disable as per
-		 * HW requirement.
-		 */
 		usleep_range(200, 210);
 		snd_soc_update_bits(codec, WSA881X_SPKR_PROT_FE_GAIN,
 				    0x01, 0x00);
@@ -504,7 +482,7 @@ static void wsa881x_bandgap_ctrl(struct snd_soc_codec *codec, bool enable)
 		if (wsa881x->bg_cnt == 1) {
 			snd_soc_update_bits(codec, WSA881X_TEMP_OP,
 					    0x08, 0x08);
-			/* 400usec sleep is needed as per HW requirement */
+			
 			usleep_range(400, 410);
 			snd_soc_update_bits(codec, WSA881X_TEMP_OP,
 					    0x04, 0x04);
@@ -751,10 +729,6 @@ static int wsa881x_ramp_pa_gain(struct snd_soc_codec *codec,
 	for (val = min_gain; max_gain <= val; val--) {
 		snd_soc_update_bits(codec, WSA881X_SPKR_DRV_GAIN,
 				    0xF0, val << 4);
-		/*
-		 * 1ms delay is needed for every step change in gain as per
-		 * HW requirement.
-		 */
 		usleep_range(udelay, udelay+10);
 	}
 	return 0;
@@ -804,25 +778,13 @@ static int wsa881x_spkr_pa_event(struct snd_soc_dapm_widget *w,
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		if (WSA881X_IS_2_0(wsa881x->version)) {
-			/*
-			 * 1ms delay is needed before change in gain as per
-			 * HW requirement.
-			 */
 			usleep_range(1000, 1010);
 			wsa881x_ramp_pa_gain(codec, G_13P5DB, G_18DB, 1000);
 		} else {
-			/*
-			 * 710us delay is needed after PA enable as per
-			 * HW requirement.
-			 */
 			usleep_range(710, 720);
 			regmap_multi_reg_write(wsa881x->regmap,
 					       wsa881x_post_pmu_pa,
 					       ARRAY_SIZE(wsa881x_post_pmu_pa));
-			/*
-			 * 1ms delay is needed before change in gain as per
-			 * HW requirement.
-			 */
 			usleep_range(1000, 1010);
 			wsa881x_ramp_pa_gain(codec, G_12DB, G_13P5DB, 1000);
 			snd_soc_update_bits(codec, WSA881X_ADC_SEL_IBIAS,
@@ -906,9 +868,9 @@ static void wsa881x_init(struct snd_soc_codec *codec)
 
 	wsa881x->version = snd_soc_read(codec, WSA881X_CHIP_ID1);
 	wsa881x_regmap_defaults(wsa881x->regmap, wsa881x->version);
-	/* Bring out of analog reset */
+	
 	snd_soc_update_bits(codec, WSA881X_CDC_RST_CTL, 0x02, 0x02);
-	/* Bring out of digital reset */
+	
 	snd_soc_update_bits(codec, WSA881X_CDC_RST_CTL, 0x01, 0x01);
 
 	if (WSA881X_IS_2_0(wsa881x->version)) {
@@ -937,9 +899,9 @@ static void wsa881x_init(struct snd_soc_codec *codec)
 		snd_soc_update_bits(codec, WSA881X_BONGO_RESRV_REG2,
 				    0xFF, 0x05);
 	} else {
-		/* Set DAC polarity to Rising */
+		
 		snd_soc_update_bits(codec, WSA881X_SPKR_DAC_CTL, 0x02, 0x02);
-		/* set Bias Ref ctrl to 1.225V */
+		
 		snd_soc_update_bits(codec, WSA881X_BIAS_REF_CTRL, 0x07, 0x00);
 		snd_soc_update_bits(codec, WSA881X_SPKR_BBM_CTL, 0x02, 0x02);
 		snd_soc_update_bits(codec, WSA881X_SPKR_MISC_CTL1, 0xC0, 0x00);
@@ -1079,11 +1041,6 @@ static int wsa881x_swr_startup(struct swr_device *swr_dev)
 		return -EINVAL;
 	}
 
-	/*
-	 * Add 5msec delay to provide sufficient time for
-	 * soundwire auto enumeration of slave devices as
-	 * as per HW requirement.
-	 */
 	usleep_range(5000, 5010);
 	ret = swr_get_logical_dev_num(swr_dev, swr_dev->addr, &devnum);
 	if (ret) {
@@ -1140,7 +1097,7 @@ static int wsa881x_gpio_init(struct swr_device *pdev)
 	ret = gpio_request(wsa881x->pd_gpio, dev_name(&pdev->dev));
 	if (ret) {
 		if (ret == -EBUSY) {
-			/* GPIO was already requested */
+			
 			dev_dbg(&pdev->dev,
 				 "%s: gpio %d is already set to high\n",
 				 __func__, wsa881x->pd_gpio);
@@ -1341,7 +1298,7 @@ static int wsa881x_swr_resume(struct device *dev)
 	dev_dbg(dev, "%s: system resume\n", __func__);
 	return 0;
 }
-#endif /* CONFIG_PM_SLEEP */
+#endif 
 
 static const struct dev_pm_ops wsa881x_swr_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(wsa881x_swr_suspend, wsa881x_swr_resume)

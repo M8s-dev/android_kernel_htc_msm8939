@@ -73,6 +73,13 @@ config LEDS_LM3642
 	  converter plus 1.5A constant current driver for a high-current
 	  white LED.
 
+config LEDS_LM3697
+	tristate "LCD Backlight driver for LM3697"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for the LCD backlight using
+	  LM3697 chip.
 
 config LEDS_LOCOMO
 	tristate "LED Support for Locomo device"
@@ -211,6 +218,17 @@ config LEDS_LP5521
 	  Driver provides direct control via LED class and interface for
 	  programming the engines.
 
+config LEDS_LP5521_HTC
+   tristate "LED Support for N.S. LP5521 LED driver chip"
+   depends on LEDS_CLASS && I2C
+   select LEDS_LP55XX_COMMON
+   help
+      If you say yes here you get support for the National Semiconductor
+      LP5521 LED driver. It is 3 channel chip with programmable engines.
+      Driver provides direct control via LED class and interface for
+      programming the engines.
+
+
 config LEDS_LP5523
 	tristate "LED Support for TI/National LP5523/55231 LED driver chip"
 	depends on LEDS_CLASS && I2C
@@ -286,6 +304,31 @@ config LEDS_PCA9633
 	help
 	  This option enables support for LEDs connected to the PCA9633
 	  LED driver chip accessed via the I2C bus.
+
+config HTC_FLASHLIGHT_COMMON
+        tristate "Common flashlight API for camera"
+	depends on FLASHLIGHT_TPS61310_FRONT || FLASHLIGHT_LM3643 || FLASHLIGHT_TPS61310 || FLASHLIGHT_NCP6951
+        help
+          Say Y here to enable the common API for front & main flashlight utilization
+
+config FLASHLIGHT_NCP6951
+        tristate "ON NCP6951 flashlight"
+	depends on LEDS_CLASS && I2C && REGULATOR_NCP6951
+	select HTC_FLASHLIGHT_COMMON
+        help
+          Say Y here to enable the ON Semiconductor NCP6951 flashlight
+
+config FLASHLIGHT_TPS61310
+	tristate "TI TPS61310 flashlight"
+	help
+	  Say Y here to enable the TI TPS61310 flashlight
+
+config FLASHLIGHT_1500mA
+	bool "FLASHLIGHT_1500mA"
+	depends on FLASHLIGHT_TPS61310
+	default n
+	help
+	  Say Y here to enable the TI TPS61310 flashlight
 
 config LEDS_QPNP
 	tristate "Support for QPNP LEDs"

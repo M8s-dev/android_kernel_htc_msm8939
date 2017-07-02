@@ -38,6 +38,16 @@
 #include "audio_ocmem.h"
 #include <sound/tlv.h>
 
+//htc audio ++
+#include <sound/q6adm-v2.h>
+#include <linux/wakelock.h>
+#include <sound/htc_acoustic_alsa.h>
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
+
 #define COMPRE_CAPTURE_NUM_PERIODS	16
 /* Allocate the worst case frame size for compressed audio */
 #define COMPRE_CAPTURE_HEADER_SIZE	(sizeof(struct snd_compr_audio_info))
@@ -392,6 +402,14 @@ static int msm_compr_playback_prepare(struct snd_pcm_substream *substream)
 	params = &soc_prtd->dpcm[substream->stream].hw_params;
 	if (runtime->format == SNDRV_PCM_FORMAT_S24_LE)
 		bits_per_sample = 24;
+
+//HTC_AUD_START
+	if (htc_acoustic_query_feature(HTC_AUD_24BIT)) {
+		pr_info("%s:enable 24 bit Audio in POPP compr prepare\n",
+			__func__);
+		bits_per_sample = 24;
+	}
+//HTC_AUD_END
 
 	ret = q6asm_open_write_v2(prtd->audio_client,
 			compr->codec, bits_per_sample);
@@ -931,6 +949,7 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 		dir = IN;
 	else
 		dir = OUT;
+
 	/* Modifying kernel hardware params based on userspace config */
 	if (params_periods(params) > 0 &&
 		(params_periods(params) != runtime->hw.periods_max)) {

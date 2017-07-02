@@ -44,6 +44,11 @@
 #include <linux/kthread.h>
 #include <linux/freezer.h>
 
+#ifdef CONFIG_EXT4_E2FSCK_RECOVER
+#include <linux/reboot.h>
+#endif
+#include <htc/devices_cmdline.h>
+
 #include "ext4.h"
 #include "ext4_extents.h"	/* Needed for trace points definition */
 #include "ext4_jbd2.h"
@@ -304,6 +309,11 @@ static void __save_error_info(struct super_block *sb, const char *func,
 {
 	struct ext4_super_block *es = EXT4_SB(sb)->s_es;
 
+	if (bdev_read_only(sb->s_bdev)) {
+		ext4_msg(sb, KERN_ERR, "write access "
+			"unavailable, skipping save_error_info");
+		return;
+	}
 	EXT4_SB(sb)->s_mount_state |= EXT4_ERROR_FS;
 	es->s_state |= cpu_to_le16(EXT4_ERROR_FS);
 	es->s_last_error_time = cpu_to_le32(get_seconds());
@@ -403,6 +413,11 @@ static void ext4_handle_error(struct super_block *sb)
 	if (test_opt(sb, ERRORS_PANIC))
 		panic("EXT4-fs (device %s): panic forced after error\n",
 			sb->s_id);
+
+#ifdef CONFIG_EXT4_E2FSCK_RECOVER
+       if (test_opt(sb, ERRORS_RO) && strncmp(sb->s_id, "dm-", 3))
+               ext4_e2fsck(sb);
+#endif
 }
 
 void __ext4_error(struct super_block *sb, const char *function,
@@ -421,6 +436,49 @@ void __ext4_error(struct super_block *sb, const char *function,
 
 	ext4_handle_error(sb);
 }
+
+#ifdef CONFIG_EXT4_E2FSCK_RECOVER
+static void ext4_reboot(struct work_struct *work)
+{
+       printk(KERN_ERR "%s: reboot to run e2fsck\n", __func__);
+       kernel_restart("oem-22");
+}
+
+void ext4_e2fsck(struct super_block *sb)
+{
+       static int reboot;
+       struct workqueue_struct *wq;
+       struct ext4_sb_info *sb_info;
+       if (reboot)
+               return;
+       printk(KERN_ERR "%s\n", __func__);
+       reboot = 1;
+       sb_info = EXT4_SB(sb);
+       if (!sb_info) {
+               printk(KERN_ERR "%s: no sb_info\n", __func__);
+               reboot = 0;
+               return;
+       }
+       sb_info->recover_wq = create_workqueue("ext4-recover");
+       if (!sb_info->recover_wq) {
+               printk(KERN_ERR "EXT4-fs: failed to create recover workqueue\n");
+               reboot = 0;
+               return;
+       }
+
+	/* Don't reboot oem-22 to run e2fsck if enter MFG kernel */
+	if(board_mfg_mode() == MFG_MODE_MFGKERNEL) {
+		pr_err("EXT4-fs: MFG mode do nothing (mode=%d)\n", board_mfg_mode());
+		return;
+	}
+
+       INIT_WORK(&sb_info->reboot_work, ext4_reboot);
+       wq = sb_info->recover_wq;
+       /* queue the work to reboot */
+       queue_work(wq, &sb_info->reboot_work);
+}
+#endif
+
 
 void ext4_error_inode(struct inode *inode, const char *function,
 		      unsigned int line, ext4_fsblk_t block,

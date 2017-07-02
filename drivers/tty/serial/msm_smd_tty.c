@@ -37,6 +37,8 @@
 #include <soc/qcom/smsm.h>
 #include <soc/qcom/subsystem_restart.h>
 
+#include "htc_bdaddress.h" //HTC_BT++
+
 #define MODULE_NAME "msm_smdtty"
 #define MAX_SMD_TTYS 37
 #define MAX_TTY_BUF_SIZE 2048
@@ -556,6 +558,7 @@ static int smd_tty_port_activate(struct tty_port *tport,
 	tty->driver_data = info;
 
 	res = smd_tty_add_driver(info);
+
 	if (res) {
 		SMD_TTY_ERR("%s:%d Idx smd_tty_driver register failed %d\n",
 							__func__, n, res);
@@ -1071,6 +1074,8 @@ out:
 static int msm_smd_tty_probe(struct platform_device *pdev)
 {
 	int ret;
+
+    bt_export_bd_address(); //HTC_BT++
 
 	if (pdev) {
 		if (pdev->dev.of_node) {

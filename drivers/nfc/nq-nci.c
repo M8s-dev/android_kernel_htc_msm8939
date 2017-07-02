@@ -46,10 +46,8 @@ static struct of_device_id msm_match_table[] = {
 MODULE_DEVICE_TABLE(of, msm_match_table);
 #define MAX_BUFFER_SIZE			(320)
 #define PACKET_MAX_LENGTH		(258)
-/* Read data */
 #define PACKET_HEADER_SIZE_NCIPACKET_HEADER_SIZE_NCI	(4)
 #define MAX_PACKET_SIZE			(PACKET_HEADER_SIZE_NCI + 255)
-/* will timeout in approx. 100ms as 10us steps */
 #define NTF_TIMEOUT				(100)
 #define	CORE_RESET_RSP_GID		(0x60)
 #define	CORE_RESET_OID			(0x00)
@@ -65,11 +63,11 @@ struct nqx_dev {
 	unsigned int		en_gpio;
 	unsigned int		firm_gpio;
 	unsigned int		clkreq_gpio;
-	/* NFC_IRQ state */
+	
 	bool			irq_enabled;
 	spinlock_t		irq_enabled_lock;
 	unsigned int		count_irq;
-	/* CLK control */
+	
 	unsigned int		core_reset_ntf;
 	bool			clk_run;
 	struct dma_pool *nfc_dma_pool;
@@ -179,7 +177,7 @@ static ssize_t nfc_read(struct file *filp, char __user *buf,
 		}
 	}
 
-	/* Read data */
+	
 	tmp = nqx_dev->dma_virtual_addr;
 	memset(tmp, 0x00, MAX_BUFFER_SIZE);
 	ret = i2c_master_recv(nqx_dev->client, tmp, count);
@@ -245,7 +243,7 @@ static int nfc_open(struct inode *inode, struct file *filp)
 
 	filp->private_data = nqx_dev;
 	nqx_init_stat(nqx_dev);
-	/* Enable interrupts from NFCC NFC_INT new NCI data available */
+	
 	nqx_enable_irq(nqx_dev);
 
 	dev_dbg(&nqx_dev->client->dev,
@@ -253,20 +251,6 @@ static int nfc_open(struct inode *inode, struct file *filp)
 	return ret;
 }
 
-/*
- * Inside nfc_ioctl_power_states
- *
- * @brief	ioctl functions
- *
- *
- * Device control
- * remove control via ioctl
- * (arg = 0): NFC_ENABLE	GPIO = 0, FW_DL GPIO = 0
- * (arg = 1): NFC_ENABLE	GPIO = 1, FW_DL GPIO = 0
- * (arg = 2): FW_DL GPIO = 1
- *
- *
- */
 int nfc_ioctl_power_states(struct file *filp, unsigned int cmd,
 							unsigned long arg)
 {
@@ -274,10 +258,6 @@ int nfc_ioctl_power_states(struct file *filp, unsigned int cmd,
 	struct nqx_dev *nqx_dev = filp->private_data;
 
 	if (arg == 0) {
-		/* We are attempting a hardware reset so let us disable
-		 * interrupts to avoid spurious notifications to upper
-		 * layers.
-		 */
 		nqx_disable_irq(nqx_dev);
 		dev_dbg(&nqx_dev->client->dev,
 			"gpio_set_value disable: %s: info: %p\n",
@@ -285,7 +265,7 @@ int nfc_ioctl_power_states(struct file *filp, unsigned int cmd,
 		if (gpio_is_valid(nqx_dev->firm_gpio))
 			gpio_set_value(nqx_dev->firm_gpio, 0);
 		gpio_set_value(nqx_dev->en_gpio, 0);
-		/* hardware dependent delay */
+		
 		msleep(100);
 	} else if (arg == 1) {
 		dev_dbg(&nqx_dev->client->dev,
@@ -296,9 +276,6 @@ int nfc_ioctl_power_states(struct file *filp, unsigned int cmd,
 		gpio_set_value(nqx_dev->en_gpio, 1);
 		msleep(100);
 	} else if (arg == 2) {
-		/* We are switching to Dowload Mode, toggle the enable pin
-		 * in order to set the NFCC in the new mode
-		 */
 		gpio_set_value(nqx_dev->en_gpio, 1);
 		msleep(20);
 		if (gpio_is_valid(nqx_dev->firm_gpio))
@@ -336,16 +313,6 @@ static long nfc_compat_ioctl(struct file *pfile, unsigned int cmd,
 }
 #endif
 
-/*
- * Inside nfc_ioctl_core_reset_ntf
- *
- * @brief	nfc_ioctl_core_reset_ntf
- *
- * Allows callers to determine if a CORE_RESET_NTF has arrived
- *
- * Returns the value of variable core_reset_ntf
- *
- */
 int nfc_ioctl_core_reset_ntf(struct file *filp, unsigned int cmd,
 				unsigned long arg)
 {
@@ -479,7 +446,7 @@ static int nqx_probe(struct i2c_client *client,
 	}
 	nqx_dev->client = client;
 
-	/* if coherent_dma_mask not set by the device, set it to ULONG_MAX */
+	
 	if (client->dev.coherent_dma_mask == 0)
 		client->dev.coherent_dma_mask = ULONG_MAX;
 
@@ -528,7 +495,7 @@ static int nqx_probe(struct i2c_client *client,
 		goto err_free_dev;
 	}
 
-	/* Register reboot notifier here */
+	
 	r = register_reboot_notifier(&nfcc_notifier);
 	if (r) {
 		dev_err(&client->dev,
@@ -609,7 +576,7 @@ static int nqx_probe(struct i2c_client *client,
 	nqx_dev->irq_gpio = platform_data->irq_gpio;
 	nqx_dev->firm_gpio  = platform_data->firm_gpio;
 
-	/* init mutex and queues */
+	
 	init_waitqueue_head(&nqx_dev->read_wq);
 	mutex_init(&nqx_dev->read_mutex);
 	spin_lock_init(&nqx_dev->irq_enabled_lock);
@@ -624,7 +591,7 @@ static int nqx_probe(struct i2c_client *client,
 		goto err_misc_register;
 	}
 
-	/* NFC_INT IRQ */
+	
 	nqx_dev->irq_enabled = true;
 	r = request_irq(client->irq, nqx_dev_irq_handler,
 			  IRQF_TRIGGER_RISING, client->name, nqx_dev);
@@ -722,9 +689,6 @@ static int nfcc_reboot(struct notifier_block *notifier, unsigned long val,
 	return NOTIFY_OK;
 }
 
-/*
- * module load/unload record keeping
- */
 static int __init nqx_dev_init(void)
 {
 	return i2c_add_driver(&nqx);

@@ -217,7 +217,7 @@ void dma_done_notify_handler(void *arg)
 void vsync_count_down(void *arg)
 {
 	struct mdp3_session_data *session = (struct mdp3_session_data *)arg;
-	/* We are counting down to turn off clocks */
+	
 	atomic_dec(&session->vsync_countdown);
 	if (atomic_read(&session->vsync_countdown) == 0)
 		schedule_work(&session->clk_off_work);
@@ -251,11 +251,6 @@ static int mdp3_ctrl_vsync_enable(struct msm_fb_data_type *mfd, int enable)
 		vsync_client.arg = mdp3_session;
 		arg = &vsync_client;
 	} else if (atomic_read(&mdp3_session->vsync_countdown)) {
-		/*
-		 * Now that vsync is no longer needed we will
-		 * shutdown dsi clocks as soon as cnt down == 0
-		 * for cmd mode panels
-		 */
 		vsync_client.handler = vsync_count_down;
 		vsync_client.arg = mdp3_session;
 		arg = &vsync_client;
@@ -266,10 +261,6 @@ static int mdp3_ctrl_vsync_enable(struct msm_fb_data_type *mfd, int enable)
 	mdp3_session->dma->vsync_enable(mdp3_session->dma, arg);
 	mdp3_clk_enable(0, 0);
 
-	/*
-	 * Need to fake vsync whenever dsi interface is not
-	 * active or when dsi clocks are currently off
-	 */
 	if (enable && mdp3_session->status == 1
 			&& (mdp3_session->vsync_before_commit ||
 			!mdp3_session->intf->active)) {
@@ -371,7 +362,7 @@ static ssize_t mdp3_packpattern_show(struct device *dev,
 
 	pattern = mdp3_session->dma->output_config.pack_pattern;
 
-	/* If pattern was found to be 0 then get pattern for fb imagetype */
+	
 	if (!pattern)
 		pattern = mdp3_ctrl_get_pack_pattern(mfd->fb_imgType);
 
@@ -474,11 +465,18 @@ static int mdp3_ctrl_clk_enable(struct msm_fb_data_type *mfd, int enable)
 static int mdp3_ctrl_res_req_bus(struct msm_fb_data_type *mfd, int status)
 {
 	int rc = 0;
+	u32 vtotal = 0;
 	if (status) {
+		struct mdss_panel_info *panel_info = mfd->panel_info;
 		u64 ab = 0;
 		u64 ib = 0;
-		mdp3_calc_dma_res(mfd->panel_info, NULL, &ab, &ib,
-			ppp_bpp(mfd->fb_imgType));
+		vtotal = panel_info->yres + panel_info->lcdc.v_back_porch +
+			panel_info->lcdc.v_front_porch +
+			panel_info->lcdc.v_pulse_width;
+		ab = panel_info->xres * vtotal * ppp_bpp(mfd->fb_imgType);
+		ab *= panel_info->mipi.frame_rate;
+		
+		ib = ab;
 		rc = mdp3_bus_scale_set_quota(MDP3_CLIENT_DMA_P, ab, ib);
 	} else {
 		rc = mdp3_bus_scale_set_quota(MDP3_CLIENT_DMA_P, 0, 0);
@@ -490,11 +488,8 @@ static int mdp3_ctrl_res_req_clk(struct msm_fb_data_type *mfd, int status)
 {
 	int rc = 0;
 	if (status) {
-		u64 mdp_clk_rate = 0;
-		mdp3_calc_dma_res(mfd->panel_info, &mdp_clk_rate,
-			NULL, NULL, 0);
 
-		mdp3_clk_set_rate(MDP3_CLK_MDP_SRC, mdp_clk_rate,
+		mdp3_clk_set_rate(MDP3_CLK_MDP_SRC, MDP_CORE_CLK_RATE_SVS,
 				MDP3_CLIENT_DMA_P);
 		mdp3_clk_set_rate(MDP3_CLK_VSYNC, MDP_VSYNC_CLK_RATE,
 				MDP3_CLIENT_DMA_P);
@@ -669,7 +664,7 @@ static int mdp3_ctrl_dma_init(struct msm_fb_data_type *mfd,
 					MDP3_DMA_OUTPUT_COMP_BITS_8;
 
 	if (dma->update_src_cfg) {
-		/* configuration has been updated through PREPARE call */
+		
 		sourceConfig.format = dma->source_config.format;
 		sourceConfig.stride = dma->source_config.stride;
 		outputConfig.pack_pattern = dma->output_config.pack_pattern;
@@ -736,13 +731,13 @@ static int mdp3_ctrl_on(struct msm_fb_data_type *mfd)
 	mutex_lock(&mdp3_session->lock);
 
 	panel = mdp3_session->panel;
-	/* make sure DSI host is initialized properly */
+	
 	if (panel) {
 		pr_debug("%s : dsi host init, power state = %d\n",
 				__func__, mfd->panel_power_state);
 		if (mdss_fb_is_power_on_lp(mfd) ||
 			mdp3_session->in_splash_screen) {
-			/* Turn on panel so that it can exit low power mode */
+			
 			mdp3_clk_enable(1, 0);
 			rc = panel->event_handler(panel,
 					MDSS_EVENT_LINK_READY, NULL);
@@ -765,19 +760,14 @@ static int mdp3_ctrl_on(struct msm_fb_data_type *mfd)
 		goto end;
 	}
 
-	/*
-	* Get a reference to the runtime pm device.
-	* If idle pc feature is enabled, it will be released
-	* at end of this routine else, when device is turned off.
-	*/
 	pm_runtime_get_sync(&mdp3_res->pdev->dev);
 
-	/* Increment the overlay active count */
+	
 	atomic_inc(&mdp3_res->active_intf_cnt);
 	mdp3_ctrl_notifier_register(mdp3_session,
 		&mdp3_session->mfd->mdp_sync_pt_data.notifier);
 
-	/* request bus bandwidth before DSI DMA traffic */
+	
 	rc = mdp3_ctrl_res_req_bus(mfd, 1);
 	if (rc) {
 		pr_err("fail to request bus resource\n");
@@ -866,12 +856,6 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 		return -ENODEV;
 	}
 
-	/*
-	 * Keep a reference to the runtime pm until the overlay is turned
-	 * off, and then release this last reference at the end. This will
-	 * help in distinguishing between idle power collapse versus suspend
-	 * power collapse
-	 */
 	pm_runtime_get_sync(&mdp3_res->pdev->dev);
 
 	panel = mdp3_session->panel;
@@ -879,14 +863,9 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 
 	pr_debug("Requested power state = %d\n", mfd->panel_power_state);
 	if (mdss_fb_is_power_on_lp(mfd)) {
-		/*
-		* Transition to low power
-		* As display updates are expected in low power mode,
-		* keep the interface and clocks on.
-		*/
 		intf_stopped = false;
 	} else {
-	    /* Transition to display off */
+	    
 		if (!mdp3_session->status) {
 			pr_err("fb%d is off already", mfd->index);
 			goto off_error;
@@ -895,11 +874,6 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 			panel->set_backlight(panel, 0);
 	}
 
-	/*
-	* While transitioning from interactive to low power,
-	* events need to be sent to the interface so that the
-	* panel can be configured in low power mode
-	*/
 	if (panel->event_handler)
 		rc = panel->event_handler(panel, MDSS_EVENT_BLANK,
 			(void *) (long int)mfd->panel_power_state);
@@ -909,7 +883,7 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 	if (intf_stopped) {
 		if (!mdp3_session->clk_on)
 			mdp3_ctrl_clk_enable(mfd, 1);
-		/* PP related programming for ctrl off */
+		
 		mdp3_histogram_stop(mdp3_session, MDP_BLOCK_DMA_P);
 		mutex_lock(&mdp3_session->dma->pp_lock);
 		mdp3_session->dma->ccs_config.ccs_dirty = false;
@@ -920,11 +894,11 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 						mdp3_session->intf);
 		if (rc)
 			pr_debug("fail to stop the MDP3 dma\n");
-		/* Wait to ensure TG to turn off */
+		
 		msleep(20);
 		mfd->panel_info->cont_splash_enabled = 0;
 
-		/* Disable Auto refresh once continuous splash disabled */
+		
 		mdp3_autorefresh_disable(mfd->panel_info);
 		mdp3_splash_done(mfd->panel_info);
 
@@ -966,10 +940,6 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 			pr_warn("active_intf_cnt unbalanced\n");
 			atomic_set(&mdp3_res->active_intf_cnt, 0);
 		}
-		/*
-		* Release the pm runtime reference held when
-		* idle pc feature is not enabled
-		*/
 		if (!mdp3_res->idle_pc_enabled ||
 			(mfd->panel_info->type != MIPI_CMD_PANEL)) {
 			rc = pm_runtime_put(&mdp3_res->pdev->dev);
@@ -985,7 +955,7 @@ static int mdp3_ctrl_off(struct msm_fb_data_type *mfd)
 	}
 off_error:
 	mutex_unlock(&mdp3_session->lock);
-	/* Release the last reference to the runtime device */
+	
 	pm_runtime_put(&mdp3_res->pdev->dev);
 
 	return 0;
@@ -1038,7 +1008,7 @@ static int mdp3_ctrl_reset(struct msm_fb_data_type *mfd)
 		mfd->panel_info->cont_splash_enabled = 0;
 		mdp3_session->in_splash_screen = 0;
 		mdp3_splash_done(mfd->panel_info);
-		/* Disable Auto refresh */
+		
 		mdp3_autorefresh_disable(mfd->panel_info);
 	} else {
 		mdp3_res->idle_pc = false;
@@ -1087,10 +1057,6 @@ static int mdp3_overlay_set(struct msm_fb_data_type *mfd,
 
 	if (mdp3_session->overlay.id != req->id)
 		pr_err("overlay was not released, continue to recover\n");
-	/*
-	 * A change in overlay structure will always come with
-	 * MSMFB_NEW_REQUEST for MDP3
-	*/
 	if (req->id == MSMFB_NEW_REQUEST) {
 		mutex_lock(&mdp3_session->lock);
 		if (dma->source_config.stride != stride ||
@@ -1283,7 +1249,7 @@ static int mdp3_ctrl_display_commit_kickoff(struct msm_fb_data_type *mfd,
 					(void *)(int)data->addr,
 					mdp3_session->intf, NULL);
 		}
-		/* This is for the previous frame */
+		
 		if (rc < 0) {
 			mdp3_ctrl_notify(mdp3_session,
 				MDP_NOTIFY_FRAME_TIMEOUT);
@@ -1308,7 +1274,7 @@ static int mdp3_ctrl_display_commit_kickoff(struct msm_fb_data_type *mfd,
 	}
 
 	if (mdp3_session->first_commit) {
-		/*wait to ensure frame is sent to panel*/
+		
 		if (panel_info->mipi.post_init_delay)
 			msleep(((1000 / panel_info->mipi.frame_rate) + 1) *
 					panel_info->mipi.post_init_delay);
@@ -1327,7 +1293,7 @@ static int mdp3_ctrl_display_commit_kickoff(struct msm_fb_data_type *mfd,
 		mdp3_session->esd_recovery = false;
 	}
 
-	/* start vsync tick countdown for cmd mode if vsync isn't enabled */
+	
 	if (mfd->panel.type == MIPI_CMD_PANEL && !mdp3_session->vsync_enabled)
 		mdp3_ctrl_vsync_enable(mdp3_session->mfd, 0);
 
@@ -1396,7 +1362,7 @@ static void mdp3_ctrl_pan_display(struct msm_fb_data_type *mfd)
 		rc = mdp3_session->dma->update(mdp3_session->dma,
 				(void *)(int)(mfd->iova + offset),
 				mdp3_session->intf, NULL);
-		/* This is for the previous frame */
+		
 		if (rc < 0) {
 			mdp3_ctrl_notify(mdp3_session,
 				MDP_NOTIFY_FRAME_TIMEOUT);
@@ -1419,7 +1385,7 @@ static void mdp3_ctrl_pan_display(struct msm_fb_data_type *mfd)
 
 	panel = mdp3_session->panel;
 	if (mdp3_session->first_commit) {
-		/*wait to ensure frame is sent to panel*/
+		
 		if (panel_info->mipi.post_init_delay)
 			msleep(((1000 / panel_info->mipi.frame_rate) + 1) *
 					panel_info->mipi.post_init_delay);
@@ -1750,7 +1716,7 @@ static int mdp3_bl_scale_config(struct msm_fb_data_type *mfd,
 	pr_debug("update scale = %d, min_lvl = %d\n", mfd->bl_scale,
 							mfd->bl_min_lvl);
 
-	/* update current backlight to use new scaling*/
+	
 	mdss_fb_set_backlight(mfd, curr_bl);
 	mutex_unlock(&mfd->bl_lock);
 	return ret;
@@ -1788,7 +1754,7 @@ static int mdp3_csc_config(struct mdp3_session_data *session,
 	ccs.pre_lv = data->csc_data.csc_pre_lv;
 	ccs.post_lv = data->csc_data.csc_post_lv;
 
-	/* cache one copy of setting for suspend/resume reconfiguring */
+	
 	session->dma->ccs_cache = *data;
 
 	mdp3_clk_enable(1, 0);
@@ -1827,7 +1793,7 @@ static int mdp3_pp_ioctl(struct msm_fb_data_type *mfd,
 						&mdp_pp.data.bl_scale_data);
 		break;
 	case mdp_op_csc_cfg:
-		/* Checking state of dyn_pu before programming CSC block */
+		
 		if (mdp3_session->dyn_pu_state) {
 			pr_debug("Partial update feature is enabled.\n");
 			return -EPERM;
@@ -2042,7 +2008,6 @@ static int mdp3_lut_combine_gain(struct fb_cmap *cmap, struct mdp3_dma *dma)
 	return 0;
 }
 
-/* Called from within pp_lock and session lock locked context */
 static int mdp3_ctrl_lut_update(struct msm_fb_data_type *mfd,
 				struct fb_cmap *cmap)
 {
@@ -2117,12 +2082,12 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 		case mdp_rgb_lut_gc:
 			if (cfg->flags & MDP_PP_OPS_DISABLE) {
 				if (dma->lut_sts & MDP3_LUT_GC_EN)
-				/* Free GC cmap cache since disabled */
+				
 					mdp3_free_lut_buffer(mfd->pdev,
 							(void **)&dma->gc_cmap);
 				dma->lut_sts &= ~MDP3_LUT_GC_EN;
 			} else if (!(dma->lut_sts & MDP3_LUT_GC_EN)) {
-				/* Check if values sent are valid */
+				
 				rc = mdp3_validate_lut_data(cmap);
 				if (rc) {
 					pr_err("Invalid GC LUT data\n");
@@ -2130,7 +2095,7 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 				}
 				data_validated = true;
 
-				/* Allocate GC cmap cache to store values */
+				
 				rc = mdp3_alloc_lut_buffer(mfd->pdev,
 							(void **)&dma->gc_cmap);
 				if (rc) {
@@ -2139,15 +2104,8 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 				}
 				dma->lut_sts |= MDP3_LUT_GC_EN;
 			}
-			/*
-			 * Copy the GC values from userspace to maintain the
-			 * correct values user intended to program in cache.
-			 * The values programmed in HW might factor in presence
-			 * of other LUT modifying features hence can be
-			 * different from these user given values.
-			 */
 			if (dma->lut_sts & MDP3_LUT_GC_EN) {
-				/* Validate LUT data if not yet validated */
+				
 				if (!data_validated) {
 					rc = mdp3_validate_lut_data(cmap);
 					if (rc) {
@@ -2165,12 +2123,12 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 		case mdp_rgb_lut_hist:
 			if (cfg->flags & MDP_PP_OPS_DISABLE) {
 				if (dma->lut_sts & MDP3_LUT_HIST_EN)
-				/* Free HIST cmap cache since disabled */
+				
 					mdp3_free_lut_buffer(mfd->pdev,
 						(void **)&dma->hist_cmap);
 				dma->lut_sts &= ~MDP3_LUT_HIST_EN;
 			} else if (!(dma->lut_sts & MDP3_LUT_HIST_EN)) {
-				/* Check if values sent are valid */
+				
 				rc = mdp3_validate_lut_data(cmap);
 				if (rc) {
 					pr_err("Invalid HIST LUT data\n");
@@ -2178,7 +2136,7 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 				}
 				data_validated = true;
 
-				/* Allocate HIST cmap cache to store values */
+				
 				rc = mdp3_alloc_lut_buffer(mfd->pdev,
 						(void **)&dma->hist_cmap);
 				if (rc) {
@@ -2187,15 +2145,8 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 				}
 				dma->lut_sts |= MDP3_LUT_HIST_EN;
 			}
-			/*
-			 * Copy the HIST LUT values from userspace to maintain
-			 * correct values user intended to program in cache.
-			 * The values programmed in HW might factor in presence
-			 * of other LUT modifying features hence can be
-			 * different from these user given values.
-			 */
 			if (dma->lut_sts & MDP3_LUT_HIST_EN) {
-				/* Validate LUT data if not yet validated */
+				
 				if (!data_validated) {
 					rc = mdp3_validate_lut_data(cmap);
 					if (rc) {
@@ -2216,11 +2167,6 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 			goto exit_err;
 	}
 
-	/*
-	 * In case both GC LUT and HIST LUT need to be programmed the gains
-	 * of each the individual LUTs need to be applied onto a single LUT
-	 * and applied in HW
-	 */
 	if ((dma->lut_sts & MDP3_LUT_HIST_EN) &&
 		(dma->lut_sts & MDP3_LUT_GC_EN)) {
 		rc = mdp3_lut_combine_gain(cmap, dma);
@@ -2282,7 +2228,6 @@ static int mdp3_ctrl_lut_read(struct msm_fb_data_type *mfd,
 	return rc;
 }
 
-/*  Invoked from ctrl_on with session lock locked context */
 static void mdp3_ctrl_pp_resume(struct msm_fb_data_type *mfd)
 {
 	struct mdp3_session_data *mdp3_session;
@@ -2294,22 +2239,9 @@ static void mdp3_ctrl_pp_resume(struct msm_fb_data_type *mfd)
 	dma = mdp3_session->dma;
 
 	mutex_lock(&dma->pp_lock);
-	/*
-	 * if dma->ccs_config.ccs_enable is set then DMA PP block was enabled
-	 * via user space IOCTL.
-	 * Then set dma->ccs_config.ccs_dirty flag
-	 * Then PP block will be reconfigured when next kickoff comes.
-	 */
 	if (dma->ccs_config.ccs_enable)
 		dma->ccs_config.ccs_dirty = true;
 
-	/*
-	 * If gamma correction was enabled then we program the LUT registers
-	 * with the last configuration data before suspend. If gamma correction
-	 * is not enabled then we do not program anything. The LUT from
-	 * histogram processing algorithms will program hardware based on new
-	 * frame data if they are enabled.
-	 */
 	if (dma->lut_sts & MDP3_LUT_GC_EN) {
 
 		rc = mdp3_alloc_lut_buffer(mfd->pdev, (void **)&cmap);
@@ -2660,7 +2592,7 @@ int mdp3_ctrl_init(struct msm_fb_data_type *mfd)
 	if (rc)
 		pr_warn("problem creating link to mdp sysfs\n");
 
-	/* Enable PM runtime */
+	
 	pm_runtime_set_suspended(&mdp3_res->pdev->dev);
 	pm_runtime_enable(&mdp3_res->pdev->dev);
 
@@ -2674,11 +2606,6 @@ int mdp3_ctrl_init(struct msm_fb_data_type *mfd)
 			&mdp3_session->mfd->mdp_sync_pt_data.notifier);
 	}
 
-	/*
-	* Increment the overlay active count.
-	* This is needed to ensure that if idle power collapse kicks in
-	* right away, it would be handled correctly.
-	*/
 	atomic_inc(&mdp3_res->active_intf_cnt);
 	if (splash_mismatch) {
 		pr_err("splash memory mismatch, stop splash\n");

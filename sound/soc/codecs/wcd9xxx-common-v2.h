@@ -21,14 +21,6 @@
 #define WCD_CLSH_EVENT_PRE_DAC 0x01
 #define WCD_CLSH_EVENT_POST_PA 0x02
 #define MAX_VBAT_MONITOR_WRITES 17
-/*
- * Basic states for Class H state machine.
- * represented as a bit mask within a u8 data type
- * bit 0: EAR mode
- * bit 1: HPH Left mode
- * bit 2: HPH Right mode
- * bit 3: Lineout mode
- */
 #define	WCD_CLSH_STATE_IDLE 0x00
 #define	WCD_CLSH_STATE_EAR (0x01 << 0)
 #define	WCD_CLSH_STATE_HPHL (0x01 << 1)
@@ -38,7 +30,6 @@
 #define NUM_CLSH_STATES_V2 (0x01 << WCD_CLSH_STATE_MAX)
 
 
-/* Derived State: Bits 1 and 2 should be set for Headphone stereo */
 #define WCD_CLSH_STATE_HPH_ST (WCD_CLSH_STATE_HPHL | \
 			       WCD_CLSH_STATE_HPHR)
 
@@ -58,15 +49,14 @@
 				       WCD_CLSH_STATE_EAR)
 
 enum {
-	CLS_H_NORMAL = 0, /* Class-H Default */
-	CLS_H_HIFI, /* Class-H HiFi */
-	CLS_H_LP, /* Class-H Low Power */
-	CLS_AB, /* Class-AB */
-	CLS_H_LOHIFI, /* LoHIFI */
-	CLS_NONE, /* None of the above modes */
+	CLS_H_NORMAL = 0, 
+	CLS_H_HIFI, 
+	CLS_H_LP, 
+	CLS_AB, 
+	CLS_H_LOHIFI, 
+	CLS_NONE, 
 };
 
-/* Class H data that the codec driver will maintain */
 struct wcd_clsh_cdc_data {
 	u8 state;
 	int flyback_users;

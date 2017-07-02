@@ -29,6 +29,9 @@
 #include <trace/events/power.h>
 
 #include "power.h"
+#ifdef CONFIG_SUSPEND_ONLY_ALLOW_WFI
+#include <linux/pm_qos.h>
+#endif
 
 const char *const pm_states[PM_SUSPEND_MAX] = {
 	[PM_SUSPEND_FREEZE]	= "freeze",
@@ -247,6 +250,10 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	return error;
 }
 
+#ifdef CONFIG_SUSPEND_ONLY_ALLOW_WFI
+static struct pm_qos_request suspend_pm_qos_req;
+#endif
+
 /**
  * suspend_devices_and_enter - Suspend devices and enter system sleep state.
  * @state: System sleep state to enter.
@@ -260,12 +267,20 @@ int suspend_devices_and_enter(suspend_state_t state)
 		return -ENOSYS;
 
 	trace_machine_suspend(state);
+
+#ifdef CONFIG_SUSPEND_ONLY_ALLOW_WFI
+	printk("PM: only allow wfi\n");
+	pm_qos_add_request(&suspend_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&suspend_pm_qos_req, 2);
+#endif
+
 	if (need_suspend_ops(state) && suspend_ops->begin) {
 		error = suspend_ops->begin(state);
 		if (error)
 			goto Close;
 	}
-	suspend_console();
+	if (!suspend_console_deferred)
+		suspend_console();
 	ftrace_stop();
 	suspend_test_start();
 	error = dpm_suspend_start(PMSG_SUSPEND);
@@ -287,10 +302,17 @@ int suspend_devices_and_enter(suspend_state_t state)
 	dpm_resume_end(PMSG_RESUME);
 	suspend_test_finish("resume devices");
 	ftrace_start();
-	resume_console();
+	if (!suspend_console_deferred)
+		resume_console();
  Close:
 	if (need_suspend_ops(state) && suspend_ops->end)
 		suspend_ops->end();
+
+#ifdef CONFIG_SUSPEND_ONLY_ALLOW_WFI
+	pm_qos_update_request(&suspend_pm_qos_req, PM_QOS_DEFAULT_VALUE);
+	pm_qos_remove_request(&suspend_pm_qos_req);
+#endif
+
 	trace_machine_suspend(PWR_EVENT_EXIT);
 	return error;
 
@@ -334,10 +356,7 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
 
-	printk(KERN_INFO "PM: Syncing filesystems ... ");
-	sys_sync();
-	printk("done.\n");
-
+	suspend_sys_sync_queue();
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
 	error = suspend_prepare(state);
 	if (error)

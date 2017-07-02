@@ -95,7 +95,7 @@ static int audio_ext_clk_prepare(struct clk *clk)
 
 	if (audio_ap_clk.lpass_clock) {
 
-		/* Reset the TLMM pins to a default state */
+		
 		ret = pinctrl_select_state(audio_ap_clk.pnctrl_info.pinctrl,
 					   audio_ap_clk.pnctrl_info.sleep);
 		if (ret != 0) {
@@ -194,7 +194,7 @@ static int audio_get_pinctrl(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	pinctrl_info->pinctrl = pinctrl;
-	/* get all the states handles from Device Tree */
+	
 	pinctrl_info->sleep = pinctrl_lookup_state(pinctrl, "i2s_mclk_sleep");
 	if (IS_ERR(pinctrl_info->sleep)) {
 		pr_err("%s: could not get sleep pinstate\n", __func__);
@@ -217,7 +217,7 @@ err:
 
 static int audio_ref_clk_probe(struct platform_device *pdev)
 {
-	int clk_gpio;
+	int clk_gpio = -1; 
 	int ret;
 	struct clk *div_clk1;
 

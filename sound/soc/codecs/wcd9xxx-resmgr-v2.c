@@ -58,10 +58,6 @@ static int wcd_resmgr_codec_reg_read(struct wcd9xxx_resmgr_v2 *resmgr,
 	return val;
 }
 
-/*
- * wcd_resmgr_get_clk_type()
- * Returns clk type that is currently enabled
- */
 int wcd_resmgr_get_clk_type(struct wcd9xxx_resmgr_v2 *resmgr)
 {
 	if (!resmgr) {
@@ -74,7 +70,7 @@ int wcd_resmgr_get_clk_type(struct wcd9xxx_resmgr_v2 *resmgr)
 static void wcd_resmgr_cdc_specific_get_clk(struct wcd9xxx_resmgr_v2 *resmgr,
 						int clk_users)
 {
-	/* Caller of this function should have acquired BG_CLK lock */
+	
 	WCD9XXX_V2_BG_CLK_UNLOCK(resmgr);
 	if (clk_users) {
 		if (resmgr->resmgr_cb &&
@@ -84,7 +80,7 @@ static void wcd_resmgr_cdc_specific_get_clk(struct wcd9xxx_resmgr_v2 *resmgr,
 								true);
 		}
 	}
-	/* Acquire BG_CLK lock before return */
+	
 	WCD9XXX_V2_BG_CLK_LOCK(resmgr);
 }
 
@@ -124,10 +120,6 @@ void wcd_resmgr_post_ssr_v2(struct wcd9xxx_resmgr_v2 *resmgr)
 }
 
 
-/*
- * wcd_resmgr_enable_master_bias: enable codec master bias
- * @resmgr: handle to struct wcd9xxx_resmgr_v2
- */
 int wcd_resmgr_enable_master_bias(struct wcd9xxx_resmgr_v2 *resmgr)
 {
 	mutex_lock(&resmgr->master_bias_lock);
@@ -138,10 +130,6 @@ int wcd_resmgr_enable_master_bias(struct wcd9xxx_resmgr_v2 *resmgr)
 						 0x80, 0x80);
 		wcd_resmgr_codec_reg_update_bits(resmgr, WCD9335_ANA_BIAS,
 						 0x40, 0x40);
-		/*
-		 * 1ms delay is required after pre-charge is enabled
-		 * as per HW requirement
-		 */
 		usleep_range(1000, 1100);
 		wcd_resmgr_codec_reg_update_bits(resmgr, WCD9335_ANA_BIAS,
 						 0x40, 0x00);
@@ -156,10 +144,6 @@ int wcd_resmgr_enable_master_bias(struct wcd9xxx_resmgr_v2 *resmgr)
 	return 0;
 }
 
-/*
- * wcd_resmgr_disable_master_bias: disable codec master bias
- * @resmgr: handle to struct wcd9xxx_resmgr_v2
- */
 int wcd_resmgr_disable_master_bias(struct wcd9xxx_resmgr_v2 *resmgr)
 {
 	mutex_lock(&resmgr->master_bias_lock);
@@ -181,7 +165,7 @@ int wcd_resmgr_disable_master_bias(struct wcd9xxx_resmgr_v2 *resmgr)
 
 static int wcd_resmgr_enable_clk_mclk(struct wcd9xxx_resmgr_v2 *resmgr)
 {
-	/* Enable mclk requires master bias to be enabled first */
+	
 	if (resmgr->master_bias_users <= 0) {
 		pr_err("%s: Cannot turn on MCLK, BG is not enabled\n",
 			__func__);
@@ -212,10 +196,6 @@ static int wcd_resmgr_enable_clk_mclk(struct wcd9xxx_resmgr_v2 *resmgr)
 		wcd_resmgr_codec_reg_update_bits(resmgr,
 					WCD9335_CDC_CLK_RST_CTRL_MCLK_CONTROL,
 					0x01, 0x01);
-		/*
-		 * 10us sleep is required after clock is enabled
-		 * as per HW requirement
-		 */
 		usleep_range(10, 15);
 	}
 
@@ -237,7 +217,7 @@ static int wcd_resmgr_disable_clk_mclk(struct wcd9xxx_resmgr_v2 *resmgr)
 
 	if (--resmgr->clk_mclk_users == 0) {
 		if (resmgr->clk_rco_users > 0) {
-			/* MCLK to RCO switch */
+			
 			wcd_resmgr_codec_reg_update_bits(resmgr,
 					WCD9335_ANA_CLK_TOP,
 					0x08, 0x08);
@@ -274,30 +254,22 @@ static int wcd_resmgr_enable_clk_rco(struct wcd9xxx_resmgr_v2 *resmgr)
 		return -EINVAL;
 	} else if ((resmgr->clk_rco_users == 1) &&
 		   (resmgr->clk_mclk_users)) {
-		/* RCO Enable */
+		
 		if (resmgr->sido_input_src == SIDO_SOURCE_INTERNAL)
 			wcd_resmgr_codec_reg_update_bits(resmgr,
 							 WCD9335_ANA_RCO,
 							 0x80, 0x80);
-		/*
-		 * 20us required after RCO BG is enabled as per HW
-		 * requirements
-		 */
 		usleep_range(20, 25);
 		wcd_resmgr_codec_reg_update_bits(resmgr, WCD9335_ANA_RCO,
 						 0x40, 0x40);
-		/*
-		 * 20us required after RCO is enabled as per HW
-		 * requirements
-		 */
 		usleep_range(20, 25);
-		/* RCO Calibration */
+		
 		wcd_resmgr_codec_reg_update_bits(resmgr, WCD9335_ANA_RCO,
 						 0x04, 0x04);
 		wcd_resmgr_codec_reg_update_bits(resmgr, WCD9335_ANA_RCO,
 						 0x04, 0x00);
 
-		/* RCO calibration takes app. 5ms to complete */
+		
 		usleep_range(WCD9XXX_RCO_CALIBRATION_DELAY_INC_US,
 		       WCD9XXX_RCO_CALIBRATION_DELAY_INC_US + 100);
 		if (wcd_resmgr_codec_reg_read(resmgr, WCD9335_ANA_RCO) & 0x02)
@@ -305,7 +277,7 @@ static int wcd_resmgr_enable_clk_rco(struct wcd9xxx_resmgr_v2 *resmgr)
 
 		WARN((!rco_cal_done), "RCO Calibration failed\n");
 
-		/* Switch MUX to RCO */
+		
 		if (resmgr->clk_mclk_users == 1) {
 			wcd_resmgr_codec_reg_update_bits(resmgr,
 							WCD9335_ANA_CLK_TOP,
@@ -345,7 +317,7 @@ static int wcd_resmgr_disable_clk_rco(struct wcd9xxx_resmgr_v2 *resmgr)
 		resmgr->clk_type = WCD_CLK_OFF;
 	} else if ((resmgr->clk_rco_users == 0) &&
 	      (resmgr->clk_mclk_users)) {
-		/* Disable RCO while MCLK is ON */
+		
 		wcd_resmgr_codec_reg_update_bits(resmgr, WCD9335_ANA_RCO,
 						 0x40, 0x00);
 		if (resmgr->sido_input_src == SIDO_SOURCE_INTERNAL)
@@ -360,11 +332,6 @@ static int wcd_resmgr_disable_clk_rco(struct wcd9xxx_resmgr_v2 *resmgr)
 	return 0;
 }
 
-/*
- * wcd_resmgr_enable_clk_block: enable MCLK or RCO
- * @resmgr: handle to struct wcd9xxx_resmgr_v2
- * @type: Clock type to enable
- */
 int wcd_resmgr_enable_clk_block(struct wcd9xxx_resmgr_v2 *resmgr,
 				enum wcd_clock_type type)
 {
@@ -391,11 +358,6 @@ int wcd_resmgr_enable_clk_block(struct wcd9xxx_resmgr_v2 *resmgr,
 	return ret;
 }
 
-/*
- * wcd_resmgr_disable_clk_block: disable MCLK or RCO
- * @resmgr: handle to struct wcd9xxx_resmgr_v2
- * @type: Clock type to disable
- */
 int wcd_resmgr_disable_clk_block(struct wcd9xxx_resmgr_v2 *resmgr,
 				enum wcd_clock_type type)
 {
@@ -422,12 +384,6 @@ int wcd_resmgr_disable_clk_block(struct wcd9xxx_resmgr_v2 *resmgr,
 	return ret;
 }
 
-/*
- * wcd_resmgr_init: initialize wcd resource manager
- * @core_res: handle to struct wcd9xxx_core_resource
- *
- * Early init call without a handle to snd_soc_codec *
- */
 struct wcd9xxx_resmgr_v2 *wcd_resmgr_init(
 		struct wcd9xxx_core_resource *core_res,
 		struct snd_soc_codec *codec, u8 intf_type)
@@ -454,22 +410,12 @@ struct wcd9xxx_resmgr_v2 *wcd_resmgr_init(
 	return resmgr;
 }
 
-/*
- * wcd_resmgr_remove: Clean-up wcd resource manager
- * @resmgr: handle to struct wcd9xxx_resmgr_v2
- */
 void wcd_resmgr_remove(struct wcd9xxx_resmgr_v2 *resmgr)
 {
 	mutex_destroy(&resmgr->master_bias_lock);
 	kfree(resmgr);
 }
 
-/*
- * wcd_resmgr_post_init: post init call to assign codec handle
- * @resmgr: handle to struct wcd9xxx_resmgr_v2 created during early init
- * @resmgr_cb: codec callback function for resmgr
- * @codec: handle to struct snd_soc_codec
- */
 int wcd_resmgr_post_init(struct wcd9xxx_resmgr_v2 *resmgr,
 			 const struct wcd_resmgr_cb *resmgr_cb,
 			 struct snd_soc_codec *codec)

@@ -39,6 +39,10 @@
 
 #include <trace/events/exception.h>
 
+#if defined(CONFIG_HTC_DEBUG_RTB)
+#include <linux/msm_rtb.h>
+#endif
+
 static const char *fault_name(unsigned int esr);
 
 /*
@@ -86,12 +90,25 @@ void show_pte(struct mm_struct *mm, unsigned long addr)
 static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
 			      unsigned int esr, struct pt_regs *regs)
 {
+#if defined(CONFIG_HTC_DEBUG_RTB)
+	static int enable_logk_die = 1;
+#endif
 	/*
 	 * Are we prepared to handle this kernel fault?
 	 */
 	if (fixup_exception(regs))
 		return;
 
+#if defined(CONFIG_HTC_DEBUG_RTB)
+	if (enable_logk_die) {
+		uncached_logk(LOGK_DIE, (void *)regs->pc);
+		uncached_logk(LOGK_DIE, (void *)regs->regs[30]);
+		uncached_logk(LOGK_DIE, (void *)addr);
+		/* Disable RTB here to avoid weird recursive spinlock/printk behaviors */
+		msm_rtb_disable();
+		enable_logk_die = 0;
+	}
+#endif
 	/*
 	 * No handler, we'll have to terminate things with extreme prejudice.
 	 */
@@ -177,7 +194,8 @@ static int __do_page_fault(struct mm_struct *mm, unsigned long addr,
 good_area:
 	/*
 	 * Check that the permissions on the VMA allow for the fault which
-	 * occurred.
+	 * occurred. If we encountered a write or exec fault, we must have
+	 * appropriate permissions, otherwise we allow any permission.
 	 */
 	if (!(vma->vm_flags & vm_flags)) {
 		fault = VM_FAULT_BADACCESS;
@@ -199,7 +217,7 @@ static int __kprobes do_page_fault(unsigned long addr, unsigned int esr,
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	int fault, sig, code;
-	unsigned long vm_flags = VM_READ | VM_WRITE;
+	unsigned long vm_flags = VM_READ | VM_WRITE | VM_EXEC;
 	unsigned int mm_flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
 
 	tsk = current;

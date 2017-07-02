@@ -51,7 +51,7 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 	 * unlock before the exclusive load.
 	 */
 "	sevl\n"
-"2:	wfe\n"
+"2:	nop\n"
 "	ldaxrh	%w2, %4\n"
 "	eor	%w1, %w2, %w0, lsr #16\n"
 "	cbnz	%w1, 2b\n"
@@ -125,7 +125,7 @@ static inline void arch_write_lock(arch_rwlock_t *rw)
 
 	asm volatile(
 	"	sevl\n"
-	"1:	wfe\n"
+	"1:	nop\n"
 	"2:	ldaxr	%w0, %1\n"
 	"	cbnz	%w0, 1b\n"
 	"	stxr	%w0, %w2, %1\n"
@@ -180,7 +180,7 @@ static inline void arch_read_lock(arch_rwlock_t *rw)
 
 	asm volatile(
 	"	sevl\n"
-	"1:	wfe\n"
+	"1:	nop\n"
 	"2:	ldaxr	%w0, %2\n"
 	"	add	%w0, %w0, #1\n"
 	"	tbnz	%w0, #31, 1b\n"

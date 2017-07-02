@@ -229,6 +229,10 @@ void die(const char *str, struct pt_regs *regs, int err)
 	int ret;
 	enum bug_trap_type bug_type = BUG_TRAP_TYPE_NONE;
 
+#if defined(CONFIG_HTC_DEBUG_KP)
+	char sym_pc[KSYM_SYMBOL_LEN];
+	char sym_lr[KSYM_SYMBOL_LEN];
+#endif
 	oops_enter();
 
 	raw_spin_lock_irq(&die_lock);
@@ -248,10 +252,23 @@ void die(const char *str, struct pt_regs *regs, int err)
 	raw_spin_unlock_irq(&die_lock);
 	oops_exit();
 
+#if defined(CONFIG_HTC_DEBUG_KP)
+	sprint_symbol(sym_pc, regs->pc);
+	sprint_symbol(sym_lr, (compat_user_mode(regs))? regs->compat_lr:regs->regs[30]);
+#endif
+
 	if (in_interrupt())
+#if defined(CONFIG_HTC_DEBUG_KP)
+		panic("%.*s PC:%s LR:%s", TASK_COMM_LEN, thread->task->comm, sym_pc, sym_lr);
+#else
 		panic("Fatal exception in interrupt");
+#endif
 	if (panic_on_oops)
+#if defined(CONFIG_HTC_DEBUG_KP)
+		panic("%.*s PC:%s LR:%s", TASK_COMM_LEN, thread->task->comm, sym_pc, sym_lr);
+#else
 		panic("Fatal exception");
+#endif
 	if (ret != NOTIFY_STOP)
 		do_exit(SIGSEGV);
 }

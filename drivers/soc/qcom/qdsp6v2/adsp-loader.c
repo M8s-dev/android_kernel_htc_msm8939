@@ -58,7 +58,7 @@ static void adsp_loader_do(struct platform_device *pdev)
 	const char *img_name;
 
 	if (!pdev) {
-		dev_err(&pdev->dev, "%s: Platform device null\n", __func__);
+		pr_err("%s: Platform device null\n", __func__);
 		goto fail;
 	}
 
@@ -85,10 +85,6 @@ static void adsp_loader_do(struct platform_device *pdev)
 		goto load_adsp;
 	}
 	if (!strcmp(img_name, "modem")) {
-		/*
-                 * adsp_state always returns "0". So load modem image based on
-		 * apr_modem_state to prevent loading of image twice
-                 */
 		adsp_state = apr_get_modem_state();
 		if (adsp_state != APR_SUBSYS_LOADED) {
 			priv = platform_get_drvdata(pdev);
@@ -105,7 +101,7 @@ static void adsp_loader_do(struct platform_device *pdev)
 				goto fail;
 			}
 
-			/* Set the state of the ADSP in APR driver */
+			
 			apr_set_modem_state(APR_SUBSYS_LOADED);
 		} else if (adsp_state == APR_SUBSYS_LOADED) {
 			dev_dbg(&pdev->dev,
@@ -133,7 +129,7 @@ load_adsp:
 				goto fail;
 			}
 
-			/* Set the state of the ADSP in APR driver */
+			
 			apr_set_q6_state(APR_SUBSYS_LOADED);
 		} else if (adsp_state == APR_SUBSYS_LOADED) {
 			dev_dbg(&pdev->dev,
@@ -144,7 +140,7 @@ load_adsp:
 		return;
 	}
 fail:
-	dev_err(&pdev->dev, "%s: Q6 image loading failed\n", __func__);
+	pr_err("%s: Q6 image loading failed\n", __func__);
 	return;
 }
 
@@ -188,6 +184,11 @@ static int adsp_loader_init_sysfs(struct platform_device *pdev)
 	int ret = -EINVAL;
 	struct adsp_loader_private *priv = NULL;
 	adsp_private = NULL;
+
+	if (!pdev) {
+		pr_err("%s: Platform device null\n", __func__);
+		return ret;
+	}
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
@@ -267,6 +268,12 @@ static int adsp_loader_remove(struct platform_device *pdev)
 static int adsp_loader_probe(struct platform_device *pdev)
 {
 	int ret = adsp_loader_init_sysfs(pdev);
+
+	if (!pdev) {
+		pr_err("%s: Platform device null\n", __func__);
+		return ret;
+	}
+
 	if (ret != 0) {
 		dev_err(&pdev->dev, "%s: Error in initing sysfs\n", __func__);
 		return ret;

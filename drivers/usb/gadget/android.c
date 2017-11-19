@@ -468,6 +468,7 @@ static void android_work(struct work_struct *data)
 		}
 		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
 	} else {
+//root-expert: htc
 	}
 	if (connect2pc != dev->sw_connected) {
 		connect2pc = dev->sw_connected;
@@ -488,6 +489,10 @@ static void android_work(struct work_struct *data)
 	if (next_state == USB_DISCONNECTED && switch_get_state(&ml_switch)) {
 		switch_set_state(&ml_switch, 0);
 		printk("[MIRROR_LINK]%s : Out of order, ml_switch set 0\n", __func__);
+//=======
+		pr_info("%s: did not send uevent (%d %d %pK)\n", __func__,
+			 dev->connected, dev->sw_connected, cdev->config);
+//>>>>>>> caf/LA.BR.1.2.9_rb1.22
 	}
 }
 
@@ -2806,7 +2811,7 @@ static void mass_storage_function_enable(struct android_usb_function *f)
 
 	pr_debug("fsg.nluns:%d\n", config->fsg.nluns);
 	for (i = prev_nluns; i < config->fsg.nluns; i++) {
-		snprintf(lun_name, sizeof(buf), "lun%d", (i-prev_nluns));
+		snprintf(lun_name, sizeof(buf1), "lun%d", (i-prev_nluns));
 		pr_debug("sysfs: LUN name:%s\n", lun_name);
 		err = sysfs_create_link(&f->dev->kobj,
 			&common->luns[i].dev.kobj, lun_name);
@@ -4371,7 +4376,7 @@ static int usb_diag_update_pid_and_serial_num(u32 pid, const char *snum)
 		return -ENODEV;
 	}
 
-	pr_debug("%s: dload:%p pid:%x serial_num:%s\n",
+	pr_debug("%s: dload:%pK pid:%x serial_num:%s\n",
 				__func__, diag_dload, pid, snum);
 
 	

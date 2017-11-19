@@ -44,6 +44,14 @@
 #include <sound/compress_offload.h>
 #include <sound/compress_driver.h>
 
+#define U32_MAX ((u32)~0U)
+
+/* TODO:
+ * - add substream support for multiple devices in case of
+ *	SND_DYNAMIC_MINORS is not used
+ * - Multiple node representation
+ *	driver should be able to register multiple nodes
+ */
 
 static DEFINE_MUTEX(device_mutex);
 
@@ -462,7 +470,7 @@ static int snd_compress_check_input(struct snd_compr_params *params)
 {
 	
 	if (params->buffer.fragment_size == 0 ||
-	    params->buffer.fragments > INT_MAX / params->buffer.fragment_size)
+			params->buffer.fragments > U32_MAX / params->buffer.fragment_size)
 		return -EINVAL;
 
 	

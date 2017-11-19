@@ -6,7 +6,12 @@ ccflags-$(CONFIG_USB_GADGET_DEBUG) := -DDEBUG
 obj-$(CONFIG_USB_GADGET)	+= udc-core.o
 obj-$(CONFIG_USB_LIBCOMPOSITE)	+= libcomposite.o
 libcomposite-y			:= usbstring.o config.o epautoconf.o
+#root-expert: htc
 libcomposite-y			+= functions.o configfs.o
+#end
+#caf
+#libcomposite-y			+= composite.o functions.o
+#end
 obj-$(CONFIG_USB_DUMMY_HCD)	+= dummy_hcd.o
 obj-$(CONFIG_USB_NET2272)	+= net2272.o
 obj-$(CONFIG_USB_NET2280)	+= net2280.o

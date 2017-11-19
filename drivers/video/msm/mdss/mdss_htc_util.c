@@ -498,8 +498,8 @@ static void dimming_do_work(struct work_struct *work)
 			mfd_instance->panel_info->bl_max, MDSS_MAX_BL_BRIGHTNESS);
 
 		pdata->set_backlight(pdata, mfd_instance->bl_level);
-		mfd_instance->bl_level_old = mfd_instance->bl_level;
-		mfd_instance->bl_updated = 1;
+		//mfd_instance->bl_level_old = mfd_instance->bl_level;
+		//mfd_instance->bl_updated = 1;
 		mutex_unlock(&mfd_instance->bl_lock);
 		PR_DISP_INFO("%s set default backlight!\n", __func__);
 	}

@@ -415,6 +415,47 @@ exit:
 	return;
 }
 
+static inline u32 get_panel_yres(struct mdss_panel_info *pinfo)
+{
+	u32 yres;
+
+	yres = pinfo->yres + pinfo->lcdc.border_top +
+				pinfo->lcdc.border_bottom;
+	return yres;
+}
+
+static inline u32 get_panel_xres(struct mdss_panel_info *pinfo)
+{
+	u32 xres;
+
+	xres = pinfo->xres + pinfo->lcdc.border_left +
+				pinfo->lcdc.border_right;
+	return xres;
+}
+
+/**
+ * mdss_mdp_perf_calc_pipe() - calculate performance numbers required by pipe
+ * @pipe:	Source pipe struct containing updated pipe params
+ * @perf:	Structure containing values that should be updated for
+ *		performance tuning
+ * @flags: flags to determine how to perform some of the
+ *		calculations, supported flags:
+ *
+ *	PERF_CALC_PIPE_APPLY_CLK_FUDGE:
+ *		Determine if mdp clock fudge is applicable.
+ *	PERF_CALC_PIPE_SINGLE_LAYER:
+ *		Indicate if the calculation is for a single pipe staged
+ *		in the layer mixer
+ *	PERF_CALC_PIPE_CALC_SMP_SIZE:
+ *		Indicate if the smp size needs to be calculated, this is
+ *		for the cases where SMP haven't been allocated yet, so we need
+ *		to estimate here the smp size (i.e. PREPARE IOCTL).
+ *
+ * Function calculates the minimum required performance calculations in order
+ * to avoid MDP underflow. The calculations are based on the way MDP
+ * fetches (bandwidth requirement) and processes data through MDP pipeline
+ * (MDP clock requirement) based on frame size and scaling requirements.
+ */
 int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	struct mdss_mdp_perf_params *perf, struct mdss_rect *roi,
 	u32 flags)
@@ -450,7 +491,7 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 			fps = mdss_panel_get_framerate(pinfo);
 			v_total = mdss_panel_get_vtotal(pinfo);
 		}
-		xres = pinfo->xres;
+		xres = get_panel_xres(pinfo);
 		is_fbc = pinfo->fbc.enabled;
 		h_total = mdss_panel_get_htotal(pinfo, false);
 	} else {
@@ -1621,11 +1662,18 @@ static inline int mdss_mdp_set_split_ctl(struct mdss_mdp_ctl *ctl,
 		struct mdss_mdp_ctl *split_ctl)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	struct mdss_panel_info *pinfo;
+
 
 	if (!ctl || !split_ctl || !mdata)
 		return -ENODEV;
 
 	ctl->mixer_right = split_ctl->mixer_left;
+	pinfo = &ctl->panel_data->panel_info;
+
+	/* add x offset from left ctl's border */
+	split_ctl->border_x_off += (pinfo->lcdc.border_left +
+					pinfo->lcdc.border_right);
 
 	return 0;
 }
@@ -1696,9 +1744,9 @@ static inline u32 get_panel_width(struct mdss_mdp_ctl *ctl)
 {
 	u32 width;
 
-	width = ctl->panel_data->panel_info.xres;
-	width += (ctl->panel_data->next && is_split_dst(ctl->mfd)) ?
-			ctl->panel_data->next->panel_info.xres : 0;
+	width = get_panel_xres(&ctl->panel_data->panel_info);
+	if (ctl->panel_data->next && is_split_dst(ctl->mfd))
+		width += get_panel_xres(&ctl->panel_data->next->panel_info);
 
 	return width;
 }
@@ -1709,16 +1757,20 @@ int mdss_mdp_ctl_setup(struct mdss_mdp_ctl *ctl)
 	u32 width, height;
 	int split_fb;
 	u32 max_mixer_width;
+	struct mdss_panel_info *pinfo;
 
 	if (!ctl || !ctl->panel_data) {
 		pr_err("invalid ctl handle\n");
 		return -ENODEV;
 	}
 
+	pinfo = &ctl->panel_data->panel_info;
+
 	split_ctl = mdss_mdp_get_split_ctl(ctl);
 
 	width = get_panel_width(ctl);
-	height = ctl->panel_data->panel_info.yres;
+	height = get_panel_yres(pinfo);
+
 	max_mixer_width = ctl->mdata->max_mixer_width;
 
 	split_fb = (ctl->mfd->split_fb_left &&
@@ -1752,10 +1804,13 @@ int mdss_mdp_ctl_setup(struct mdss_mdp_ctl *ctl)
 		}
 	}
 
-	if (split_fb)
+	if (split_fb) {
 		width = ctl->mfd->split_fb_left;
-	else if (width > max_mixer_width)
+		width += (pinfo->lcdc.border_left +
+				pinfo->lcdc.border_right);
+	} else if (width > max_mixer_width) {
 		width /= 2;
+	}
 
 	ctl->mixer_left->width = width;
 	ctl->mixer_left->height = height;
@@ -1854,6 +1909,7 @@ struct mdss_mdp_ctl *mdss_mdp_ctl_init(struct mdss_panel_data *pdata,
 	struct mdss_mdp_ctl *ctl;
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
+	struct mdss_panel_info *pinfo;
 
 	if (pdata->panel_info.type == WRITEBACK_PANEL)
 		offset = mdss_mdp_get_wb_ctl_support(mdata, false);
@@ -1866,10 +1922,13 @@ struct mdss_mdp_ctl *mdss_mdp_ctl_init(struct mdss_panel_data *pdata,
 		return ERR_PTR(-ENOMEM);
 	}
 
+	pinfo = &pdata->panel_info;
 	ctl->mfd = mfd;
 	ctl->panel_data = pdata;
 	ctl->is_video_mode = false;
 	ctl->perf_release_ctl_bw = false;
+	ctl->border_x_off = pinfo->lcdc.border_left;
+	ctl->border_y_off = pinfo->lcdc.border_top;
 
 	switch (pdata->panel_info.type) {
 	case EDP_PANEL:
@@ -1988,8 +2047,9 @@ int mdss_mdp_ctl_split_display_setup(struct mdss_mdp_ctl *ctl,
 		return -ENODEV;
 	}
 
-	sctl->width = pdata->panel_info.xres;
-	sctl->height = pdata->panel_info.yres;
+	sctl->width = get_panel_xres(&pdata->panel_info);
+	sctl->height = get_panel_yres(&pdata->panel_info);
+
 	sctl->roi = (struct mdss_rect){0, 0, sctl->width, sctl->height};
 
 	ctl->mixer_left = mdss_mdp_mixer_alloc(ctl, MDSS_MDP_MIXER_TYPE_INTF,

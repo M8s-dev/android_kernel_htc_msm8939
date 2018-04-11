@@ -19,6 +19,7 @@
 #include "../../../drivers/power/qcom/idle.h"
 #include <htc_mnemosyne/htc_mnemosyne.h>
 #include <htc_mnemosyne/htc_footprint.h>
+#include <linux/mmc/core.h>
 
 #define APPS_WDOG_FOOT_PRINT_MAGIC			0xACBDFE00
 

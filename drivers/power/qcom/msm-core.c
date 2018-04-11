@@ -190,11 +190,12 @@ static void repopulate_stats(int cpu)
 			pt[cpu_node->sp->num_of_freqs-1].power);
 };
 
+static DEFINE_SPINLOCK(update_lock);
+
 void trigger_cpu_pwr_stats_calc(void)
 {
 	int cpu;
 	static long prev_temp[NR_CPUS];
-	static DEFINE_SPINLOCK(update_lock);
 	struct cpu_activity_info *cpu_node;
 
 	if (disabled)

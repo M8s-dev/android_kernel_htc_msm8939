@@ -25,6 +25,8 @@
 #include <linux/vmalloc.h>
 #include <linux/pstore_ram.h>
 #include <asm/page.h>
+#include <linux/htc_debug_tools.h>
+#include <asm/mmu_context.h>
 
 struct persistent_ram_buffer {
 	uint32_t    sig;

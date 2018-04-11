@@ -1192,7 +1192,7 @@ int subsystem_restart(const char *name)
 
        /* To Prevent wlan driver trigger wcnss SSR but not set crash status */
        /* Force to set crash status as true while SSR for wcnss */
-       if (!strncmp(name, "wcnss", SUBSYS_NAME_MAX_LENGTH))
+       if (!strncmp(name, "wcnss", 40))
        {
                dev->crashed = true;
        }

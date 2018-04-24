@@ -54,7 +54,7 @@
 		regulator-name = "spk_vreg";
 		startup-delay-us = <0>;
 		enable-active-high;
-		gpio = <&msm_gpio 121 0>;
+		//gpio = <&msm_gpio 121 0>;
 	};
 
 	mem_acc_vreg_corner: regulator@1942130 {
@@ -475,6 +475,7 @@
 			regulator-max-microvolt = <1800000>;
 			qcom,init-voltage = <1800000>;
 			status = "okay";
+			regulator-always-on;
 		};
 	};
 
@@ -485,6 +486,7 @@
 			regulator-max-microvolt = <1800000>;
 			qcom,init-voltage = <1800000>;
 			status = "okay";
+			regulator-always-on;
 		};
 	};
 

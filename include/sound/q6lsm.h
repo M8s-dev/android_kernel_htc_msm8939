@@ -27,8 +27,8 @@ typedef void (*lsm_app_cb)(uint32_t opcode, uint32_t token,
 struct lsm_sound_model {
 	dma_addr_t      phys;
 	void		*data;
-	size_t		size; /* size of buffer */
-	uint32_t	actual_size; /* actual number of bytes read by DSP */
+	size_t		size; 
+	uint32_t	actual_size; 
 	struct ion_handle *handle;
 	struct ion_client *client;
 	uint32_t	mem_map_handle;
@@ -128,17 +128,12 @@ struct lsm_param_op_mode {
 struct lsm_param_connect_to_port {
 	struct lsm_param_payload_common common;
 	uint32_t	minor_version;
-	/* AFE port id that receives voice wake up data */
+	
 	uint16_t	port_id;
 	uint16_t	reserved;
 } __packed;
 
 
-/*
- * This param cannot be sent in this format.
- * The actual number of confidence level values
- * need to appended to this param payload.
- */
 struct lsm_param_min_confidence_levels {
 	struct lsm_param_payload_common common;
 	uint8_t		num_confidence_levels;
@@ -283,4 +278,4 @@ void q6lsm_sm_set_param_data(struct lsm_client *client,
 		struct lsm_params_info *p_info,
 		size_t *offset);
 int q6lsm_set_port_connected(struct lsm_client *client);
-#endif /* __Q6LSM_H__ */
+#endif 

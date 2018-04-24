@@ -797,6 +797,38 @@ config SENSORS_STK3X1X
 	  To compile this driver as a module, choose M here: the
 	  module will be called stk3x1x.
 
+config INPUT_DUMMY_KEYPAD
+	tristate "Dummy Keypad driver support"
+	help
+	  Say Y here if you want to support dummy keypad driver, wheels etc...
+
+config POWER_KEY_LED
+	tristate "Power key LED"
+	help
+	  Say Y here if you want to support power key LED.
+
+config POWER_KEY_CLR_RESET
+	tristate "Power key clear reset"
+	help
+	  Say Y here if you want to support power key LED.
+
+config POWER_VOLUP_RESET
+	tristate "(power+volup) reset"
+	depends on POWER_KEY_CLR_RESET
+	help
+	  Say Y here if you want to support power key LED.
+
+config AK8789_HALLSENSOR
+	tristate "ak8789 hall sensor support"
+	help
+	  if you say yes here, you get support for ak8789 hall sensor
+
+config M1120_HALLSENSOR
+	tristate "M1120 driver support"
+	depends on I2C
+	help
+	  If you say yes here, you get support for M1120 driver
+
 config SENSORS_CAPELLA_CM36283
 	tristate "CM36283 proximity and light sensor"
 	depends on I2C
@@ -849,6 +881,12 @@ config SENSORS_BMI058
 	help
 	 If you say yes here, you get support for Bosch Sensortec's
 	 sensor driver of BMI058.
+
+config CLR_KPDPWR_RESET_BATT_RMV
+        tristate "Power key stage 2 reset while SW gets stuck"
+        help
+         Say Y here if you would like to support power key stage 2 dVdd reset when SW gets stuck
+         on battery removable projects.
 
 endif
 

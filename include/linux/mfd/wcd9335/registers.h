@@ -31,7 +31,6 @@ enum {
 	PAGE_0X80,
 };
 
-/* Page-0 Registers */
 #define WCD9335_PAGE0_PAGE_REGISTER                      0x0000
 #define WCD9335_CODEC_RPM_CLK_BYPASS                     0x0001
 #define WCD9335_CODEC_RPM_CLK_GATE                       0x0002
@@ -161,7 +160,6 @@ enum {
 #define WCD9335_INTR_SET2                                0x00f3
 #define WCD9335_INTR_SET3                                0x00f4
 
-/* Page-1 Registers */
 #define WCD9335_PAGE1_PAGE_REGISTER                      0x0100
 #define WCD9335_CPE_FLL_USER_CTL_0                       0x0101
 #define WCD9335_CPE_FLL_USER_CTL_1                       0x0102
@@ -284,7 +282,6 @@ enum {
 #define WCD9335_SB_FLL_STATUS_2                          0x01a7
 #define WCD9335_SB_FLL_STATUS_3                          0x01a8
 
-/* Page-2 Registers */
 #define WCD9335_PAGE2_PAGE_REGISTER                      0x0200
 #define WCD9335_CPE_SS_MEM_PTR_0                         0x0201
 #define WCD9335_CPE_SS_MEM_PTR_1                         0x0202
@@ -427,7 +424,6 @@ enum {
 #define WCD9335_SOC_MAD_BEACON_IIR_CTL_VAL               0x029d
 #define WCD9335_SOC_MAD_INP_SEL                          0x029e
 
-/* Page-6 Registers */
 #define WCD9335_PAGE6_PAGE_REGISTER                      0x0600
 #define WCD9335_ANA_BIAS                                 0x0601
 #define WCD9335_ANA_CLK_TOP                              0x0602
@@ -515,8 +511,8 @@ enum {
 #define WCD9335_MBHC_PLUG_DETECT_CTL                     0x0658
 #define WCD9335_MBHC_ZDET_ANA_CTL                        0x0659
 #define WCD9335_MBHC_ZDET_RAMP_CTL                       0x065a
-#define WCD9335_MBHC_FSM_DEBUG                           0x065b /* v1.x */
-#define WCD9335_MBHC_FSM_STATUS                          0x065b /* v2.0 */
+#define WCD9335_MBHC_FSM_DEBUG                           0x065b 
+#define WCD9335_MBHC_FSM_STATUS                          0x065b 
 #define WCD9335_MBHC_TEST_CTL                            0x065c
 #define WCD9335_VBADC_SUBBLOCK_EN                        0x065d
 #define WCD9335_VBADC_IBIAS_FE                           0x065e
@@ -602,8 +598,8 @@ enum {
 #define WCD9335_FLYBACK_VNEG_DAC_CTRL_1                  0x06ae
 #define WCD9335_FLYBACK_VNEG_DAC_CTRL_2                  0x06af
 #define WCD9335_FLYBACK_VNEG_DAC_CTRL_3                  0x06b0
-#define WCD9335_FLYBACK_VNEG_DAC_CTRL_4                  0x06b1 /* v1.x */
-#define WCD9335_FLYBACK_CTRL_1                           0x06b1 /* v2.0 */
+#define WCD9335_FLYBACK_VNEG_DAC_CTRL_4                  0x06b1 
+#define WCD9335_FLYBACK_CTRL_1                           0x06b1 
 #define WCD9335_FLYBACK_TEST_CTL                         0x06b2
 #define WCD9335_RX_AUX_SW_CTL                            0x06b3
 #define WCD9335_RX_PA_AUX_IN_CONN                        0x06b4
@@ -681,7 +677,6 @@ enum {
 #define WCD9335_SE_LO_LO3_STATUS                         0x06fe
 #define WCD9335_SE_LO_LO4_STATUS                         0x06ff
 
-/* Page-10 Registers */
 #define WCD9335_PAGE10_PAGE_REGISTER                     0x0a00
 #define WCD9335_CDC_ANC0_CLK_RESET_CTL                   0x0a01
 #define WCD9335_CDC_ANC0_MODE_1_CTL                      0x0a02
@@ -842,7 +837,6 @@ enum {
 #define WCD9335_CDC_TX12_SPKR_PROT_PATH_CTL              0x0ace
 #define WCD9335_CDC_TX12_SPKR_PROT_PATH_CFG0             0x0acf
 
-/* Page-11 Registers */
 #define WCD9335_PAGE11_PAGE_REGISTER                     0x0b00
 #define WCD9335_CDC_COMPANDER1_CTL0                      0x0b01
 #define WCD9335_CDC_COMPANDER1_CTL1                      0x0b02
@@ -1064,7 +1058,6 @@ enum {
 #define WCD9335_CDC_RX8_RX_PATH_MIX_SEC0                 0x0bf1
 #define WCD9335_CDC_RX8_RX_PATH_MIX_SEC1                 0x0bf2
 
-/* Page-12 Registers */
 #define WCD9335_PAGE12_PAGE_REGISTER                     0x0c00
 #define WCD9335_CDC_CLSH_CRC                             0x0c01
 #define WCD9335_CDC_CLSH_DLY_CTRL                        0x0c02
@@ -1143,7 +1136,6 @@ enum {
 #define WCD9335_CDC_SIDETONE_SRC1_ST_SRC_PATH_CTL        0x0cb9
 #define WCD9335_CDC_SIDETONE_SRC1_ST_SRC_PATH_CFG1       0x0cba
 
-/* Page-13 Registers */
 #define WCD9335_PAGE13_PAGE_REGISTER                     0x0d00
 #define WCD9335_CDC_RX_INP_MUX_RX_INT0_CFG0              0x0d01
 #define WCD9335_CDC_RX_INP_MUX_RX_INT0_CFG1              0x0d02
@@ -1271,7 +1263,6 @@ enum {
 #define WCD9335_CDC_TOP_DIFFR_COMP_RD_LSB                0x0d9b
 #define WCD9335_CDC_TOP_DIFFR_COMP_RD_MSB                0x0d9c
 
-/* Page-0x80 Registers */
 #define WCD9335_PAGE80_PAGE_REGISTER                     0x8000
 #define WCD9335_TLMM_BIST_MODE_PINCFG                    0x8001
 #define WCD9335_TLMM_RF_PA_ON_PINCFG                     0x8002
@@ -1321,7 +1312,6 @@ enum {
 #define WCD9335_TEST_DEBUG_DEBUG_EN_3                    0x8045
 #define WCD9335_MAX_REGISTER                             0x80FF
 
-/* SLIMBUS Slave Registers */
 #define TASHA_SLIM_PGD_PORT_INT_EN0                     (0x30)
 #define TASHA_SLIM_PGD_PORT_INT_STATUS_RX_0             (0x34)
 #define TASHA_SLIM_PGD_PORT_INT_STATUS_RX_1             (0x35)
@@ -1334,7 +1324,6 @@ enum {
 #define TASHA_SLIM_PGD_PORT_INT_RX_SOURCE0		(0x60)
 #define TASHA_SLIM_PGD_PORT_INT_TX_SOURCE0		(0x70)
 
-/* Macros for Packing Register Writes into a U32 */
 #define TASHA_PACKED_REG_SIZE sizeof(u32)
 
 #define TASHA_CODEC_PACK_ENTRY(reg, mask, val) ((val & 0xff)|\

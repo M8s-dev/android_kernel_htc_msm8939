@@ -171,6 +171,10 @@ struct smd_channel {
 
 extern spinlock_t smem_lock;
 
+#if defined(CONFIG_HTC_FEATURES_RIL_PCN0001_REBOOT_WITH_ERASE_EFS)
+int smd_smsm_erase_efs(void);
+#endif
+
 struct interrupt_stat {
 	uint32_t smd_in_count;
 	uint32_t smd_out_count;

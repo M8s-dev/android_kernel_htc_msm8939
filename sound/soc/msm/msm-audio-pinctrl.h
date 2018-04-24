@@ -22,23 +22,12 @@ enum pinctrl_client {
 };
 
 
-/* finds the index for the gpio set in the dtsi file */
 int msm_get_gpioset_index(enum pinctrl_client client, char *keyword);
 
-/*
- * this function reads the following from dtsi file
- * 1. all gpio sets
- * 2. all combinations of gpio sets
- * 3. pinctrl handles to gpio sets
- *
- * returns error if there is
- * 1. problem reading from dtsi file
- * 2. memory allocation failure
- */
 int msm_gpioset_initialize(enum pinctrl_client client, struct device *dev);
 
 int msm_gpioset_activate(enum pinctrl_client client, char *keyword);
 
 int msm_gpioset_suspend(enum pinctrl_client client, char *keyword);
 
-#endif /* __MSM_AUDIO_PINCTRL_H */
+#endif 

@@ -2955,7 +2955,7 @@ static int qpnp_rgb_init(struct qpnp_led_data *led)
 	rc = qpnp_led_masked_write(led, RGB_LED_ATC_CTL(led->base),
 		led->rgb_cfg->enable, led->rgb_cfg->enable);
 
-	return 0;
+	return rc;
 }
 
 static int qpnp_mpp_init(struct qpnp_led_data *led)

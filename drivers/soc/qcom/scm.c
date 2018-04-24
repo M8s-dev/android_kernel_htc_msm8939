@@ -23,6 +23,7 @@
 #include <asm/compiler.h>
 
 #include <soc/qcom/scm.h>
+#include "../../misc/qseecom_kernel.h"
 
 #define SCM_ENOMEM		-5
 #define SCM_EOPNOTSUPP		-4
@@ -92,6 +93,34 @@ struct scm_response {
 	u32	buf_offset;
 	u32	is_complete;
 };
+
+#ifdef CONFIG_HTC_SCM
+struct oem_simlock_unlock_req {
+	u32	unlock;
+	u32	code_addr;
+};
+
+struct oem_log_oper_req {
+	u32	address;
+	u32	size;
+	u32	buf_addr;
+	u32	buf_len;
+	int	revert;
+};
+
+struct oem_access_item_req {
+	u32	is_write;
+	u32	id;
+	u32	buf_len;
+	u32	buf_addr;
+};
+
+struct oem_3rd_party_syscall_req {
+	u32 id;
+	u32 buf_addr;
+	u32 len;
+};
+#endif
 
 #ifdef CONFIG_ARM64
 
@@ -220,7 +249,7 @@ static int __scm_call(const struct scm_command *cmd)
 }
 
 #ifndef CONFIG_ARM64
-static void scm_inv_range(unsigned long start, unsigned long end)
+void scm_inv_range(unsigned long start, unsigned long end)
 {
 	u32 cacheline_size, ctr;
 
@@ -238,12 +267,14 @@ static void scm_inv_range(unsigned long start, unsigned long end)
 	dsb();
 	isb();
 }
+EXPORT_SYMBOL(scm_inv_range);
 #else
 
-static void scm_inv_range(unsigned long start, unsigned long end)
+void scm_inv_range(unsigned long start, unsigned long end)
 {
 	dmac_inv_range((void *)start, (void *)end);
 }
+EXPORT_SYMBOL(scm_inv_range);
 #endif
 
 /**
@@ -1074,6 +1105,151 @@ int scm_io_write(phys_addr_t address, u32 val)
 	return ret;
 }
 EXPORT_SYMBOL(scm_io_write);
+
+#ifdef CONFIG_HTC_SCM
+void scm_flush_range(unsigned long start, unsigned long end)
+{
+	u32 buf_addr, len;
+
+	if (end <= start)
+		return;
+
+	buf_addr = virt_to_phys((void *)start);
+	len = end - start;
+
+	__cpuc_flush_dcache_area((void *)start, len);
+	outer_flush_range(buf_addr, buf_addr + len);
+}
+EXPORT_SYMBOL(scm_flush_range);
+
+int secure_read_simlock_mask(void)
+{
+	int ret;
+	u32 dummy;
+
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_READ_SIMLOCK_MASK,
+			&dummy, sizeof(dummy), NULL, 0);
+
+	pr_info("TZ_HTC_SVC_READ_SIMLOCK_MASK ret = %d\n", ret);
+	if (ret > 0)
+		ret &= 0x1F;
+	pr_info("TZ_HTC_SVC_READ_SIMLOCK_MASK modified ret = %d\n", ret);
+
+	return ret;
+}
+EXPORT_SYMBOL(secure_read_simlock_mask);
+
+int secure_simlock_unlock(unsigned int unlock, unsigned char *code)
+{
+	int ret;
+	struct oem_simlock_unlock_req req;
+
+	req.unlock = unlock;
+	req.code_addr = virt_to_phys(code);
+
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_SIMLOCK_UNLOCK,
+			&req, sizeof(req), NULL, 0);
+
+	pr_info("TZ_HTC_SVC_SIMLOCK_UNLOCK ret = %d\n", ret);
+	return ret;
+}
+EXPORT_SYMBOL(secure_simlock_unlock);
+
+int secure_get_security_level(void)
+{
+	int ret;
+	u32 dummy;
+
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_GET_SECURITY_LEVEL,
+			&dummy, sizeof(dummy), NULL, 0);
+
+	pr_info("TZ_HTC_SVC_GET_SECURITY_LEVEL ret = %d\n", ret);
+	if (ret > 0)
+		ret &= 0x0F;
+	pr_info("TZ_HTC_SVC_GET_SECURITY_LEVEL modified ret = %d\n", ret);
+
+	return ret;
+}
+EXPORT_SYMBOL(secure_get_security_level);
+
+int secure_memprot(void)
+{
+	int ret;
+	u32 dummy;
+
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_MEMPROT,
+			&dummy, sizeof(dummy), NULL, 0);
+
+	pr_info("TZ_HTC_SVC_MEMPROT ret = %d\n", ret);
+	return ret;
+}
+EXPORT_SYMBOL(secure_memprot);
+
+int secure_log_operation(unsigned int address, unsigned int size,
+		unsigned int buf_addr, unsigned buf_len, int revert)
+{
+	int ret;
+	struct oem_log_oper_req req;
+	req.address = address;
+	req.size = size;
+	req.buf_addr = buf_addr;
+	req.buf_len = buf_len;
+	req.revert = revert;
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_LOG_OPERATOR,
+			&req, sizeof(req), NULL, 0);
+	pr_info("TZ_HTC_SVC_LOG_OPERATOR ret = %d\n", ret);
+	return ret;
+}
+EXPORT_SYMBOL(secure_log_operation);
+
+int secure_access_item(unsigned int is_write, unsigned int id, unsigned int buf_len, unsigned char *buf)
+{
+	int ret;
+	struct oem_access_item_req req;
+
+	req.is_write = is_write;
+	req.id = id;
+	req.buf_len = buf_len;
+	req.buf_addr = virt_to_phys(buf);
+
+	qseecom_crypto_clk_control(true);
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_ACCESS_ITEM,
+			&req, sizeof(req), NULL, 0);
+	qseecom_crypto_clk_control(false);
+
+	pr_info("TZ_HTC_SVC_ACCESS_ITEM id %d ret = %d\n", id, ret);
+	return ret;
+}
+
+#if 0
+int scm_pas_enable_dx_bw(void);
+void scm_pas_disable_dx_bw(void);
+
+int secure_3rd_party_syscall(unsigned int id, unsigned char *buf, int len)
+{
+	int ret;
+	int bus_ret;
+	struct oem_3rd_party_syscall_req req;
+	unsigned long start, end;
+
+	req.id = id;
+	req.len = len;
+	req.buf_addr = virt_to_phys(buf);
+
+	bus_ret = scm_pas_enable_dx_bw();
+	pet_watchdog();
+	ret = scm_call(SCM_SVC_OEM, TZ_HTC_SVC_3RD_PARTY,
+			&req, sizeof(req), NULL, 0);
+	start = (unsigned long)buf;
+	end = start + len;
+	scm_inv_range(start, end);
+	if (!bus_ret)
+		scm_pas_disable_dx_bw();
+
+	return ret;
+}
+#endif
+#endif
 
 int scm_is_call_available(u32 svc_id, u32 cmd_id)
 {

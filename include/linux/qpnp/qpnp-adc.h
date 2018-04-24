@@ -1145,6 +1145,11 @@ int32_t qpnp_adc_get_devicetree_data(struct spmi_device *spmi,
 					struct qpnp_adc_drv *adc_qpnp);
 
 /**
+ * loading temperature device tree
+ */
+void htc_load_temperature_data(struct device_node *data_node);
+
+/**
  * qpnp_adc_scale_default() - Scales the pre-calibrated digital output
  *		of an ADC to the ADC reference and compensates for the
  *		gain and offset.
@@ -1700,6 +1705,8 @@ static inline int32_t qpnp_vadc_conv_seq_request(struct qpnp_vadc_chip *dev,
 			enum qpnp_vadc_trigger trigger_channel,
 			enum qpnp_vadc_channels channel,
 			struct qpnp_vadc_result *result)
+{ return -ENXIO; }
+static inline void htc_load_temperature_data(struct device_node *data_node)
 { return -ENXIO; }
 static inline int32_t qpnp_adc_scale_default(struct qpnp_vadc_chip *vadc,
 			int32_t adc_code,

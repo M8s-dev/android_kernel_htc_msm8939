@@ -2371,6 +2371,15 @@ static int venus_hfi_core_init(void *device)
 			goto err_core_init;
 		}
 
+                /* HTC_START: ION debug mechanism enhancement
+                 * Assign the instance in venus_hfi_device struct to smem_client struct
+                 */
+                if (dev->inst == NULL) {
+                        dprintk(VIDC_ERR, "[Vidc_Mem] In %s: Get NULL inst\n", __func__);
+                } else {
+                        dev->hal_client->inst = dev->inst;
+                }
+                /* HTC_END */
 		dprintk(VIDC_DBG, "Dev_Virt: 0x%pa, Reg_Virt: 0x%p\n",
 			&dev->hal_data->firmware_base,
 			dev->hal_data->register_base);

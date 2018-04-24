@@ -607,5 +607,17 @@ config REGULATOR_CPR
 	  suggestions in efuse as initial settings. It converts corner vote
 	  to voltage value before writing to a voltage regulator API, such as
 	  that provided by spm-regulator driver.
+
+config REGULATOR_NCP6924
+	tristate "ON NCP6924 PMIC"
+	depends on I2C
+	help
+	  This driver supports voltage regulator of ON Semiconductor NCP6924 chips.
+
+config REGULATOR_NCP6951
+	tristate "ON NCP6951 PMIC"
+	depends on I2C
+	help
+	  This driver supports voltage regulator of ON Semiconductor NCP6951 chips.
 endif
 

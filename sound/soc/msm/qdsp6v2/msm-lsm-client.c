@@ -62,7 +62,6 @@ static struct snd_pcm_hardware msm_pcm_hardware_capture = {
 	.fifo_size =            0,
 };
 
-/* Conventional and unconventional sample rate supported */
 static unsigned int supported_sample_rates[] = {
 	16000,
 };
@@ -238,7 +237,7 @@ static void lsm_event_handler(uint32_t opcode, uint32_t token,
 					__func__);
 				return;
 			}
-			/* queue the next period buffer */
+			
 			buf_index = (buf_index + 1) %
 			prtd->lsm_client->hw_params.period_count;
 			rc = msm_lsm_queue_lab_buffer(prtd, buf_index);
@@ -554,10 +553,6 @@ static int msm_lsm_reg_model(struct snd_pcm_substream *substream,
 
 	q6lsm_sm_set_param_data(prtd->lsm_client, p_info, &offset);
 
-	/*
-	 * For set_param, advance the sound model data with the
-	 * number of bytes required by param_data.
-	 */
 	snd_model_ptr = ((u8 *) prtd->lsm_client->sound_model.data) + offset;
 
 	if (copy_from_user(snd_model_ptr,
@@ -1162,7 +1157,7 @@ static int msm_lsm_ioctl_compat(struct snd_pcm_substream *substream,
 			user->payload_size = userarg32.payload_size;
 			err = msm_lsm_ioctl_shared(substream, cmd, user);
 		}
-		/* Update size with actual payload size */
+		
 		size = sizeof(userarg32) + user->payload_size;
 		if (!err && !access_ok(VERIFY_WRITE, arg, size)) {
 			dev_err(rtd->dev,
@@ -1611,7 +1606,7 @@ static int msm_lsm_ioctl(struct snd_pcm_substream *substream,
 			user->payload_size = userarg.payload_size;
 			err = msm_lsm_ioctl_shared(substream, cmd, user);
 		}
-		/* Update size with actual payload size */
+		
 		size = sizeof(*user) + user->payload_size;
 		if (!err && !access_ok(VERIFY_WRITE, arg, size)) {
 			dev_err(rtd->dev,
@@ -1664,7 +1659,7 @@ static int msm_lsm_open(struct snd_pcm_substream *substream)
 	if (ret < 0)
 		pr_info("%s: snd_pcm_hw_constraint_list failed ret %d\n",
 			 __func__, ret);
-	/* Ensure that buffer size is a multiple of period size */
+	
 	ret = snd_pcm_hw_constraint_integer(runtime,
 			    SNDRV_PCM_HW_PARAM_PERIODS);
 	if (ret < 0)
@@ -1749,10 +1744,6 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 				"%s: LSM client session stopped %d\n",
 				 __func__, ret);
 
-		/*
-		 * Go Ahead and try de-register sound model,
-		 * even if stop failed
-		 */
 		prtd->lsm_client->started = false;
 
 		ret = q6lsm_deregister_sound_model(prtd->lsm_client);

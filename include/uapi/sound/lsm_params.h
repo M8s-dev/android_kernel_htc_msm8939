@@ -43,34 +43,20 @@ enum LSM_PARAM_TYPE {
 	LSM_REG_SND_MODEL,
 	LSM_DEREG_SND_MODEL,
 	LSM_CUSTOM_PARAMS,
-	/* driver ioctl will parse only so many params */
+	
 	LSM_PARAMS_MAX,
 };
 
-/*
- * Data for LSM_ENDPOINT_DETECT_THRESHOLD param_type
- * @epd_begin: Begin threshold
- * @epd_end: End threshold
- */
 struct snd_lsm_ep_det_thres {
 	__u32 epd_begin;
 	__u32 epd_end;
 };
 
-/*
- * Data for LSM_OPERATION_MODE param_type
- * @mode: The detection mode to be used
- * @detect_failure: Setting to enable failure detections.
- */
 struct snd_lsm_detect_mode {
 	enum lsm_detection_mode mode;
 	bool detect_failure;
 };
 
-/*
- * Data for LSM_GAIN param_type
- * @gain: The gain to be applied on LSM
- */
 struct snd_lsm_gain {
 	__u16 gain;
 };
@@ -102,21 +88,6 @@ struct snd_lsm_detection_params {
 	bool detect_failure;
 };
 
-/*
- * Param info for each parameter type
- * @module_id: Module to which parameter is to be set
- * @param_id: Parameter that is to be set
- * @param_size: size (in number of bytes) for the data
- *		in param_data.
- *		For confidence levels, this is num_conf_levels
- *		For REG_SND_MODEL, this is size of sound model
- *		For CUSTOM_PARAMS, this is size of the entire blob of data
- * @param_data: Data for the parameter.
- *		For some param_types this is a structure defined, ex: LSM_GAIN
- *		For CONFIDENCE_LEVELS, this is array of confidence levels
- *		For REG_SND_MODEL, this is the sound model data
- *		For CUSTOM_PARAMS, this is the blob of custom data.
- */
 struct lsm_params_info {
 	__u32 module_id;
 	__u32 param_id;
@@ -125,29 +96,12 @@ struct lsm_params_info {
 	enum LSM_PARAM_TYPE param_type;
 };
 
-/*
- * Data passed to the SET_PARAM_V2 IOCTL
- * @num_params: Number of params that are to be set
- *		should not be greater than LSM_PARAMS_MAX
- * @params: Points to an array of lsm_params_info
- *	    Each entry points to one parameter to set
- * @data_size: size (in bytes) for params
- *	       should be equal to
- *	       num_params * sizeof(struct lsm_parms_info)
- */
 struct snd_lsm_module_params {
 	__u8 __user *params;
 	__u32 num_params;
 	__u32 data_size;
 };
 
-/*
- * Data passed to LSM_OUT_FORMAT_CFG IOCTL
- * @format: The media format enum
- * @packing: indicates the packing method used for data path
- * @events: indicates whether data path events need to be enabled
- * @transfer_mode: indicates whether FTRT mode or RT mode.
- */
 struct snd_lsm_output_format_cfg {
 	__u8 format;
 	__u8 packing;

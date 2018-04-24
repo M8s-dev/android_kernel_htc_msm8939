@@ -33,9 +33,6 @@
 #define MSM_FB_ENABLE_DBGFS
 #define WAIT_FENCE_FIRST_TIMEOUT (3 * MSEC_PER_SEC)
 #define WAIT_FENCE_FINAL_TIMEOUT (7 * MSEC_PER_SEC)
-/* Display op timeout should be greater than the total timeout but not
- * unreasonably large. Set to 1s more than first wait + final wait which
- * are already quite long and proceed without any further waits. */
 #define WAIT_DISP_OP_TIMEOUT (WAIT_FENCE_FIRST_TIMEOUT + \
 		WAIT_FENCE_FINAL_TIMEOUT + 1)
 
@@ -50,27 +47,6 @@
 #define MDP_PP_AD_BL_LINEAR	0x0
 #define MDP_PP_AD_BL_LINEAR_INV	0x1
 
-/**
- * enum mdp_notify_event - Different frame events to indicate frame update state
- *
- * @MDP_NOTIFY_FRAME_BEGIN:	Frame update has started, the frame is about to
- *				be programmed into hardware.
- * @MDP_NOTIFY_FRAME_CFG_DONE:	Frame configuration is done.
- * @MDP_NOTIFY_FRAME_CTX_DONE:	Frame has finished accessing sw context.
- *				Next frame can start preparing.
- * @MDP_NOTIFY_FRAME_READY:	Frame ready to be kicked off, this can be used
- *				as the last point in time to synchronize with
- *				source buffers before kickoff.
- * @MDP_NOTIFY_FRAME_FLUSHED:	Configuration of frame has been flushed and
- *				DMA transfer has started.
- * @MDP_NOTIFY_FRAME_DONE:	Frame DMA transfer has completed.
- *				- For video mode panels this will indicate that
- *				  previous frame has been replaced by new one.
- *				- For command mode/writeback frame done happens
- *				  as soon as the DMA of the frame is done.
- * @MDP_NOTIFY_FRAME_TIMEOUT:	Frame DMA transfer has failed to complete within
- *				a fair amount of time.
- */
 enum mdp_notify_event {
 	MDP_NOTIFY_FRAME_BEGIN = 1,
 	MDP_NOTIFY_FRAME_CFG_DONE,
@@ -81,27 +57,12 @@ enum mdp_notify_event {
 	MDP_NOTIFY_FRAME_TIMEOUT,
 };
 
-/**
- * enum mdp_split_mode - Lists the possible split modes in the device
- *
- * @MDP_SPLIT_MODE_NONE: Not a Dual display, no panel split.
- * @MDP_SPLIT_MODE_LM:   Dual Display is true, Split across layer mixers
- * @MDP_SPLIT_MODE_DST:  Dual Display is true, Split is in the Destination
- *                      i.e ping pong split.
- */
 enum mdp_split_mode {
 	MDP_SPLIT_MODE_NONE,
 	MDP_SPLIT_MODE_LM,
 	MDP_SPLIT_MODE_DST,
 };
 
-/**
- * enum mdp_mmap_type - Lists the possible mmap type in the device
- *
- * @MDP_FB_MMAP_NONE: Unknown type.
- * @MDP_FB_MMAP_ION_ALLOC:   Use ION allocate a buffer for mmap
- * @MDP_FB_MMAP_PHYSICAL_ALLOC:  Use physical buffer for mmap
- */
 enum mdp_mmap_type {
 	MDP_FB_MMAP_NONE,
 	MDP_FB_MMAP_ION_ALLOC,
@@ -154,7 +115,7 @@ struct msm_mdp_interface {
 	int (*init_fnc)(struct msm_fb_data_type *mfd);
 	int (*on_fnc)(struct msm_fb_data_type *mfd);
 	int (*off_fnc)(struct msm_fb_data_type *mfd);
-	/* called to release resources associated to the process */
+	
 	int (*release_fnc)(struct msm_fb_data_type *mfd, bool release_all,
 				uint32_t pid);
 	int (*kickoff_fnc)(struct msm_fb_data_type *mfd,
@@ -174,6 +135,7 @@ struct msm_mdp_interface {
 	int (*splash_init_fnc)(struct msm_fb_data_type *mfd);
 	struct msm_sync_pt_data *(*get_sync_fnc)(struct msm_fb_data_type *mfd,
 				const struct mdp_buf_sync *buf_sync);
+	void (*display_on)(struct msm_fb_data_type *mfd);
 	void (*check_dsi_status)(struct work_struct *work, uint32_t interval);
 	int (*configure_panel)(struct msm_fb_data_type *mfd, int mode);
 	void *private1;
@@ -228,6 +190,7 @@ struct msm_fb_data_type {
 
 	u32 dst_format;
 	int panel_power_state;
+	int request_display_on;
 	struct disp_info_type_suspend suspend;
 
 	struct ion_handle *ihdl;
@@ -260,7 +223,7 @@ struct msm_fb_data_type {
 
 	struct msm_sync_pt_data mdp_sync_pt_data;
 
-	/* for non-blocking */
+	
 	struct task_struct *disp_thread;
 	atomic_t commits_pending;
 	atomic_t kickoff_pending;
@@ -313,17 +276,14 @@ static inline void mdss_fb_update_notify_update(struct msm_fb_data_type *mfd)
 	}
 }
 
-/* Function returns true for either Layer Mixer split or Ping pong split */
 static inline bool is_panel_split(struct msm_fb_data_type *mfd)
 {
 	return (mfd && (!(mfd->split_mode == MDP_SPLIT_MODE_NONE)));
 }
-/* Function returns true, if Layer Mixer split is Set*/
 static inline bool is_split_lm(struct msm_fb_data_type *mfd)
 {
 	return (mfd && (mfd->split_mode == MDP_SPLIT_MODE_LM));
 }
-/* Function returns true, if Ping pong split is Set*/
 static inline bool is_split_dst(struct msm_fb_data_type *mfd)
 {
 	return (mfd && (mfd->split_mode == MDP_SPLIT_MODE_DST));
@@ -370,4 +330,6 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		     unsigned long arg);
 int mdss_fb_compat_ioctl(struct fb_info *info, unsigned int cmd,
 			 unsigned long arg);
-#endif /* MDSS_FB_H */
+
+#define DEFAULT_BRIGHTNESS 143
+#endif 

@@ -201,10 +201,6 @@ kgsl_ioctl_gpumem_alloc_compat(struct kgsl_device_private *dev_priv,
 	param.size = (size_t)param32->size;
 	param.flags = param32->flags;
 
-	/*
-	 * Since this is a 32 bit application the page aligned size is expected
-	 * to fit inside of 32 bits - check for overflow and return error if so
-	 */
 	if (PAGE_ALIGN(param.size) >= UINT_MAX)
 		return -EINVAL;
 
@@ -231,10 +227,6 @@ kgsl_ioctl_gpumem_alloc_id_compat(struct kgsl_device_private *dev_priv,
 	param.mmapsize = (size_t)param32->mmapsize;
 	param.gpuaddr = (unsigned long)param32->gpuaddr;
 
-	/*
-	 * Since this is a 32 bit application the page aligned size is expected
-	 * to fit inside of 32 bits - check for overflow and return error if so
-	 */
 	if (PAGE_ALIGN(param.size) >= UINT_MAX)
 		return -EINVAL;
 
@@ -307,17 +299,17 @@ static long kgsl_ioctl_timestamp_event_compat(struct kgsl_device_private
 static const struct kgsl_ioctl kgsl_compat_ioctl_funcs[] = {
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DEVICE_GETPROPERTY_COMPAT,
 			kgsl_ioctl_device_getproperty_compat),
-	/* IOCTL_KGSL_DEVICE_WAITTIMESTAMP is no longer supported */
+	
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID,
 			kgsl_ioctl_device_waittimestamp_ctxtid),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_RINGBUFFER_ISSUEIBCMDS_COMPAT,
 			kgsl_ioctl_rb_issueibcmds_compat),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_SUBMIT_COMMANDS_COMPAT,
 			kgsl_ioctl_submit_commands_compat),
-	/* IOCTL_KGSL_CMDSTREAM_READTIMESTAMP is no longer supported */
+	
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID,
 			kgsl_ioctl_cmdstream_readtimestamp_ctxtid),
-	/* IOCTL_KGSL_CMDSTREAM_FREEMEMONTIMESTAMP is no longer supported */
+	
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_CMDSTREAM_FREEMEMONTIMESTAMP_CTXTID_COMPAT,
 			kgsl_ioctl_cmdstream_freememontimestamp_ctxtid_compat),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DRAWCTXT_CREATE,
@@ -367,22 +359,6 @@ long kgsl_compat_ioctl(struct file *filep, unsigned int cmd,
 				ARRAY_SIZE(kgsl_compat_ioctl_funcs), arg);
 }
 
-/**
- * kgsl_cmdbatch_create_compat() - Compat helper to _kgsl_cmdbatch_create()
- * @device: Pointer to the KGSL device struct for the GPU
- * @flags: Flags passed in from the user command
- * @cmdlist: Pointer to the list of commands from the user. Should point to a
- * kgsl_ibdesc_compat struct
- * @numcmds: Number of commands in the list
- * @synclist: Pointer to the list of syncpoints from the user. Should point to
- * a kgsl_cmd_syncpoint_compat struct
- * @numsyncs: Number of syncpoints in the list
- *
- * This function is called from _kgsl_cmdbatch_create(), if the user process
- * submitting cmds is 32 bit, instead of executing rest of the function.
- * It is needed since we do multiple copy_from_user() calls which would
- * otherwise be copying user data into the wrongly sized/structured struct.
- */
 int kgsl_cmdbatch_create_compat(struct kgsl_device *device, unsigned int flags,
 			struct kgsl_cmdbatch *cmdbatch, void __user *cmdlist,
 			unsigned int numcmds, void __user *synclist,

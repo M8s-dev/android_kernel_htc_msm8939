@@ -13,7 +13,6 @@
 #ifndef __MSM_CLOCKS_8936_H
 #define __MSM_CLOCKS_8936_H
 
-/* clock_gcc controlled clocks */
 #define clk_gcc_xo				0xbaf23f6a
 #define clk_xo_a_clk				0x83481a00
 #define clk_gpll0				0x5933b69f
@@ -199,7 +198,6 @@
 #define clk_byte_clk_src                        0x3a911c53
 #define clk_gcc_snoc_qosgen_clk			0x37d40ce2
 
-/* clock_rpm controlled clocks */
 #define clk_pcnoc_clk				0xc1296d0f
 #define clk_pcnoc_a_clk				0x9bcffee4
 #define clk_pcnoc_msmbus_clk			0x2b53b688
@@ -253,7 +251,6 @@
 #define clk_rf_clk2_pin				0xa7c5602a
 #define clk_rf_clk2_a_pin			0x2d75eb4d
 
-/* clock_debug controlled clocks */
 #define clk_gcc_debug_mux			0x8121ac15
 #define clk_rpm_debug_mux			0x25cd1f3a
 #define clk_wcnss_m_clk				0x709f430b

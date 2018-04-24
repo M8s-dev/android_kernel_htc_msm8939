@@ -913,6 +913,9 @@ static int csid_probe(struct platform_device *pdev)
 		GFP_KERNEL);
 	if (!new_csid_dev->ctrl_reg) {
 		pr_err("%s:%d kzalloc failed\n", __func__, __LINE__);
+//HTC_START, fix klockwork.
+		kfree(new_csid_dev);
+//HTC_END
 		return -ENOMEM;
 	}
 

@@ -198,6 +198,19 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 					struct msm_tlmm_desc *tlmm_info);
 #ifdef CONFIG_USE_PINCTRL_IRQ
 #ifdef CONFIG_PINCTRL_MSM_TLMM
+#ifdef CONFIG_HTC_POWER_DEBUG
+struct  msm_gpio_dump_info {
+        unsigned int dir;
+        unsigned int pull;
+        unsigned int drv;
+        unsigned int value;
+        unsigned int func_sel;
+        unsigned int int_en;
+        unsigned int int_owner;
+};
+void __msm_gpio_get_dump_info(struct gpio_chip *gc, unsigned gpio, struct msm_gpio_dump_info *data);
+#endif
+
 extern int msm_tlmm_of_gp_irq_init(struct device_node *np, struct irq_chip *ic);
 #else
 static inline int msm_tlmm_of_gp_irq_init(struct device_node *np,

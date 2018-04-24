@@ -668,7 +668,10 @@ static int32_t msm_flash_get_gpio_dt_data(struct device_node *of_node,
 		CDBG("%s:%d fctrl->flash_driver_type = %d", __func__, __LINE__,
 			fctrl->flash_driver_type);
 	}
-
+//HTC_START, fix klockwork.
+	if(gpio_array)
+	  kfree(gpio_array);
+//HTC_END
 	return 0;
 
 free_cam_gpio_set_tbl:

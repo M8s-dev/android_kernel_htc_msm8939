@@ -39,6 +39,7 @@
 #include <linux/msm_thermal_ioctl.h>
 #include <soc/qcom/rpm-smd.h>
 #include <soc/qcom/scm.h>
+#include <htc/devices_dtb.h>
 #include <linux/sched/rt.h>
 
 #define CREATE_TRACE_POINTS
@@ -2614,6 +2615,15 @@ exit:
 	return ret;
 }
 
+static void lower_thermal_threshold(int threshold)
+{
+	msm_thermal_info.limit_temp_degC-=threshold;
+	msm_thermal_info.core_limit_temp_degC-=threshold;
+	msm_thermal_info.hotplug_temp_degC-=threshold;
+	pr_info("limit temp = %d, core limit temp = %d, hotplug limit temp= %d",
+	msm_thermal_info.limit_temp_degC, msm_thermal_info.core_limit_temp_degC, msm_thermal_info.hotplug_temp_degC);
+}
+
 static void do_freq_control(long temp)
 {
 	uint32_t cpu = 0;
@@ -4194,6 +4204,11 @@ int msm_thermal_init(struct msm_thermal_data *pdata)
 		pr_err("Invalid sensor:%d for polling\n",
 				msm_thermal_info.sensor_id);
 		return -EINVAL;
+	}
+
+	if(get_kernel_flag() & KERNEL_FLAG_KEEP_CHARG_ON || 
+	   get_kernel_flag() & KERNEL_FLAG_ENABLE_FAST_CHARGE) {
+		lower_thermal_threshold(15);
 	}
 
 	enabled = 1;

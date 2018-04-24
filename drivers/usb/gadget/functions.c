@@ -101,6 +101,7 @@ int usb_function_register(struct usb_function_driver *newf)
 	}
 	ret = 0;
 	list_add_tail(&newf->list, &func_list);
+	printk(KERN_WARNING "[USB] usb function register\n");
 out:
 	mutex_unlock(&func_lock);
 	return ret;

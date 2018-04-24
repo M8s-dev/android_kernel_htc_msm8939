@@ -271,7 +271,8 @@ int mdss_mdp_splash_cleanup(struct msm_fb_data_type *mfd,
 		mdss_mdp_handoff_cleanup_pipes(mfd, MDSS_MDP_PIPE_TYPE_DMA);
 	}
 
-	mdss_mdp_ctl_splash_finish(ctl, mdp5_data->handoff);
+	if (ctl)
+		mdss_mdp_ctl_splash_finish(ctl, mdp5_data->handoff);
 
 	/*
 	 * Once the splash cleanup is done, reset the splash flag which
@@ -599,7 +600,16 @@ static __ref int mdss_mdp_splash_parse_dt(struct msm_fb_data_type *mfd)
 	mfd->splash_info.splash_logo_enabled =
 				of_property_read_bool(pdev->dev.of_node,
 				"qcom,mdss-fb-splash-logo-enabled");
-
+	/*
+	 * HTC: Do not need to allocate and free splash memory since
+	 * we use the same memory block in hboot and kernel
+	 */
+	if (of_property_read_bool(pdev->dev.of_node,
+				  "htc,fbmem-heap-remapping")) {
+		/* do nothing */
+		rc = 0;
+		return rc;
+	}
 	of_find_property(pdev->dev.of_node, "qcom,memblock-reserve", &len);
 	if (len) {
 		len = len / sizeof(u32);

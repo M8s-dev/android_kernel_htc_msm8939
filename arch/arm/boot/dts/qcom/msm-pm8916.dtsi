@@ -47,7 +47,7 @@
 			qcom,pon_2 {
 				qcom,pon-type = <1>;
 				qcom,pull-up = <1>;
-				linux,code = <114>;
+				/* linux,code = <114>; */
 			};
 		};
 
@@ -116,7 +116,7 @@
                         compatible = "qcom,qpnp-rtc";
                         #address-cells = <1>;
                         #size-cells = <1>;
-                        qcom,qpnp-rtc-write = <0>;
+                        qcom,qpnp-rtc-write = <1>;
                         qcom,qpnp-rtc-alarm-pwrup = <0>;
 
                         qcom,pm8916_rtc_rw@6000 {
@@ -172,6 +172,19 @@
 				qcom,hw-settle-time = <0>;
 				qcom,fast-avg-setup = <0>;
 			};
+
+			/*++ 2014/08/05, USB Team, PCN00034 ++*/
+                        chan@11 {
+                                label = "usb_id_mpp2";
+                                reg   = <0x11>;
+                                qcom,decimation              = <0>;             //512 sampling rate
+                                qcom,pre-div-channel-scaling = <0>;             //1:1 scaling
+                                qcom,calibration-type        = "absolute";      //Use 625mV & 1.25V reference voltage
+                                qcom,scale-function          = <0>;             //convert raw adc code to voltage
+                                qcom,hw-settle-time          = <0>;             //200us
+                                qcom,fast-avg-setup          = <0>;             //with only 1 average measurement
+                        };
+			/*-- 2014/08/05, USB Team, PCN00034 --*/
 		};
 
 		pm8916_tz: qcom,temp-alarm@2400 {
@@ -209,7 +222,7 @@
 
 			qcom,vddmax-mv = <4200>;
 			qcom,vddsafe-mv = <4200>;
-			qcom,vinmin-mv = <4308>;
+			qcom,vinmin-mv = <4497>;
 			qcom,ibatsafe-ma = <1440>;
 			qcom,thermal-mitigation = <1440 720 630 0>;
 			qcom,cool-bat-decidegc = <100>;
@@ -270,7 +283,7 @@
 
 			qcom,v-cutoff-uv = <3400000>;
 			qcom,max-voltage-uv = <4200000>;
-			qcom,r-conn-mohm = <0>;
+			qcom,r-conn-mohm = <20>;
 			qcom,shutdown-soc-valid-limit = <100>;
 			qcom,low-soc-calculate-soc-threshold = <15>;
 			qcom,low-voltage-calculate-soc-ms = <1000>;

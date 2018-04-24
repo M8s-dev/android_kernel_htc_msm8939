@@ -173,7 +173,6 @@
 #define SWRM_DP_PORT_CTRL_OFFSET1_SHFT		0x08
 #define SWRM_DP_PORT_CTRL_SAMPLE_INTERVAL	0x00
 
-/* Soundwire Slave Register definition */
 
 #define SWRS_BASE_ADDRESS			0x00
 
@@ -196,4 +195,4 @@
 #define SWRS_SCP_HOST_CLK_DIV2_CTL_BANK(m)	(SWRS_BASE_ADDRESS + 0xE0 + \
 						0x10*m)
 
-#endif /* _SWRM_REGISTERS_H */
+#endif 

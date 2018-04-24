@@ -16,9 +16,6 @@
 
 #include <uapi/linux/perf_event.h>
 
-/*
- * Kernel-internal data types and definitions:
- */
 
 #ifdef CONFIG_PERF_EVENTS
 # include <asm/perf_event.h>
@@ -63,34 +60,14 @@ struct perf_raw_record {
 	void				*data;
 };
 
-/*
- * single taken branch record layout:
- *
- *      from: source instruction (may not always be a branch insn)
- *        to: branch target
- *   mispred: branch target was mispredicted
- * predicted: branch target was predicted
- *
- * support for mispred, predicted is optional. In case it
- * is not supported mispred = predicted = 0.
- */
 struct perf_branch_entry {
 	__u64	from;
 	__u64	to;
-	__u64	mispred:1,  /* target mispredicted */
-		predicted:1,/* target predicted */
+	__u64	mispred:1,  
+		predicted:1,
 		reserved:62;
 };
 
-/*
- * branch stack layout:
- *  nr: number of taken branches stored in entries[]
- *
- * Note that nr can vary from sample to sample
- * branches (to, from) are stored from most recent
- * to least recent, i.e., entries[0] contains the most
- * recent branch.
- */
 struct perf_branch_stack {
 	__u64				nr;
 	struct perf_branch_entry	entries[0];
@@ -103,23 +80,17 @@ struct perf_regs_user {
 
 struct task_struct;
 
-/*
- * extra PMU register associated with an event
- */
 struct hw_perf_event_extra {
-	u64		config;	/* register value */
-	unsigned int	reg;	/* register address or index */
-	int		alloc;	/* extra register already allocated */
-	int		idx;	/* index in shared_regs->regs[] */
+	u64		config;	
+	unsigned int	reg;	
+	int		alloc;	
+	int		idx;	
 };
 
-/**
- * struct hw_perf_event - performance event hardware details:
- */
 struct hw_perf_event {
 #ifdef CONFIG_PERF_EVENTS
 	union {
-		struct { /* hardware */
+		struct { 
 			u64		config;
 			u64		last_tag;
 			unsigned long	config_base;
@@ -132,21 +103,16 @@ struct hw_perf_event {
 			struct hw_perf_event_extra extra_reg;
 			struct hw_perf_event_extra branch_reg;
 		};
-		struct { /* software */
+		struct { 
 			struct hrtimer	hrtimer;
 		};
-		struct { /* tracepoint */
+		struct { 
 			struct task_struct	*tp_target;
-			/* for tp_event->class */
+			
 			struct list_head	tp_list;
 		};
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
-		struct { /* breakpoint */
-			/*
-			 * Crufty hack to avoid the chicken and egg
-			 * problem hw_breakpoint has with context
-			 * creation and event initalization.
-			 */
+		struct { 
 			struct task_struct		*bp_target;
 			struct arch_hw_breakpoint	info;
 			struct list_head		bp_list;
@@ -166,23 +132,14 @@ struct hw_perf_event {
 #endif
 };
 
-/*
- * hw_perf_event::state flags
- */
-#define PERF_HES_STOPPED	0x01 /* the counter is stopped */
-#define PERF_HES_UPTODATE	0x02 /* event->count up-to-date */
+#define PERF_HES_STOPPED	0x01 
+#define PERF_HES_UPTODATE	0x02 
 #define PERF_HES_ARCH		0x04
 
 struct perf_event;
 
-/*
- * Common implementation detail of pmu::{start,commit,cancel}_txn
- */
 #define PERF_EVENT_TXN 0x1
 
-/**
- * struct pmu - generic performance monitoring unit
- */
 struct pmu {
 	struct list_head		entry;
 
@@ -197,80 +154,32 @@ struct pmu {
 	u32                             events_across_hotplug:1,
 					reserved:31;
 
-	/*
-	 * Fully disable/enable this PMU, can be used to protect from the PMI
-	 * as well as for lazy/batch writing of the MSRs.
-	 */
-	void (*pmu_enable)		(struct pmu *pmu); /* optional */
-	void (*pmu_disable)		(struct pmu *pmu); /* optional */
+	void (*pmu_enable)		(struct pmu *pmu); 
+	void (*pmu_disable)		(struct pmu *pmu); 
 
-	/*
-	 * Try and initialize the event for this PMU.
-	 * Should return -ENOENT when the @event doesn't match this PMU.
-	 */
 	int (*event_init)		(struct perf_event *event);
 
-#define PERF_EF_START	0x01		/* start the counter when adding    */
-#define PERF_EF_RELOAD	0x02		/* reload the counter when starting */
-#define PERF_EF_UPDATE	0x04		/* update the counter when stopping */
+#define PERF_EF_START	0x01		
+#define PERF_EF_RELOAD	0x02		
+#define PERF_EF_UPDATE	0x04		
 
-	/*
-	 * Adds/Removes a counter to/from the PMU, can be done inside
-	 * a transaction, see the ->*_txn() methods.
-	 */
 	int  (*add)			(struct perf_event *event, int flags);
 	void (*del)			(struct perf_event *event, int flags);
 
-	/*
-	 * Starts/Stops a counter present on the PMU. The PMI handler
-	 * should stop the counter when perf_event_overflow() returns
-	 * !0. ->start() will be used to continue.
-	 */
 	void (*start)			(struct perf_event *event, int flags);
 	void (*stop)			(struct perf_event *event, int flags);
 
-	/*
-	 * Updates the counter value of the event.
-	 */
 	void (*read)			(struct perf_event *event);
 
-	/*
-	 * Group events scheduling is treated as a transaction, add
-	 * group events as a whole and perform one schedulability test.
-	 * If the test fails, roll back the whole group
-	 *
-	 * Start the transaction, after this ->add() doesn't need to
-	 * do schedulability tests.
-	 */
-	void (*start_txn)		(struct pmu *pmu); /* optional */
-	/*
-	 * If ->start_txn() disabled the ->add() schedulability test
-	 * then ->commit_txn() is required to perform one. On success
-	 * the transaction is closed. On error the transaction is kept
-	 * open until ->cancel_txn() is called.
-	 */
-	int  (*commit_txn)		(struct pmu *pmu); /* optional */
-	/*
-	 * Will cancel the transaction, assumes ->del() is called
-	 * for each successful ->add() during the transaction.
-	 */
-	void (*cancel_txn)		(struct pmu *pmu); /* optional */
+	void (*start_txn)		(struct pmu *pmu); 
+	int  (*commit_txn)		(struct pmu *pmu); 
+	void (*cancel_txn)		(struct pmu *pmu); 
 
-	/*
-	 * Will return the value for perf_event_mmap_page::index for this event,
-	 * if no implementation is provided it will default to: event->hw.idx + 1.
-	 */
-	int (*event_idx)		(struct perf_event *event); /*optional */
+	int (*event_idx)		(struct perf_event *event); 
 
-	/*
-	 * flush branch stack on context-switches (needed in cpu-wide mode)
-	 */
 	void (*flush_branch_stack)	(void);
 };
 
-/**
- * enum perf_event_active_state - the states of a event
- */
 enum perf_event_active_state {
 	PERF_EVENT_STATE_ERROR		= -2,
 	PERF_EVENT_STATE_OFF		= -1,
@@ -304,9 +213,6 @@ struct swevent_hlist {
 struct perf_cgroup;
 struct ring_buffer;
 
-/**
- * struct perf_event - performance event kernel representation:
- */
 struct perf_event {
 #ifdef CONFIG_PERF_EVENTS
 	struct list_head		group_entry;
@@ -324,40 +230,13 @@ struct perf_event {
 	local64_t			count;
 	atomic64_t			child_count;
 
-	/*
-	 * These are the total time in nanoseconds that the event
-	 * has been enabled (i.e. eligible to run, and the task has
-	 * been scheduled in, if this is a per-task event)
-	 * and running (scheduled onto the CPU), respectively.
-	 *
-	 * They are computed from tstamp_enabled, tstamp_running and
-	 * tstamp_stopped when the event is in INACTIVE or ACTIVE state.
-	 */
 	u64				total_time_enabled;
 	u64				total_time_running;
 
-	/*
-	 * These are timestamps used for computing total_time_enabled
-	 * and total_time_running when the event is in INACTIVE or
-	 * ACTIVE state, measured in nanoseconds from an arbitrary point
-	 * in time.
-	 * tstamp_enabled: the notional time when the event was enabled
-	 * tstamp_running: the notional time when the event was scheduled on
-	 * tstamp_stopped: in INACTIVE state, the notional time when the
-	 *	event was scheduled off.
-	 */
 	u64				tstamp_enabled;
 	u64				tstamp_running;
 	u64				tstamp_stopped;
 
-	/*
-	 * timestamp shadows the actual context timing but it can
-	 * be safely used in NMI interrupt context. It reflects the
-	 * context time as it was when the event was last scheduled in.
-	 *
-	 * ctx_time already accounts for ctx->timestamp. Therefore to
-	 * compute ctx_time for a sample, simply add perf_clock().
-	 */
 	u64				shadow_ctx_time;
 
 	struct perf_event_attr		attr;
@@ -369,16 +248,9 @@ struct perf_event {
 	struct perf_event_context	*ctx;
 	atomic_long_t			refcount;
 
-	/*
-	 * These accumulate total time (in nanoseconds) that children
-	 * events have been enabled and running, respectively.
-	 */
 	atomic64_t			child_total_time_enabled;
 	atomic64_t			child_total_time_running;
 
-	/*
-	 * Protect attach/detach and child_list:
-	 */
 	struct mutex			child_mutex;
 	struct list_head		child_list;
 	struct perf_event		*parent;
@@ -389,18 +261,18 @@ struct perf_event {
 	struct list_head		owner_entry;
 	struct task_struct		*owner;
 
-	/* mmap bits */
+	
 	struct mutex			mmap_mutex;
 	atomic_t			mmap_count;
 
 	struct ring_buffer		*rb;
 	struct list_head		rb_entry;
 
-	/* poll related */
+	
 	wait_queue_head_t		waitq;
 	struct fasync_struct		*fasync;
 
-	/* delayed work for NMIs and such */
+	
 	int				pending_wakeup;
 	int				pending_kill;
 	int				pending_disable;
@@ -426,11 +298,11 @@ struct perf_event {
 #endif
 
 #ifdef CONFIG_CGROUP_PERF
-	struct perf_cgroup		*cgrp; /* cgroup event is attach to */
+	struct perf_cgroup		*cgrp; 
 	int				cgrp_defer_enabled;
 #endif
 
-#endif /* CONFIG_PERF_EVENTS */
+#endif 
 };
 
 enum perf_event_context_type {
@@ -438,24 +310,10 @@ enum perf_event_context_type {
 	cpu_context,
 };
 
-/**
- * struct perf_event_context - event context structure
- *
- * Used as a container for task events and CPU events as well:
- */
 struct perf_event_context {
 	struct pmu			*pmu;
 	enum perf_event_context_type	type;
-	/*
-	 * Protect the states of the events in the list,
-	 * nr_active, and the list:
-	 */
 	raw_spinlock_t			lock;
-	/*
-	 * Protect the list of events.  Locking either mutex or lock
-	 * is sufficient to ensure the list doesn't change; to change
-	 * the list you need to lock both the mutex and the spinlock.
-	 */
 	struct mutex			mutex;
 
 	struct list_head		pinned_groups;
@@ -470,34 +328,20 @@ struct perf_event_context {
 	atomic_t			refcount;
 	struct task_struct		*task;
 
-	/*
-	 * Context clock, runs when context enabled.
-	 */
 	u64				time;
 	u64				timestamp;
 
-	/*
-	 * These fields let us detect when two contexts have both
-	 * been cloned (inherited) from a common ancestor.
-	 */
 	struct perf_event_context	*parent_ctx;
 	u64				parent_gen;
 	u64				generation;
 	int				pin_count;
-	int				nr_cgroups;	 /* cgroup evts */
-	int				nr_branch_stack; /* branch_stack evt */
+	int				nr_cgroups;	 
+	int				nr_branch_stack; 
 	struct rcu_head			rcu_head;
 };
 
-/*
- * Number of contexts where an event can trigger:
- *	task, softirq, hardirq, nmi.
- */
 #define PERF_NR_CONTEXTS	4
 
-/**
- * struct perf_event_cpu_context - per cpu event context structure
- */
 struct perf_cpu_context {
 	struct perf_event_context	ctx;
 	struct perf_event_context	*task_ctx;
@@ -582,7 +426,7 @@ struct perf_sample_data {
 static inline void perf_sample_data_init(struct perf_sample_data *data,
 					 u64 addr, u64 period)
 {
-	/* remaining struct members initialized in perf_prepare_sample() */
+	
 	data->addr = addr;
 	data->raw  = NULL;
 	data->br_stack = NULL;
@@ -612,9 +456,6 @@ static inline bool is_sampling_event(struct perf_event *event)
 	return event->attr.sample_period != 0;
 }
 
-/*
- * Return 1 for a software event, 0 for a hardware event
- */
 static inline int is_software_event(struct perf_event *event)
 {
 	return event->pmu->task_ctx_nr == perf_sw_context;
@@ -628,14 +469,6 @@ extern void __perf_sw_event(u32, u64, struct pt_regs *, u64);
 static inline void perf_arch_fetch_caller_regs(struct pt_regs *regs, unsigned long ip) { }
 #endif
 
-/*
- * Take a snapshot of the regs. Skip ip and frame pointer to
- * the nth caller. We only need a few of the regs:
- * - ip for PERF_SAMPLE_IP
- * - cs for user_mode() tests
- * - bp for callchains
- * - eflags, for future purposes, just in case
- */
 static inline void perf_fetch_caller_regs(struct pt_regs *regs)
 {
 	memset(regs, 0, sizeof(*regs));
@@ -683,7 +516,6 @@ extern int perf_unregister_guest_info_callbacks(struct perf_guest_info_callbacks
 extern void perf_event_comm(struct task_struct *tsk);
 extern void perf_event_fork(struct task_struct *tsk);
 
-/* Callchains */
 DECLARE_PER_CPU(struct perf_callchain_entry, perf_callchain_entry);
 
 extern void perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs);
@@ -709,6 +541,11 @@ extern int perf_cpu_time_max_percent_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
 		loff_t *ppos);
 
+
+static inline bool perf_paranoid_any(void)
+{
+	return sysctl_perf_event_paranoid > 2;
+}
 
 static inline bool perf_paranoid_tracepoint_raw(void)
 {
@@ -811,9 +648,6 @@ static inline void perf_restore_debug_store(void)			{ }
 
 #define perf_output_put(handle, x) perf_output_copy((handle), &(x), sizeof(x))
 
-/*
- * This has to have a higher priority than migration_notifier in sched.c.
- */
 #define perf_cpu_notifier(fn)						\
 do {									\
 	static struct notifier_block fn##_nb __cpuinitdata =		\
@@ -834,10 +668,6 @@ do {									\
 	cpu_notifier_register_done();					\
 } while (0)
 
-/*
- * Bare-bones version of perf_cpu_notifier(), which doesn't invoke the
- * callback for already online CPUs.
- */
 #define __perf_cpu_notifier(fn)						\
 do {									\
 	static struct notifier_block fn##_nb =				\
@@ -870,4 +700,4 @@ _name##_show(struct device *dev,					\
 									\
 static struct device_attribute format_attr_##_name = __ATTR_RO(_name)
 
-#endif /* _LINUX_PERF_EVENT_H */
+#endif 

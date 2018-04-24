@@ -73,6 +73,19 @@ int interpolate_fcc(struct single_row_lut *fcc_temp_lut, int batt_temp)
 						DEGC_SCALE);
 }
 
+int interpolate_vth(struct single_row_lut *vth_sf_lut, int vth)
+{
+	return interpolate_single_lut_scaled(vth_sf_lut,
+						vth,
+						1);
+}
+
+int interpolate_rbatt_temp(struct single_row_lut *rbatt_temp_lut, int temp)
+{
+	return interpolate_single_lut_scaled(rbatt_temp_lut,
+						temp,
+						1);
+}
 int interpolate_scalingfactor_fcc(struct single_row_lut *fcc_sf_lut,
 		int cycles)
 {

@@ -664,7 +664,7 @@ static int snd_ftu_eff_switch_info(struct snd_kcontrol *kcontrol,
 	uinfo->value.enumerated.items = 8;
 	if (uinfo->value.enumerated.item > 7)
 		uinfo->value.enumerated.item = 7;
-	strcpy(uinfo->value.enumerated.name,
+	snprintf(uinfo->value.enumerated.name, 64, "%s",
 		texts[uinfo->value.enumerated.item]);
 
 	return 0;

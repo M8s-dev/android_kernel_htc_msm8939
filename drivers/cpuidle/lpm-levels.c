@@ -49,6 +49,15 @@
 
 #define SCLK_HZ (32768)
 #define SCM_HANDOFF_LOCK_ID "S:7"
+
+#define MSM_ARCH_TIMER_FREQ 19200000
+
+static inline u64 get_time_in_sec(u64 counter)
+{
+    do_div(counter, MSM_ARCH_TIMER_FREQ);
+    return counter;
+}
+
 static remote_spinlock_t scm_handoff_lock;
 
 enum {
@@ -110,6 +119,22 @@ module_param_named(
 static bool sleep_disabled;
 module_param_named(sleep_disabled,
 	sleep_disabled, bool, S_IRUGO | S_IWUSR | S_IWGRP);
+
+unsigned int lpm_big_latency_extend=0;
+module_param_named(lpm_big_latency_extend,
+	lpm_big_latency_extend, uint, S_IRUGO | S_IWUSR | S_IWGRP);
+
+unsigned int lpm_big_latency_extend_threshold=1;
+module_param_named(lpm_big_latency_extend_threshold,
+	lpm_big_latency_extend_threshold, uint, S_IRUGO | S_IWUSR | S_IWGRP);
+
+unsigned int lpm_lit_latency_extend=0;
+module_param_named(lpm_lit_latency_extend,
+	lpm_big_latency_extend, uint, S_IRUGO | S_IWUSR | S_IWGRP);
+
+unsigned int lpm_lit_latency_extend_threshold=1;
+module_param_named(lpm_lit_latency_extend_threshold,
+	lpm_lit_latency_extend_threshold, uint, S_IRUGO | S_IWUSR | S_IWGRP);
 
 s32 msm_cpuidle_get_deep_idle_latency(void)
 {
@@ -215,7 +240,7 @@ int set_l2_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
 		break;
 	}
 
-	/* Do not program L2 SPM enable bit. This will be set by TZ */
+	
 	if (lpm_wa_get_skip_l2_spm())
 		rc = msm_spm_config_low_power_mode_addr(ops->spm, lpm,
 							true);
@@ -251,17 +276,21 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	uint32_t lvl_overhead_us = 0;
 	uint32_t lvl_overhead_energy = 0;
 
+	cpumask_t little_mask;
+	cpumask_t big_mask;
+
+	*little_mask.bits = CONFIG_POWER_CLUSTER_CPU_MASK;
+	*big_mask.bits = CONFIG_PERFORMANCE_CLUSTER_CPU_MASK;
+
 	if (!cpu)
 		return -EINVAL;
+
+	if (get_time_in_sec(arch_counter_get_cntpct()) < 180)
+		 return 0;
 
 	if (sleep_disabled)
 		return 0;
 
-	/*
-	 * TODO:
-	 * Assumes event happens always on Core0. Need to check for validity
-	 * of this scenario on cluster low power modes
-	 */
 	if (!dev->cpu)
 		next_event_us = (uint32_t)(ktime_to_us(get_next_event_time()));
 
@@ -278,6 +307,14 @@ static int cpu_power_select(struct cpuidle_device *dev,
 			continue;
 
 		lvl_latency_us = pwr_params->latency_us;
+
+		if(cpumask_test_cpu(dev->cpu, &big_mask)){
+			if(lvl_latency_us > lpm_big_latency_extend_threshold)
+				lvl_latency_us += lpm_big_latency_extend;
+		}else if(cpumask_test_cpu(dev->cpu, &little_mask)){
+			if(lvl_latency_us > lpm_lit_latency_extend_threshold)
+				lvl_latency_us += lpm_lit_latency_extend;
+		}
 
 		lvl_overhead_us = pwr_params->time_overhead_us;
 
@@ -298,11 +335,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 		if (next_wakeup_us <= pwr_params->time_overhead_us)
 			continue;
 
-		/*
-		 * If wakeup time greater than overhead by a factor of 1000
-		 * assume that core steady state power dominates the power
-		 * equation
-		 */
 		if ((next_wakeup_us >> 10) > lvl_overhead_us) {
 			pwr = pwr_params->ss_power;
 		} else {
@@ -390,12 +422,6 @@ static int cluster_select(struct lpm_cluster *cluster, bool from_idle)
 		latency_us = pm_qos_request_for_cpumask(PM_QOS_CPU_DMA_LATENCY,
 							&mask);
 
-	/*
-	 * If atleast one of the core in the cluster is online, the cluster
-	 * low power modes should be determined by the idle characteristics
-	 * even if the last core enters the low power mode as a part of
-	 * hotplug.
-	 */
 
 	if (!from_idle && num_online_cpus() > 1 &&
 		cpumask_intersects(&cluster->child_cpus, cpu_online_mask))
@@ -532,12 +558,6 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 					&lvl->num_cpu_votes);
 	}
 
-	/*
-	 * cluster_select() does not make any configuration changes. So its ok
-	 * to release the lock here. If a core wakes up for a rude request,
-	 * it need not wait for another to finish its cluster selection and
-	 * configuration process
-	 */
 
 	if (!cpumask_equal(&cluster->num_childs_in_sync,
 				&cluster->child_cpus)) {
@@ -626,16 +646,6 @@ static inline void cpu_prepare(struct lpm_cluster *cluster, int cpu_index,
 	struct lpm_cpu_level *cpu_level = &cluster->cpu->levels[cpu_index];
 	unsigned int cpu = raw_smp_processor_id();
 
-	/* Use broadcast timer for aggregating sleep mode within a cluster.
-	 * A broadcast timer could be used in the following scenarios
-	 * 1) The architected timer HW gets reset during certain low power
-	 * modes and the core relies on a external(broadcast) timer to wake up
-	 * from sleep. This information is passed through device tree.
-	 * 2) The CPU low power mode could trigger a system low power mode.
-	 * The low power module relies on Broadcast timer to aggregate the
-	 * next wakeup within a cluster, in which case, CPU switches over to
-	 * use broadcast timer.
-	 */
 	if (from_idle && (cpu_level->use_bc_timer ||
 			(cpu_index >= cluster->min_child_level)))
 		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
@@ -925,12 +935,6 @@ static int lpm_probe(struct platform_device *pdev)
 	if (print_parsed_dt)
 		cluster_dt_walkthrough(lpm_root_node);
 
-	/*
-	 * Register hotplug notifier before broadcast time to ensure there
-	 * to prevent race where a broadcast timer might not be setup on for a
-	 * core.  BUG in existing code but no known issues possibly because of
-	 * how late lpm_levels gets initialized.
-	 */
 	register_hotcpu_notifier(&lpm_cpu_nblk);
 	get_cpu();
 	on_each_cpu(setup_broadcast_timer, (void *)true, 1);
@@ -1012,21 +1016,9 @@ enum msm_pm_l2_scm_flag lpm_cpu_pre_pc_cb(unsigned int cpu)
 	struct lpm_cluster *cluster = per_cpu(cpu_cluster, cpu);
 	enum msm_pm_l2_scm_flag retflag = MSM_SCM_L2_ON;
 
-	/*
-	 * No need to acquire the lock if probe isn't completed yet
-	 * In the event of the hotplug happening before lpm probe, we want to
-	 * flush the cache to make sure that L2 is flushed. In particular, this
-	 * could cause incoherencies for a cluster architecture. This wouldn't
-	 * affect the idle case as the idle driver wouldn't be registered
-	 * before the probe function
-	 */
 	if (!cluster)
 		return MSM_SCM_L2_OFF;
 
-	/*
-	 * Assumes L2 only. What/How parameters gets passed into TZ will
-	 * determine how this function reports this info back in msm-pm.c
-	 */
 	spin_lock(&cluster->sync_lock);
 
 	if (!cluster->lpm_dev) {
@@ -1039,14 +1031,6 @@ enum msm_pm_l2_scm_flag lpm_cpu_pre_pc_cb(unsigned int cpu)
 
 	if (cluster->lpm_dev)
 		retflag = cluster->lpm_dev->tz_flag;
-	/*
-	 * The scm_handoff_lock will be release by the secure monitor.
-	 * It is used to serialize power-collapses from this point on,
-	 * so that both Linux and the secure context have a consistent
-	 * view regarding the number of running cpus (cpu_count).
-	 *
-	 * It must be acquired before releasing the cluster lock.
-	 */
 unlock_and_return:
 	update_debug_pc_event(PRE_PC_CB, retflag, 0xdeadbeef, 0xdeadbeef,
 			0xdeadbeef);
@@ -1058,13 +1042,6 @@ unlock_and_return:
 	return retflag;
 }
 
-/**
- * lpm_cpu_hotplug_enter(): Called by dying CPU to terminate in low power mode
- *
- * @cpu: cpuid of the dying CPU
- *
- * Called from platform_cpu_kill() to terminate hotplug in a low power mode
- */
 void lpm_cpu_hotplug_enter(unsigned int cpu)
 {
 	enum msm_pm_sleep_mode mode = MSM_PM_SLEEP_MODE_NR;
@@ -1072,10 +1049,6 @@ void lpm_cpu_hotplug_enter(unsigned int cpu)
 	int i;
 	int idx = -1;
 
-	/*
-	 * If lpm isn't probed yet, try to put cpu into the one of the modes
-	 * available
-	 */
 	if (!cluster) {
 		if (msm_spm_is_mode_avail(MSM_SPM_MODE_POWER_COLLAPSE)) {
 			mode = MSM_PM_SLEEP_MODE_POWER_COLLAPSE;

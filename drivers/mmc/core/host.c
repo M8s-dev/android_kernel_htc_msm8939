@@ -34,6 +34,7 @@
 
 #define cls_dev_to_mmc_host(d)	container_of(d, struct mmc_host, class_dev)
 
+extern struct workqueue_struct *stats_workqueue;
 static void mmc_host_classdev_release(struct device *dev)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
@@ -51,29 +52,31 @@ static int mmc_host_runtime_suspend(struct device *dev)
 	if (!mmc_use_core_runtime_pm(host))
 		return 0;
 
-	ret = mmc_suspend_host(host);
-	if (ret < 0 && ret != -ENOMEDIUM)
-		pr_err("%s: %s: suspend host failed: %d\n", mmc_hostname(host),
-		       __func__, ret);
+	if (!mmc_is_sd_host(host)) {
+		ret = mmc_suspend_host(host);
+		if (ret < 0 && ret != -ENOMEDIUM)
+			pr_err("%s: %s: suspend host failed: %d\n", mmc_hostname(host),
+			       __func__, ret);
 
-	/*
-	 * During card detection within mmc_rescan(), mmc_rpm_hold() will
-	 * be called on host->class_dev before initializing the card and
-	 * shall be released after card detection.
-	 *
-	 * During card detection, once the card device is added, MMC block
-	 * driver probe gets called and in case that probe fails due to some
-	 * block read/write cmd error, then the block driver marks that card
-	 * as removed. Later when mmc_rpm_release() is called within
-	 * mmc_rescan(), the runtime suspend of host->class_dev will be invoked
-	 * immediately. The commands that are sent during runtime would fail
-	 * with -ENOMEDIUM and if we propagate the same to rpm framework, the
-	 * runtime suspend/resume for this device will never be invoked even
-	 * if the card is detected fine later on when it is removed and
-	 * inserted again. Hence, do not report this error to upper layers.
-	 */
-	if (ret == -ENOMEDIUM)
-		ret = 0;
+		/*
+		 * During card detection within mmc_rescan(), mmc_rpm_hold() will
+		 * be called on host->class_dev before initializing the card and
+		 * shall be released after card detection.
+		 *
+		 * During card detection, once the card device is added, MMC block
+		 * driver probe gets called and in case that probe fails due to some
+		 * block read/write cmd error, then the block driver marks that card
+		 * as removed. Later when mmc_rpm_release() is called within
+		 * mmc_rescan(), the runtime suspend of host->class_dev will be invoked
+		 * immediately. The commands that are sent during runtime would fail
+		 * with -ENOMEDIUM and if we propagate the same to rpm framework, the
+		 * runtime suspend/resume for this device will never be invoked even
+		 * if the card is detected fine later on when it is removed and
+		 * inserted again. Hence, do not report this error to upper layers.
+		 */
+		if (ret == -ENOMEDIUM)
+			ret = 0;
+	}
 
 	return ret;
 }
@@ -86,12 +89,15 @@ static int mmc_host_runtime_resume(struct device *dev)
 	if (!mmc_use_core_runtime_pm(host))
 		return 0;
 
-	ret = mmc_resume_host(host);
-	if (ret < 0) {
-		pr_err("%s: %s: resume host: failed: ret: %d\n",
-		       mmc_hostname(host), __func__, ret);
-		if (pm_runtime_suspended(dev))
-			BUG_ON(1);
+	host->crc_count = 0;
+	if (!mmc_is_sd_host(host)) {
+		ret = mmc_resume_host(host);
+		if (ret < 0) {
+			pr_err("%s: %s: resume host: failed: ret: %d\n",
+			       mmc_hostname(host), __func__, ret);
+			if (pm_runtime_suspended(dev))
+				BUG_ON(1);
+		}
 	}
 
 	return ret;
@@ -105,8 +111,10 @@ static int mmc_host_suspend(struct device *dev)
 	int ret = 0;
 	unsigned long flags;
 
+	pr_info("%s: enter %s\n", mmc_hostname(host), __func__);
 	if (!mmc_use_core_pm(host))
 		return 0;
+
 	spin_lock_irqsave(&host->clk_lock, flags);
 	/*
 	 * let the driver know that suspend is in progress and must
@@ -114,7 +122,8 @@ static int mmc_host_suspend(struct device *dev)
 	 */
 	host->dev_status = DEV_SUSPENDING;
 	spin_unlock_irqrestore(&host->clk_lock, flags);
-	if (!pm_runtime_suspended(dev)) {
+	if (!pm_runtime_suspended(dev) || mmc_is_sd_host(host)) {
+		mmc_disable_clk_delay_scaling(host);
 		ret = mmc_suspend_host(host);
 		if (ret < 0)
 			pr_err("%s: %s: failed: ret: %d\n", mmc_hostname(host),
@@ -133,6 +142,7 @@ static int mmc_host_suspend(struct device *dev)
 		spin_unlock_irqrestore(&host->clk_lock, flags);
 		mmc_set_ios(host);
 	}
+
 	spin_lock_irqsave(&host->clk_lock, flags);
 	host->dev_status = DEV_SUSPENDED;
 	spin_unlock_irqrestore(&host->clk_lock, flags);
@@ -147,7 +157,14 @@ static int mmc_host_resume(struct device *dev)
 	if (!mmc_use_core_pm(host))
 		return 0;
 
-	if (!pm_runtime_suspended(dev)) {
+	pr_info("%s: enter %s\n", mmc_hostname(host), __func__);
+
+	if (mmc_bus_manual_resume(host)) {
+		host->bus_resume_flags |= MMC_BUSRESUME_NEEDS_RESUME;
+		return 0;
+	}
+
+	if (!pm_runtime_suspended(dev) || mmc_is_sd_host(host)) {
 		ret = mmc_resume_host(host);
 		if (ret < 0)
 			pr_err("%s: %s: failed: ret: %d\n", mmc_hostname(host),
@@ -601,6 +618,8 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	wake_lock_init(&host->detect_wake_lock, WAKE_LOCK_SUSPEND,
 			host->wlock_name);
 	INIT_DELAYED_WORK(&host->detect, mmc_rescan);
+	INIT_DELAYED_WORK(&host->enable_detect, mmc_enable_detection);
+	INIT_DELAYED_WORK(&host->stats_work, mmc_stats);
 #ifdef CONFIG_PM
 	host->pm_notify.notifier_call = mmc_pm_notify;
 #endif
@@ -796,7 +815,6 @@ static struct attribute_group clk_scaling_attr_grp = {
 	.attrs = clk_scaling_attrs,
 };
 
-#ifdef CONFIG_MMC_PERF_PROFILING
 static ssize_t
 show_perf(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -830,6 +848,8 @@ set_perf(struct device *dev, struct device_attribute *attr,
 	int64_t value;
 
 	sscanf(buf, "%lld", &value);
+	host->debug_mask = value;
+	pr_info("%s: set debug 0x%llx\n", mmc_hostname(host), value);
 	spin_lock(&host->lock);
 	if (!value) {
 		memset(&host->perf, 0, sizeof(host->perf));
@@ -845,12 +865,34 @@ set_perf(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(perf, S_IRUGO | S_IWUSR,
 		show_perf, set_perf);
 
-#endif
+static ssize_t
+show_debug(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *host = cls_dev_to_mmc_host(dev);
+	if (!host)
+		return 0;
+	return sprintf(buf, "%d", host->debug_mask);
+}
+
+static ssize_t
+set_debug(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int value;
+	struct mmc_host *host = cls_dev_to_mmc_host(dev);
+
+	sscanf(buf, "%d", &value);
+	host->debug_mask = value;
+	pr_info("%s: set debug level 0x%x\n", mmc_hostname(host), value);
+
+	return count;
+}
+static DEVICE_ATTR(debug, S_IRUGO | S_IWUSR,
+		show_debug, set_debug);
 
 static struct attribute *dev_attrs[] = {
-#ifdef CONFIG_MMC_PERF_PROFILING
 	&dev_attr_perf.attr,
-#endif
+	&dev_attr_debug.attr,
 	NULL,
 };
 static struct attribute_group dev_attr_grp = {
@@ -884,7 +926,7 @@ int mmc_add_host(struct mmc_host *host)
 		return err;
 
 	device_enable_async_suspend(&host->class_dev);
-	led_trigger_register_simple(dev_name(&host->class_dev), &host->led);
+	/* led_trigger_register_simple(dev_name(&host->class_dev), &host->led); */
 
 #ifdef CONFIG_DEBUG_FS
 	mmc_add_host_debugfs(host);
@@ -937,7 +979,7 @@ void mmc_remove_host(struct mmc_host *host)
 
 	device_del(&host->class_dev);
 
-	led_trigger_unregister_simple(host->led);
+	/* led_trigger_unregister_simple(host->led); */
 
 	mmc_host_clk_exit(host);
 }

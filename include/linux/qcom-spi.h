@@ -10,32 +10,7 @@
  * GNU General Public License for more details.
  *
  */
-/*
- * SPI driver for Qualcomm MSM platforms.
- */
 
-/**
- * msm_spi_platform_data: msm spi-controller's configuration data
- *
- * @max_clock_speed max spi clock speed
- * @active_only when set, votes when system active and removes the vote when
- *       system goes idle (optimises for performance). When unset, voting using
- *       runtime pm (optimizes for power).
- * @master_id master id number of the controller's wrapper (BLSP or GSBI).
- *       When zero, clock path voting is disabled.
- * @gpio_config pointer to function for configuring gpio
- * @gpio_release pointer to function for releasing gpio pins
- * @dma_config function poniter for configuring dma engine
- * @pm_lat power management latency
- * @infinite_mode use FIFO mode in infinite mode
- * @ver_reg_exists if the version register exists
- * @use_beam true if BAM is available
- * @bam_consumer_pipe_index BAM conusmer pipe
- * @bam_producer_pipe_index BAM producer pipe
- * @rt_priority true if RT thread
- * @use_pinctrl true if pinctrl library is used
- * @is_shared true when qup is shared between ee's
- */
 struct msm_spi_platform_data {
 	u32 max_clock_speed;
 	bool active_only;
@@ -52,5 +27,4 @@ struct msm_spi_platform_data {
 	u32  bam_producer_pipe_index;
 	bool rt_priority;
 	bool use_pinctrl;
-	bool is_shared;
 };

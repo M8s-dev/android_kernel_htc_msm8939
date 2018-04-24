@@ -507,6 +507,12 @@ config TOUCHSCREEN_TNETV107X
 	  To compile this driver as a module, choose M here: the
 	  module will be called tnetv107x-ts.
 
+config TOUCHSCREEN_SYNAPTICS_3K
+	tristate "Synaptics 3k serious i2c touchscreen"
+	depends on I2C
+	help
+	  This enables support for Synaptics RMI4 over I2C based touchscreens.
+
 config TOUCHSCREEN_SYNAPTICS_RMI4_I2C
 	tristate "Synaptics i2c touchscreen(ClearPad 3000)"
 	depends on I2C
@@ -1018,6 +1024,24 @@ config TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_dsx_fw_update.
+
+config TOUCHSCREEN_HIMAX
+        tristate "HIMAX HM852xD serious i2c touchscreen"
+        depends on I2C
+        help
+          This enables support for HIMAX HM852xD over I2C based touchscreens.
+
+config TOUCHSCREEN_HIMAX_ESD_EN
+        tristate "HIMAX HM852xD ESD recovery function"
+        depends on I2C
+        help
+          This enables support ESD recovery function for HIMAX HM852xD.
+
+config TOUCHSCREEN_PROXIMITY
+	tristate "Touch proximity sensor"
+        depends on I2C
+	help
+	  if you say yes here, you turn on the touch proximity sensor feature
 
 config SECURE_TOUCH
 	bool "Secure Touch"

@@ -1111,6 +1111,11 @@ static int mdss_mdp_cmd_intfs_setup(struct mdss_mdp_ctl *ctl,
 
 	sctl = mdss_mdp_get_split_ctl(ctl);
 	ctx = &mdss_mdp_cmd_ctx_list[session];
+	if (!ctx) {
+		pr_err("invalid ctx\n");
+		return -ENODEV;
+	}
+
 	if (ctx->ref_cnt) {
 		if (mdss_panel_is_power_on(ctx->panel_power_state)) {
 			pr_debug("%s: cmd_start with panel always on\n",
@@ -1141,10 +1146,6 @@ static int mdss_mdp_cmd_intfs_setup(struct mdss_mdp_ctl *ctl,
 	}
 
 	ctl->priv_data = ctx;
-	if (!ctx) {
-		pr_err("invalid ctx\n");
-		return -ENODEV;
-	}
 
 	ctx->ctl = ctl;
 	ctx->pp_num = (is_split_dst(ctl->mfd) ? session : mixer->num);

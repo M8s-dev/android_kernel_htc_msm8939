@@ -209,6 +209,18 @@ config ARCH_MSM8916
 	  This enables support for the MSM8916 chipset. If you dont
 	  know what do here, say N
 
+config MACH_M8QL_UL
+       depends on ARCH_MSM8916
+       bool "MSM8939 M8QL_UL"
+       help
+         Support for HTC MSM8939 M8QL_UL
+
+config MACH_A32_UL_EMEA
+       depends on ARCH_MSM8916
+       bool "MSM8916 A32_UL_EMEA"
+       help
+         Support for HTC MSM8916 A32_UL_EMEA
+
 config ARCH_MSM8994
 	bool "Enable Support for Qualcomm MSM8994"
 	depends on ARCH_MSM
@@ -369,6 +381,23 @@ config SCHED_SMT
 	  Improves the CPU scheduler's decision making when dealing with
 	  MultiThreading at a cost of slightly increased overhead in some
 	  places. If unsure say N here.
+
+config HTC_POWER_DEBUG
+        bool "Support htc power debug feature"
+        help
+         Use this to enable htc power debug feature including pm statistics,
+         clock/gpio/qpnp pin dump, wakeup source, kerenl top and autosuspend
+         stage footprint
+
+config HTC_NCP6951_POWER_RESET
+        bool "Support htc ncp6951 power reset"
+        help
+         Support ncp6951 power reset
+
+config HTC_DEBUG_KP
+	bool "support HTC KP debug feature"
+	help
+	 dump task/pc/lr in panic reason
 
 config ARCH_WANTS_CTXSW_LOGGING
 	bool "Enable logging in context switch"
@@ -658,6 +687,8 @@ source "fs/Kconfig"
 
 source "arch/arm64/kvm/Kconfig"
 
+source "arch/arm64/Kconfig.htc"
+
 source "arch/arm64/Kconfig.debug"
 
 source "security/Kconfig"
@@ -670,3 +701,5 @@ endif
 source "lib/Kconfig"
 
 source "arch/arm64/mm/Kconfig"
+
+source "arch/arm64/Kconfig.htc"

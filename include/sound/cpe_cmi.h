@@ -20,22 +20,15 @@
 #define CPE_AFE_PORT_ID_2_OUT 0x02
 #define CMI_INBAND_MESSAGE_SIZE 127
 
-/*
- * Multiple mad types can be supported at once.
- * these values can be OR'ed to form the set of
- * supported mad types
- */
 #define MAD_TYPE_AUDIO (1 << 0)
 #define MAD_TYPE_BEACON (1 << 1)
 #define MAD_TYPE_ULTRASND (1 << 2)
 
-/* Core service command opcodes */
 #define CPE_CORE_SVC_CMD_SHARED_MEM_ALLOC	(0x3001)
 #define CPE_CORE_SVC_CMDRSP_SHARED_MEM_ALLOC	(0x3002)
 #define CPE_CORE_SVC_CMD_SHARED_MEM_DEALLOC	(0x3003)
 #define CPE_CORE_SVC_CMD_DRAM_ACCESS_REQ	(0x3004)
 #define CPE_CORE_SVC_EVENT_SYSTEM_BOOT		(0x3005)
-/* core service command opcodes for WCD9335 */
 #define CPE_CORE_SVC_CMD_CFG_CLK_PLAN		(0x3006)
 #define CPE_CORE_SVC_CMD_CLK_FREQ_REQUEST	(0x3007)
 
@@ -44,7 +37,6 @@
 
 #define CPE_CORE_VERSION_SYSTEM_BOOT_EVENT 0x01
 
-/* LSM Service command opcodes */
 #define CPE_LSM_SESSION_CMD_OPEN_TX		(0x2000)
 #define CPE_LSM_SESSION_CMD_SET_PARAMS		(0x2001)
 #define CPE_LSM_SESSION_CMD_REGISTER_SOUND_MODEL (0x2002)
@@ -58,7 +50,6 @@
 #define CPE_LSM_SESSION_CMD_SHARED_MEM_DEALLOC	(0x200A)
 #define CPE_LSM_SESSION_CMD_TX_BUFF_OUTPUT_CONFIG (0x200f)
 
-/* LSM Service module and param IDs */
 #define CPE_LSM_MODULE_ID_VOICE_WAKEUP		(0x00012C00)
 #define CPE_LSM_PARAM_ID_ENDPOINT_DETECT_THRESHOLD (0x00012C01)
 #define CPE_LSM_PARAM_ID_OPERATION_MODE		(0x00012C02)
@@ -66,15 +57,11 @@
 #define CPE_LSM_PARAM_ID_CONNECT_TO_PORT	(0x00012C04)
 #define CPE_LSM_PARAM_ID_MIN_CONFIDENCE_LEVELS	(0x00012C07)
 
-/* LSM LAB command opcodes */
 #define CPE_LSM_SESSION_CMD_EOB		0x0000200B
 #define CPE_LSM_MODULE_ID_LAB		0x00012C08
-/* used for enable/disable lab*/
 #define CPE_LSM_PARAM_ID_LAB_ENABLE	0x00012C09
-/* used for T in LAB config DSP internal buffer*/
 #define CPE_LSM_PARAM_ID_LAB_CONFIG	0x00012C0A
 
-/* AFE Service command opcodes */
 #define CPE_AFE_PORT_CMD_START			(0x1001)
 #define CPE_AFE_PORT_CMD_STOP			(0x1002)
 #define CPE_AFE_PORT_CMD_SUSPEND		(0x1003)
@@ -85,7 +72,6 @@
 #define CPE_AFE_PORT_CMD_GENERIC_CONFIG		(0x1008)
 #define CPE_AFE_SVC_CMD_LAB_MODE		(0x1009)
 
-/* AFE Service module and param IDs */
 #define CPE_AFE_CMD_SET_PARAM			(0x1000)
 #define CPE_AFE_MODULE_ID_SW_MAD		(0x0001022D)
 #define CPE_AFE_PARAM_ID_SW_MAD_CFG		(0x0001022E)
@@ -106,10 +92,6 @@
 
 #define CMI_SHMEM_ALLOC_FAILED 0xff
 
-/*
- * Future Service ID's can be added one line
- * before the CMI_CPE_SERVICE_ID_MAX
- */
 enum {
 	CMI_CPE_SERVICE_ID_MIN = 0,
 	CMI_CPE_CORE_SERVICE_ID,
@@ -193,21 +175,11 @@ enum {
 		(OBM_FLAG_MASK >> OBM_FLAG_SHIFT))
 
 struct cmi_hdr {
-	/*
-	 * bits 0:3 is session id
-	 * bits 4:6 is service id
-	 * bit 7 is the version flag
-	 */
 	u8 hdr_info;
 
-	/*
-	 * bits 0:6 is payload size in case of in-band message
-	 * bits 0:6 is size (OBM message size)
-	 * bit 7 is the OBM flag
-	 */
 	u8 pld_info;
 
-	/* 16 bit command opcode */
+	
 	u16 opcode;
 } __packed;
 
@@ -342,10 +314,6 @@ struct cpe_lsm_connect_to_port {
 	u16 reserved;
 } __packed;
 
-/*
- * This cannot be sent to CPE as is,
- * need to append the conf_levels dynamically
- */
 struct cpe_lsm_conf_level {
 	struct cmi_hdr hdr;
 	struct cpe_param_data param;
@@ -425,4 +393,4 @@ struct cpe_lsm_lab_latency_config {
 #define CPE_AFE_CMD_MODE_PAYLOAD_SIZE \
 		(sizeof(struct cpe_afe_svc_cmd_mode) - \
 		 sizeof(struct cmi_hdr))
-#endif /* __CPE_CMI_H__ */
+#endif 

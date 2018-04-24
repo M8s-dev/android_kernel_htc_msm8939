@@ -44,7 +44,110 @@
    and provided to the battery driver in the units desired for
    their framework which is 0.1DegC. True resolution of 0.1DegC
    will result in the below table size to increase by 10 times */
-static const struct qpnp_vadc_map_pt adcmap_btm_threshold[] = {
+static struct qpnp_vadc_map_pt adcmap_btm_threshold[] = {
+/*FIXME to use device tree to load batt temperature talbe.*/
+#if defined(CONFIG_HTC_BATT_8960)
+	{-200,	1670},
+	{-190,	1662},
+	{-180,	1654},
+	{-170,	1645},
+	{-160,	1636},
+	{-150,	1626},
+	{-140,	1616},
+	{-130,	1606},
+	{-120,	1595},
+	{-110,	1583},
+	{-100,	1571},
+	{-90,	1559},
+	{-80,	1546},
+	{-70,	1533},
+	{-60,	1519},
+	{-50,	1505},
+	{-40,	1491},
+	{-30,	1476},
+	{-20,	1460},
+	{-10,	1444},
+	{-0,	1428},
+	{10,	1411},
+	{20,	1393},
+	{30,	1376},
+	{40,	1358},
+	{50,	1339},
+	{60,	1321},
+	{70,	1301},
+	{80,	1282},
+	{90,	1262},
+	{100,	1242},
+	{110,	1222},
+	{120,	1202},
+	{130,	1181},
+	{140,	1161},
+	{150,	1140},
+	{160,	1119},
+	{170,	1097},
+	{180,	1077},
+	{190,	1055},
+	{200,	1034},
+	{210,	1013},
+	{220,	992},
+	{230,	971},
+	{240,	950},
+	{250,	930},
+	{260,	909},
+	{270,	889},
+	{280,	869},
+	{290,	849},
+	{300,	829},
+	{310,	810},
+	{320,	790},
+	{330,	772},
+	{340,	753},
+	{350,	735},
+	{360,	717},
+	{370,	700},
+	{380,	683},
+	{390,	666},
+	{400,	649},
+	{410,	633},
+	{420,	618},
+	{430,	602},
+	{440,	587},
+	{450,	573},
+	{460,	559},
+	{470,	545},
+	{480,	531},
+	{490,	518},
+	{500,	506},
+	{510,	493},
+	{520,	481},
+	{530,	470},
+	{540,	458},
+	{550,	447},
+	{560,	437},
+	{570,	426},
+	{580,	416},
+	{590,	406},
+	{600,	397},
+	{610,	388},
+	{620,	379},
+	{630,	371},
+	{640,	362},
+	{650,	354},
+	{660,	347},
+	{670,	339},
+	{680,	332},
+	{690,	325},
+	{700,	318},
+	{710,	312},
+	{720,	306},
+	{730,	299},
+	{740,	294},
+	{750,	288},
+	{760,	282},
+	{770,	277},
+	{780,	272},
+	{790,	267}
+#else
 	{-300,	1642},
 	{-200,	1544},
 	{-100,	1414},
@@ -128,6 +231,7 @@ static const struct qpnp_vadc_map_pt adcmap_btm_threshold[] = {
 	{770,	213},
 	{780,	208},
 	{790,	203}
+#endif
 };
 
 static const struct qpnp_vadc_map_pt adcmap_qrd_btm_threshold[] = {
@@ -828,6 +932,37 @@ static int64_t qpnp_adc_scale_ratiometric_calib(int32_t adc_code,
 
 	return adc_voltage;
 }
+
+void htc_load_temperature_data(struct device_node *data_node)
+{
+	struct property *prop;
+	struct device_node *node;
+	int i, cols, size_max;
+	const __be32 *data;
+
+	node = of_find_node_by_name(data_node, "htc,adc_map_temp_voltage");
+	if (node) {
+		prop = of_find_property(node, "htc,adcmap_btm_threshold", NULL);
+		if (!prop)
+			pr_info("[BATT] Not found htc,adcmap_btm_threshold, use default table.\n");
+		else {
+			cols = prop->length/sizeof(adcmap_btm_threshold[0]);
+			data = prop->value;
+
+			size_max = sizeof(adcmap_btm_threshold)/sizeof(adcmap_btm_threshold[0]);
+			if (cols > size_max) /* FIXME: the array size is not dynamic */
+				cols = size_max;
+
+			for (i = 0; i < cols; i++) {
+				adcmap_btm_threshold[i].x = be32_to_cpup(data++);
+				adcmap_btm_threshold[i].y = be32_to_cpup(data++);
+			}
+		}
+	} else {
+		pr_info("[BATT] Not found htc,adc_map_temp_voltage, use default table.\n");
+	}
+}
+EXPORT_SYMBOL(htc_load_temperature_data);
 
 int32_t qpnp_adc_scale_pmic_therm(struct qpnp_vadc_chip *vadc,
 		int32_t adc_code,

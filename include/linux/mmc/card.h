@@ -323,7 +323,11 @@ struct mmc_card {
 #define MMC_TYPE_MMC		0		/* MMC card */
 #define MMC_TYPE_SD		1		/* SD card */
 #define MMC_TYPE_SDIO		2		/* SDIO card */
-#define MMC_TYPE_SD_COMBO	3		/* SD combo (IO+mem) card */
+#define MMC_TYPE_SDIO_WIMAX    3               /* SDIO card of WIMAX */
+#define MMC_TYPE_SDIO_SVLTE    4               /* SDIO card of SVLTE*/
+#define MMC_TYPE_SD_COMBO      5               /* SD combo (IO+mem) card */
+#define MMC_TYPE_SDIO_WIFI     6
+#define MMC_TYPE_NA            0xFF
 	unsigned int		state;		/* (our) card state */
 #define MMC_STATE_PRESENT	(1<<0)		/* present in sysfs */
 #define MMC_STATE_READONLY	(1<<1)		/* card is read-only */
@@ -358,6 +362,7 @@ struct mmc_card {
  /* Skip data-timeout advertised by card */
 #define MMC_QUIRK_BROKEN_DATA_TIMEOUT	(1<<13)
 #define MMC_QUIRK_CACHE_DISABLE (1 << 14)       /* prevent cache enable */
+#define MMC_QUIRK_URGENT_REQUEST_DISABLE (1 << 31)	/* disable urgent request */
 
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
@@ -389,6 +394,7 @@ struct mmc_card {
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */
 	unsigned int    nr_parts;
 	unsigned int	part_curr;
+	unsigned char	speed_class; /* SD card class level */
 
 	struct mmc_wr_pack_stats wr_pack_stats; /* packed commands stats*/
 
@@ -452,6 +458,7 @@ struct mmc_fixup {
 #define EXT_CSD_REV_ANY (-1u)
 
 #define CID_MANFID_SANDISK	0x2
+#define CID_MANFID_SANDISK_2 0x45
 #define CID_MANFID_TOSHIBA	0x11
 #define CID_MANFID_MICRON	0x13
 #define CID_MANFID_SAMSUNG	0x15

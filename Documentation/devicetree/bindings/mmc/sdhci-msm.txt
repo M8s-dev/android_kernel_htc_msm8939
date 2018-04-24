@@ -140,6 +140,10 @@ In the following, <supply> can be vdd (flash core voltage) or vdd-io (I/O voltag
 				then driver uses read/write qos plane to vote for read/write
 				requests based on the vote/type of qos specfied by read/write plane.
 
+	- qcom,cpu-affinity-mask: this is a bitmap that specifies little cluster CPU
+	  cores used for PM QoS voting. This is parsed only for pm QoS request type of
+	  PM_QOS_REQ_AFFINE_CORES ("affine_cores").
+
 Example:
 
 	aliases {

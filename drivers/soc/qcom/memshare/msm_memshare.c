@@ -25,7 +25,6 @@
 #include "msm_memshare.h"
 #include "heap_mem_ext_v01.h"
 
-/* Macros */
 #define MEMSHARE_DEV_NAME "memshare"
 #define MEMSHARE_CHILD_DEV_NAME "memshare_child"
 static DEFINE_DMA_ATTRS(attrs);
@@ -39,7 +38,6 @@ static void mem_share_svc_recv_msg(struct work_struct *work);
 static DECLARE_DELAYED_WORK(work_recv_msg, mem_share_svc_recv_msg);
 static struct workqueue_struct *mem_share_svc_workqueue;
 
-/* Memshare Driver Structure */
 struct memshare_driver {
 	struct device *dev;
 	struct mutex mem_share;
@@ -120,7 +118,7 @@ static int check_client(int client_id, int proc, int request)
 	}
 	if ((found == DHMS_MEM_CLIENT_INVALID) && !request) {
 		pr_debug("No registered client, adding a new client\n");
-		/* Add a new client */
+		
 		for (i = 0; i < MAX_CLIENTS; i++) {
 			if (memblock[i].client_id == DHMS_MEM_CLIENT_INVALID) {
 				memblock[i].client_id = client_id;
@@ -251,7 +249,7 @@ static int handle_alloc_req(void *req_h, void *req)
 	alloc_resp.num_bytes =  alloc_req->num_bytes;
 	alloc_resp.handle_valid = 1;
 	alloc_resp.handle = memblock[GPS].phy_addr;
-	/* Binding last client to support request coming on old idl*/
+	
 	if (rc) {
 		alloc_resp.resp = QMI_RESULT_FAILURE_V01;
 		memblock[GPS].size = 0;
@@ -687,7 +685,7 @@ static int memshare_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	/* Memory allocation has been done successfully */
+	
 	mutex_init(&drv->mem_free);
 	mutex_init(&drv->mem_share);
 

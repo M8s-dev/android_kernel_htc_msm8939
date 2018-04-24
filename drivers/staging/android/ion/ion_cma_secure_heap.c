@@ -738,5 +738,6 @@ void ion_secure_cma_heap_destroy(struct ion_heap *heap)
 	struct ion_cma_secure_heap *sheap =
 		container_of(heap, struct ion_cma_secure_heap, heap);
 
+	kfree(sheap->bitmap);
 	kfree(sheap);
 }

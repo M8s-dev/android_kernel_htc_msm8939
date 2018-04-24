@@ -1,4 +1,5 @@
 ccflags-$(CONFIG_POWER_SUPPLY_DEBUG) := -DDEBUG
+ccflags-$(CONFIG_MACH_A32_DCGL) += -DENABLE_GPIO_OVP_DET
 
 power_supply-y				:= power_supply_core.o
 power_supply-$(CONFIG_SYSFS)		+= power_supply_sysfs.o
@@ -15,6 +16,8 @@ obj-$(CONFIG_WM831X_POWER)	+= wm831x_power.o
 obj-$(CONFIG_WM8350_POWER)	+= wm8350_power.o
 obj-$(CONFIG_TEST_POWER)	+= test_power.o
 
+obj-$(CONFIG_HTC_BATT_CORE)	+= htc_battery_core.o
+obj-$(CONFIG_HTC_BATT_8960)	+= htc_battery_8960.o htc_battery_cell.o
 obj-$(CONFIG_BATTERY_88PM860X)	+= 88pm860x_battery.o
 obj-$(CONFIG_BATTERY_DS2760)	+= ds2760_battery.o
 obj-$(CONFIG_BATTERY_DS2780)	+= ds2780_battery.o
@@ -54,15 +57,28 @@ obj-$(CONFIG_POWER_AVS)		+= avs/
 obj-$(CONFIG_SMB349_USB_CHARGER)   += smb349-charger.o
 obj-$(CONFIG_SMB350_CHARGER)   += smb350_charger.o
 obj-$(CONFIG_SMB135X_CHARGER)   += smb135x-charger.o
-obj-$(CONFIG_SMB1360_CHARGER_FG) += smb1360-charger-fg.o
+obj-$(CONFIG_SMB1360_CHARGER_FG) += smb1360-charger-fg.o batterydata-lib.o
+obj-$(CONFIG_QPNP_LINEAR_CHARGER_SMB1360) += qpnp-linear-charger-smb1360.o
 obj-$(CONFIG_SMB358_CHARGER)	+= smb358-charger.o
 obj-$(CONFIG_BATTERY_BQ28400)	+= bq28400_battery.o
 obj-$(CONFIG_SMB137C_CHARGER)	+= smb137c-charger.o
-obj-$(CONFIG_QPNP_BMS)		+= qpnp-bms.o batterydata-lib.o
-obj-$(CONFIG_QPNP_VM_BMS)	+= qpnp-vm-bms.o batterydata-lib.o batterydata-interface.o
+obj-$(CONFIG_QPNP_BMS)          += qpnp-bms.o batterydata-lib.o
+ifdef CONFIG_QPNP_VM_BMS
+ifndef CONFIG_HTC_BATT_8960
+        obj-y += qpnp-vm-bms.o batterydata-lib.o batterydata-interface.o
+else
+        obj-y += qpnp-vm-bms-htc.o batterydata-lib.o batterydata-interface-htc.o
+endif
+endif
+obj-$(CONFIG_QPNP_CHARGER)      += qpnp-charger.o
+ifdef CONFIG_QPNP_LINEAR_CHARGER
+ifndef CONFIG_HTC_BATT_8960
+        obj-y += qpnp-linear-charger.o
+else
+        obj-y += qpnp-linear-charger-htc.o
+endif
+endif
 obj-$(CONFIG_QPNP_FG)		+= qpnp-fg.o
-obj-$(CONFIG_QPNP_CHARGER)	+= qpnp-charger.o
-obj-$(CONFIG_QPNP_LINEAR_CHARGER)	+= qpnp-linear-charger.o
 obj-$(CONFIG_QPNP_SMBCHARGER)	+= qpnp-smbcharger.o
 obj-$(CONFIG_CHARGER_SMB347)	+= smb347-charger.o
 obj-$(CONFIG_CHARGER_TPS65090)	+= tps65090-charger.o

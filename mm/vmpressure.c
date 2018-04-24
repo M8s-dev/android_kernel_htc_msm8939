@@ -328,6 +328,9 @@ void vmpressure_global(gfp_t gfp, unsigned long scanned,
 	mutex_lock(&vmpr->sr_lock);
 	vmpr->scanned = 0;
 	vmpr->reclaimed = 0;
+	mutex_unlock(&vmpr->sr_lock);
+
+	pressure = vmpressure_calc_pressure(scanned, reclaimed);
 	vmpr->stall = 0;
 	mutex_unlock(&vmpr->sr_lock);
 

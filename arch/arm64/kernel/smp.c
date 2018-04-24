@@ -50,6 +50,9 @@
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
 #include <asm/edac.h>
+#ifdef CONFIG_HTC_DEBUG_FOOTPRINT
+#include <htc_mnemosyne/htc_footprint.h>
+#endif
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -714,7 +717,9 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 void smp_send_reschedule(int cpu)
 {
-	BUG_ON(cpu_is_offline(cpu));
+	if (unlikely(cpu_is_offline(cpu)))
+		return;
+
 	smp_cross_call_common(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 

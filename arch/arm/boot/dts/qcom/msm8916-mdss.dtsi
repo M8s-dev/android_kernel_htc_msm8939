@@ -97,9 +97,7 @@
 		mdss_fb0: qcom,mdss_fb_primary {
 			cell-index = <0>;
 			compatible = "qcom,mdss-fb";
-			qcom,cont-splash-memory {
-				linux,contiguous-region = <&cont_splash_mem>;
-			};
+			htc,fbmem-heap-remapping;
 		};
 
 		mdss_fb1: qcom,mdss_fb_wfd {
@@ -120,7 +118,7 @@
 		qcom,mdss-mdp = <&mdss_mdp>;
 		gdsc-supply = <&gdsc_mdss>;
 		vdda-supply = <&pm8916_l2>;
-		vdd-supply = <&pm8916_l17>;
+		/*vdd-supply = <&pm8916_l17>;*/
 		vddio-supply = <&pm8916_l6>;
 		clocks = <&clock_gcc clk_gcc_mdss_mdp_clk>,
                          <&clock_gcc clk_gcc_mdss_ahb_clk>,
@@ -176,7 +174,7 @@
 		qcom,panel-supply-entries {
 			#address-cells = <1>;
 			#size-cells = <0>;
-
+/*
 			qcom,panel-supply-entry@0 {
 				reg = <0>;
 				qcom,supply-name = "vdd";
@@ -185,7 +183,7 @@
 				qcom,supply-enable-load = <100000>;
 				qcom,supply-disable-load = <100>;
 			};
-
+*/
 			qcom,panel-supply-entry@1 {
 				reg = <1>;
 				qcom,supply-name = "vddio";
@@ -204,7 +202,8 @@
 		qcom,mdss-fb-map = <&mdss_fb1>;
 	};
 };
-
+/*
 #include "dsi-panel-sim-video.dtsi"
 #include "dsi-panel-sim-cmd.dtsi"
+*/
 

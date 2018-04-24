@@ -17,9 +17,9 @@
 &soc {
 	gpio-leds {
 		compatible = "gpio-leds";
-		status = "okay";
+		status = "disable";
 		pinctrl-names = "default";
-		pinctrl-0 = <&button_backlight_off>;
+		//pinctrl-0 = <&button_backlight_off>;
 
 		keypad-backlight {
 			gpios = <&msm_gpio 119 0>;

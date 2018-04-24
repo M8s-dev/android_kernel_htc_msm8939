@@ -15,24 +15,12 @@
 #include <linux/platform_device.h>
 #include "msm-audio-pinctrl.h"
 
-/*
- * pinctrl -- handle to query pinctrl apis
- * cdc lines -- stores pinctrl handles for pinctrl states
- * active_set -- maintain the overall pinctrl state
- */
 struct cdc_pinctrl_info {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state **cdc_lines;
 	int active_set;
 };
 
-/*
- * gpiosets -- stores all gpiosets mentioned in dtsi file
- * gpiosets_comb_names -- stores all possible gpioset combinations
- * gpioset_state -- maintains counter for each gpioset
- * gpiosets_max -- maintain the total supported gpiosets
- * gpiosets_comb_max -- maintain the total gpiosets combinations
- */
 struct cdc_gpioset_info {
 	char **gpiosets;
 	char **gpiosets_comb_names;
@@ -44,7 +32,6 @@ struct cdc_gpioset_info {
 static struct cdc_pinctrl_info pinctrl_info[MAX_PINCTRL_CLIENT];
 static struct cdc_gpioset_info gpioset_info[MAX_PINCTRL_CLIENT];
 
-/* Finds the index for the gpio set in the dtsi file */
 int msm_get_gpioset_index(enum pinctrl_client client, char *keyword)
 {
 	int i;
@@ -53,23 +40,13 @@ int msm_get_gpioset_index(enum pinctrl_client client, char *keyword)
 		if (!(strcmp(gpioset_info[client].gpiosets[i], keyword)))
 			break;
 	}
-	/* Checking if the keyword is present in dtsi or not */
+	
 	if (i != gpioset_info[client].gpiosets_max)
 		return i;
 	else
 		return -EINVAL;
 }
 
-/*
- * This function reads the following from dtsi file
- * 1. All gpio sets
- * 2. All combinations of gpio sets
- * 3. Pinctrl handles to gpio sets
- *
- * Returns error if there is
- * 1. Problem reading from dtsi file
- * 2. Memory allocation failure
- */
 int msm_gpioset_initialize(enum pinctrl_client client,
 				struct device *dev)
 {
@@ -91,7 +68,7 @@ int msm_gpioset_initialize(enum pinctrl_client client,
 	}
 	pinctrl_info[client].pinctrl = pinctrl;
 
-	/* Reading of gpio sets */
+	
 	num_strings = of_property_count_strings(dev->of_node,
 						gpioset_names);
 	if (num_strings < 0) {
@@ -129,7 +106,7 @@ int msm_gpioset_initialize(enum pinctrl_client client,
 	}
 	num_strings = 0;
 
-	/* Allocating memory for gpio set counter */
+	
 	gpioset_info[client].gpioset_state = devm_kzalloc(dev,
 				gpioset_info[client].gpiosets_max *
 				sizeof(uint8_t), GFP_KERNEL);
@@ -139,7 +116,7 @@ int msm_gpioset_initialize(enum pinctrl_client client,
 		goto err;
 	}
 
-	/* Reading of all combinations of gpio sets */
+	
 	num_strings = of_property_count_strings(dev->of_node,
 						gpioset_combinations);
 	if (num_strings < 0) {
@@ -179,7 +156,7 @@ int msm_gpioset_initialize(enum pinctrl_client client,
 		gpioset_comb_str = NULL;
 	}
 
-	/* Allocating memory for handles to pinctrl states */
+	
 	pinctrl_info[client].cdc_lines = devm_kzalloc(dev,
 		num_strings * sizeof(char *), GFP_KERNEL);
 	if (!pinctrl_info[client].cdc_lines) {
@@ -188,7 +165,7 @@ int msm_gpioset_initialize(enum pinctrl_client client,
 		goto err;
 	}
 
-	/* Get pinctrl handles for gpio sets in dtsi file */
+	
 	for (i = 0; i < num_strings; i++) {
 		pinctrl_info[client].cdc_lines[i] = pinctrl_lookup_state(
 								pinctrl,
@@ -202,7 +179,7 @@ int msm_gpioset_initialize(enum pinctrl_client client,
 	goto success;
 
 err:
-	/* Free up memory allocated for gpio set combinations */
+	
 	for (i = 0; i < gpioset_info[client].gpiosets_max; i++) {
 		if (NULL != gpioset_info[client].gpiosets[i])
 			devm_kfree(dev, gpioset_info[client].gpiosets[i]);
@@ -210,7 +187,7 @@ err:
 	if (NULL != gpioset_info[client].gpiosets)
 		devm_kfree(dev, gpioset_info[client].gpiosets);
 
-	/* Free up memory allocated for gpio set combinations */
+	
 	for (i = 0; i < gpioset_info[client].gpiosets_comb_max; i++) {
 		if (NULL != gpioset_info[client].gpiosets_comb_names[i])
 			devm_kfree(dev,
@@ -219,11 +196,11 @@ err:
 	if (NULL != gpioset_info[client].gpiosets_comb_names)
 		devm_kfree(dev, gpioset_info[client].gpiosets_comb_names);
 
-	/* Free up memory allocated for handles to pinctrl states */
+	
 	if (NULL != pinctrl_info[client].cdc_lines)
 		devm_kfree(dev, pinctrl_info[client].cdc_lines);
 
-	/* Free up memory allocated for counter of gpio sets */
+	
 	if (NULL != gpioset_info[client].gpioset_state)
 		devm_kfree(dev, gpioset_info[client].gpioset_state);
 
@@ -245,10 +222,6 @@ int msm_gpioset_activate(enum pinctrl_client client, char *keyword)
 	}
 
 	if (!gpioset_info[client].gpioset_state[gp_set]) {
-		/*
-		 * If pinctrl pointer is not valid,
-		 * no need to proceed further
-		 */
 		active_set = pinctrl_info[client].active_set;
 		if (IS_ERR(pinctrl_info[client].cdc_lines[active_set]))
 			return 0;
@@ -257,7 +230,7 @@ int msm_gpioset_activate(enum pinctrl_client client, char *keyword)
 		active_set = pinctrl_info[client].active_set;
 		pr_debug("%s: pinctrl.active_set: %d\n", __func__, active_set);
 
-		/* Select the appropriate pinctrl state */
+		
 		ret =  pinctrl_select_state(pinctrl_info[client].pinctrl,
 			pinctrl_info[client].cdc_lines[active_set]);
 	}
@@ -281,17 +254,13 @@ int msm_gpioset_suspend(enum pinctrl_client client, char *keyword)
 
 	if (1 == gpioset_info[client].gpioset_state[gp_set]) {
 		pinctrl_info[client].active_set &= ~(1 << gp_set);
-		/*
-		 * If pinctrl pointer is not valid,
-		 * no need to proceed further
-		 */
 		active_set = pinctrl_info[client].active_set;
 		if (IS_ERR(pinctrl_info[client].cdc_lines[active_set]))
 			return -EINVAL;
 
 		pr_debug("%s: pinctrl.active_set: %d\n", __func__,
 				pinctrl_info[client].active_set);
-		/* Select the appropriate pinctrl state */
+		
 		ret =  pinctrl_select_state(pinctrl_info[client].pinctrl,
 			pinctrl_info[client].cdc_lines[pinctrl_info[client].
 								active_set]);

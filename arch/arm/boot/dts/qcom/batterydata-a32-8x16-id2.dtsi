@@ -1,0 +1,127 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+qcom,a32-8x16-id2-batterydata {
+	qcom,fcc-mah = <2000>;
+	qcom,default-rbatt-mohm = <182>;
+	qcom,rbatt-capacitive-mohm = <(50)>;
+	qcom,flat-ocv-threshold-uv = <3800000>;
+	qcom,max-voltage-uv = <(4350000)>;
+	qcom,v-cutoff-uv = <(3400000)>;
+	qcom,chg-term-ua = <(200000)>;
+	qcom,batt-id-kohm = <22>;
+	qcom,battery-type = "a32-8x16-id2_2000mah";
+	qcom,batt-disabled-by-sw;
+	htc,voltage_max = <4350>;
+	htc,capacity = <2000>;
+	htc,batt_id = <2>;
+	htc,id_raw_min = <224>;
+	htc,id_raw_max = <336>;
+	htc,type = <2>;
+	htc,model_name = "BM65100";
+
+	qcom,fcc-temp-lut {
+		qcom,lut-col-legend = <(-20) 0 25 40 60>;
+		qcom,lut-data = <2040 2060 2060 2058 2052>;
+	};
+
+	qcom,pc-temp-ocv-lut {
+		qcom,lut-col-legend = <(-20) 0 25 40 60>;
+		qcom,lut-row-legend = <100 95 90 85 80>,
+				<75 70 65 60 55>,
+				<50 45 40 35 30>,
+				<25 20 16 13 11>,
+				<10 9 8 7 6>,
+				<5 4 3 2 1>,
+				<0>;
+		qcom,lut-data = <4346 4344 4339 4334 4327>,
+				<4218 4258 4270 4270 4264>,
+				<4136 4195 4212 4212 4208>,
+				<4092 4138 4158 4157 4154>,
+				<4008 4088 4106 4104 4100>,
+				<3946 4038 4058 4055 4052>,
+				<3900 3974 4007 4008 4006>,
+				<3860 3928 3966 3968 3965>,
+				<3838 3886 3924 3926 3924>,
+				<3820 3848 3874 3878 3876>,
+				<3804 3816 3840 3842 3842>,
+				<3788 3800 3816 3818 3818>,
+				<3773 3788 3796 3800 3798>,
+				<3756 3777 3781 3782 3782>,
+				<3740 3765 3770 3766 3761>,
+				<3722 3748 3756 3748 3735>,
+				<3700 3726 3734 3726 3713>,
+				<3680 3705 3708 3700 3688>,
+				<3660 3692 3684 3678 3666>,
+				<3644 3684 3679 3674 3664>,
+				<3634 3680 3678 3672 3662>,
+				<3620 3675 3676 3671 3661>,
+				<3604 3670 3673 3668 3658>,
+				<3585 3664 3668 3664 3652>,
+				<3562 3650 3656 3651 3634>,
+				<3530 3624 3627 3618 3598>,
+				<3486 3583 3579 3571 3549>,
+				<3426 3526 3516 3505 3485>,
+				<3337 3444 3432 3419 3398>,
+				<3220 3318 3300 3284 3264>,
+				<3000 3000 3000 3000 3000>;
+	};
+
+	qcom,rbatt-sf-lut {
+		qcom,lut-col-legend = <(-20) 0 25 40 60>;
+		qcom,lut-row-legend = <100 95 90 85 80>,
+				<75 70 65 60 55>,
+				<50 45 40 35 30>,
+				<25 20 16 13 11>,
+				<10 9 8 7 6>,
+				<5 4 3 2 1>;
+		qcom,lut-data = <1170 338 100 78 70>,
+				<1169 338 100 78 70>,
+				<1071 340 101 79 71>,
+				<1056 342 103 80 72>,
+				<997 351 107 82 73>,
+				<970 353 112 85 75>,
+				<962 323 115 88 77>,
+				<964 321 121 92 80>,
+				<996 314 121 95 82>,
+				<1036 308 106 85 76>,
+				<1075 308 100 79 71>,
+				<1126 324 101 80 73>,
+				<1184 353 102 84 75>,
+				<1249 395 103 85 77>,
+				<1333 447 108 83 76>,
+				<1519 505 112 81 72>,
+				<1866 565 118 82 73>,
+				<2263 618 126 85 73>,
+				<2617 648 126 84 72>,
+				<2749 676 131 86 74>,
+				<2989 698 136 88 75>,
+				<3246 725 142 91 77>,
+				<3555 754 149 94 79>,
+				<3937 783 157 96 80>,
+				<4370 813 164 97 78>,
+				<4926 841 165 95 77>,
+				<5710 873 172 98 78>,
+				<6950 917 185 101 80>,
+				<9414 1019 203 107 84>,
+				<18660 1379 235 124 96>;
+	};
+
+	qcom,ibat-acc-lut {
+		qcom,lut-col-legend = <(-20) 0 25>;
+		qcom,lut-row-legend = <0 250 500 1000>;
+		qcom,lut-data = <1979 2019 2019>,
+				<646 1750 1998>,
+				<108 1420 1969>,
+				<6 987 1827>;
+	};
+};

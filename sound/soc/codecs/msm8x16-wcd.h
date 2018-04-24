@@ -42,9 +42,6 @@
 	(((reg >= 0x200) && (reg <= 0x4FF)) ? 1 : 0)
 #define MSM8X16_WCD_IS_TOMBAK_REG(reg) \
 	(((reg >= 0x000) && (reg <= 0x1FF)) ? 1 : 0)
-/*
- * MCLK activity indicators during suspend and resume call
- */
 #define MCLK_SUS_DIS	1
 #define MCLK_SUS_RSC	2
 #define MCLK_SUS_NO_ACT	3
@@ -87,25 +84,12 @@ enum wcd_mbhc_imp_det_pin {
 };
 
 
-/* Each micbias can be assigned to one of three cfilters
- * Vbatt_min >= .15V + ldoh_v
- * ldoh_v >= .15v + cfiltx_mv
- * If ldoh_v = 1.95 160 mv < cfiltx_mv < 1800 mv
- * If ldoh_v = 2.35 200 mv < cfiltx_mv < 2200 mv
- * If ldoh_v = 2.75 240 mv < cfiltx_mv < 2600 mv
- * If ldoh_v = 2.85 250 mv < cfiltx_mv < 2700 mv
- */
 
 struct wcd9xxx_micbias_setting {
 	u8 ldoh_v;
-	u32 cfilt1_mv; /* in mv */
-	u32 cfilt2_mv; /* in mv */
-	u32 cfilt3_mv; /* in mv */
-	/* Different WCD9xxx series codecs may not
-	 * have 4 mic biases. If a codec has fewer
-	 * mic biases, some of these properties will
-	 * not be used.
-	 */
+	u32 cfilt1_mv; 
+	u32 cfilt2_mv; 
+	u32 cfilt3_mv; 
 	u8 bias1_cfilt_sel;
 	u8 bias2_cfilt_sel;
 	u8 bias3_cfilt_sel;
@@ -136,7 +120,6 @@ enum msm8x16_wcd_mbhc_analog_pwr_cfg {
 	MSM8X16_WCD_NUM_ANALOG_PWR_CONFIGS,
 };
 
-/* Number of input and output I2S port */
 enum {
 	MSM8X16_WCD_RX1 = 0,
 	MSM8X16_WCD_RX2,
@@ -153,7 +136,7 @@ enum {
 };
 
 enum {
-	/* INTR_REG 0 - Digital Periph */
+	
 	MSM8X16_WCD_IRQ_SPKR_CNP = 0,
 	MSM8X16_WCD_IRQ_SPKR_CLIP,
 	MSM8X16_WCD_IRQ_SPKR_OCP,
@@ -162,7 +145,7 @@ enum {
 	MSM8X16_WCD_IRQ_MBHC_PRESS,
 	MSM8X16_WCD_IRQ_MBHC_INSREM_DET,
 	MSM8X16_WCD_IRQ_MBHC_HS_DET,
-	/* INTR_REG 1 - Analog Periph */
+	
 	MSM8X16_WCD_IRQ_EAR_OCP,
 	MSM8X16_WCD_IRQ_HPHR_OCP,
 	MSM8X16_WCD_IRQ_HPHL_OCP,
@@ -178,11 +161,6 @@ enum {
 	ON_DEMAND_SUPPLIES_MAX,
 };
 
-/*
- * The delay list is per codec HW specification.
- * Please add delay in the list in the future instead
- * of magic number
- */
 enum {
 	CODEC_DELAY_1_MS = 1000,
 	CODEC_DELAY_1_1_MS  = 1100,
@@ -291,9 +269,9 @@ struct msm8x16_wcd_priv {
 	bool dec_active[NUM_DECIMATORS];
 	struct on_demand_supply on_demand_list[ON_DEMAND_SUPPLIES_MAX];
 	struct regulator *spkdrv_reg;
-	/* mbhc module */
+	
 	struct wcd_mbhc mbhc;
-	/* cal info for codec */
+	
 	struct fw_info *fw_data;
 	struct blocking_notifier_head notifier;
 	int (*codec_spk_ext_pa_cb)(struct snd_soc_codec *codec, int enable);

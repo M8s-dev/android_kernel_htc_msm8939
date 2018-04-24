@@ -18,7 +18,7 @@
 #define __NR_seccomp_write_32		__NR_write
 #define __NR_seccomp_exit_32		__NR_exit
 #define __NR_seccomp_sigreturn_32	__NR_rt_sigreturn
-#endif /* CONFIG_COMPAT && ! already defined */
+#endif 
 
 #define __NR_seccomp_read		__NR_read
 #define __NR_seccomp_write		__NR_write
@@ -27,4 +27,4 @@
 #define __NR_seccomp_sigreturn		__NR_rt_sigreturn
 #endif
 
-#endif /* _ASM_GENERIC_SECCOMP_H */
+#endif 

@@ -19,4 +19,4 @@ struct msm_audio_ape_config {
 	uint32_t seekTablePresent;
 };
 
-#endif /* _UAPI_MSM_AUDIO_APE_H */
+#endif 

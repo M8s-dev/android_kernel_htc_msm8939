@@ -149,9 +149,6 @@ int msm_audio_ion_import(const char *name, struct ion_client **client,
 		goto err;
 	}
 
-	/* name should be audio_acdb_client or Audio_Dec_Client,
-	bufsz should be 0 and fd shouldn't be 0 as of now
-	*/
 	*handle = ion_import_dma_buf(*client, fd);
 	pr_debug("%s: DMA Buf name=%s, fd=%d handle=%p\n", __func__,
 							name, fd, *handle);
@@ -206,7 +203,7 @@ int msm_audio_ion_free(struct ion_client *client, struct ion_handle *handle)
 		return -EINVAL;
 	}
 	if (msm_audio_ion_data.smmu_enabled) {
-		/* Need to populate book kept infomation */
+		
 		pr_debug("client=%p, domain=%p, domain_id=%d, group=%p",
 			client, msm_audio_ion_data.domain,
 			msm_audio_ion_data.domain_id, msm_audio_ion_data.group);
@@ -247,14 +244,9 @@ int msm_audio_ion_mmap(struct audio_buffer *ab,
 		return -EINVAL;
 	}
 
-	/* uncached */
+	
 	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
-	/* We need to check if a page is associated with this sg list because:
-	 * If the allocation came from a carveout we currently don't have
-	 * pages associated with carved out memory. This might change in the
-	 * future and we can remove this check and the else statement.
-	 */
 	page = sg_page(table->sgl);
 	if (page) {
 		pr_debug("%s: page is NOT null\n", __func__);
@@ -321,11 +313,10 @@ bool msm_audio_ion_is_smmu_available(void)
 	return msm_audio_ion_data.smmu_enabled;
 }
 
-/* move to static section again */
 struct ion_client *msm_audio_ion_client_create(const char *name)
 {
 	struct ion_client *pclient = NULL;
-	/*IOMMU group and domain are moved to probe()*/
+	
 	pclient = msm_ion_client_create(name);
 	return pclient;
 }
@@ -350,10 +341,7 @@ int msm_audio_ion_import_legacy(const char *name, struct ion_client *client,
 		rc = -EINVAL;
 		goto err;
 	}
-	/* client is already created for legacy and given*/
-	/* name should be audio_acdb_client or Audio_Dec_Client,
-	bufsz should be 0 and fd shouldn't be 0 as of now
-	*/
+	
 	*handle = ion_import_dma_buf(client, fd);
 	pr_debug("%s: DMA Buf name=%s, fd=%d handle=%p\n", __func__,
 							name, fd, *handle);
@@ -382,7 +370,7 @@ int msm_audio_ion_import_legacy(const char *name, struct ion_client *client,
 		goto err_ion_handle;
 	}
 
-	/*Need to add condition SMMU enable or not */
+	
 	*vaddr = ion_map_kernel(client, *handle);
 	if (IS_ERR_OR_NULL((void *)*vaddr)) {
 		pr_err("%s: ION memory mapping for AUDIO failed\n", __func__);
@@ -410,7 +398,7 @@ int msm_audio_ion_free_legacy(struct ion_client *client,
 	ion_unmap_kernel(client, handle);
 
 	ion_free(client, handle);
-	/* no client_destrody in legacy*/
+	
 	return 0;
 }
 
@@ -431,9 +419,9 @@ int msm_audio_ion_cache_operations(struct audio_buffer *abuff, int cache_op)
 		goto cache_op_failed;
 	}
 
-	/* has to be CACHED */
+	
 	if (ION_IS_CACHED(ionflag)) {
-		/* ION_IOC_INV_CACHES or ION_IOC_CLEAN_CACHES */
+		
 		msm_cache_ops = cache_op;
 		rc = msm_ion_do_cache_op(abuff->client,
 				abuff->handle,
@@ -460,7 +448,7 @@ static int msm_audio_ion_get_phys(struct ion_client *client,
 
 	if (msm_audio_ion_data.smmu_enabled) {
 		rc = ion_map_iommu(client, handle, msm_audio_ion_data.domain_id,
-			0 /*partition_num*/, SZ_4K /*align*/, 0/*iova_length*/,
+			0 , SZ_4K , 0,
 			addr, (unsigned long *)len,
 			0, 0);
 		if (rc) {
@@ -470,10 +458,10 @@ static int msm_audio_ion_get_phys(struct ion_client *client,
 		pr_debug("client=%p, domain=%p, domain_id=%d, group=%p",
 			client, msm_audio_ion_data.domain,
 			msm_audio_ion_data.domain_id, msm_audio_ion_data.group);
-		/* Append the SMMU SID information to the address */
+		
 		*addr |= msm_audio_ion_data.smmu_sid_bits;
 	} else {
-		/* SMMU is disabled*/
+		
 		rc = ion_phys(client, handle, addr, len);
 	}
 	pr_debug("phys=%pa, len=%zd, rc=%d\n", &(*addr), *len, rc);
@@ -555,8 +543,6 @@ static int msm_audio_ion_probe(struct platform_device *pdev)
 			msm_audio_ion_data.domain,
 			msm_audio_ion_data.domain_id, msm_audio_ion_data.group);
 
-		/* iommu_attach_group() will make AXI clock ON. For future PL
-		this will require to be called in once per session */
 		rc = iommu_attach_group(msm_audio_ion_data.domain,
 					msm_audio_ion_data.group);
 		if (rc) {

@@ -303,6 +303,14 @@ int diag_usb_write(int id, unsigned char *buf, int len, int ctxt)
 	req->length = len;
 	req->context = (void *)(uintptr_t)ctxt;
 
+	if (diag7k_debug_mask) {
+		DIAG_INFO("writing data to USB,"
+				"pkt length %d\n", len);
+		print_hex_dump(KERN_INFO, "Written Packet Data to"
+							" USB: ", 16, 1, DUMP_PREFIX_ADDRESS,
+							buf, len, 1);
+	}
+
 	if (!usb_info->hdl || !usb_info->connected) {
 		pr_debug_ratelimited("diag: USB ch %s is not connected\n",
 				     usb_info->name);

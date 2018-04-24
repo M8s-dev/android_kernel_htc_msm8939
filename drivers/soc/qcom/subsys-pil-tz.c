@@ -31,6 +31,10 @@
 #include <soc/qcom/scm.h>
 
 #include <soc/qcom/smem.h>
+#if defined(CONFIG_HTC_FEATURES_SSR)
+#include <htc/devices_dtb.h>
+#include <htc/devices_cmdline.h>
+#endif
 
 #include "peripheral-loader.h"
 
@@ -764,6 +768,9 @@ static void log_failure_reason(const struct pil_tz_data *d)
 
 	strlcpy(reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
 	pr_err("%s subsystem failure reason: %s.\n", name, reason);
+#if defined(CONFIG_HTC_DEBUG_SSR)
+	subsys_set_restart_reason(d->subsys, reason);
+#endif
 
 	smem_reason[0] = '\0';
 	wmb();
@@ -849,13 +856,21 @@ static irqreturn_t subsys_err_fatal_intr_handler (int irq, void *dev_id)
 static irqreturn_t subsys_wdog_bite_irq_handler(int irq, void *dev_id)
 {
 	struct pil_tz_data *d = subsys_to_data(dev_id);
-
+#if defined(CONFIG_HTC_DEBUG_SSR)
+#define HTC_DEBUG_TZ_REASON_LEN 80
+	char tz_restart_reason[HTC_DEBUG_TZ_REASON_LEN];
+#endif
 	pr_err("Watchdog bite received from %s!\n", d->subsys_desc.name);
 	if (subsys_get_crash_status(d->subsys)) {
 		pr_err("%s: Ignoring wdog bite IRQ, restart in progress\n",
 							d->subsys_desc.name);
 		return IRQ_HANDLED;
 	}
+#if defined(CONFIG_HTC_DEBUG_SSR)
+	memset(tz_restart_reason, 0, sizeof(tz_restart_reason));
+	snprintf(tz_restart_reason, sizeof(tz_restart_reason)-1, "Watchdog bite received from %s",d->subsys_desc.name);
+	subsys_set_restart_reason(d->subsys, tz_restart_reason);
+#endif
 
 	if (d->subsys_desc.system_debug &&
 			!gpio_get_value(d->subsys_desc.err_fatal_gpio))
@@ -963,6 +978,29 @@ static int pil_tz_driver_probe(struct platform_device *pdev)
 		rc = PTR_ERR(d->subsys);
 		goto err_subsys;
 	}
+
+#if defined(CONFIG_HTC_FEATURES_SSR)
+	/*WCNSS restart condition and ramdump rule would follow below
+	1. WCNSS restart default enable
+	- Independent on flag [6]
+	2. WCNSS restart default disable
+	- flag [6] 0    -> reboot
+	- flag [6] 1000 -> enable restart, no ramdump
+	3. Always disable WCNSS SSR if boot_mode != normal
+	*/
+#if defined(CONFIG_HTC_FEATURES_SSR_WCNSS_ENABLE)
+	subsys_set_restart_level(d->subsys, RESET_SUBSYS_COUPLED);
+	/* Enable SSR ramdump if radio [8] = 8 */
+	if (get_radio_flag() & BIT(3))
+		subsys_set_enable_ramdump(d->subsys, ENABLE_RAMDUMP);
+#else
+	if (get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_WCNSS)
+		subsys_set_restart_level(d->subsys, RESET_SUBSYS_COUPLED);
+#endif
+
+	if (board_mfg_mode() != 0)
+		subsys_set_restart_level(d->subsys, RESET_SOC);
+#endif
 
 	return 0;
 err_subsys:

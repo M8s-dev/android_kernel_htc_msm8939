@@ -30,7 +30,6 @@
 #define MDP_CORE_CLK_RATE_SUPER_SVS		200000000
 #define MDP_CORE_CLK_RATE_MAX			307200000
 
-/* PPP cant work at SVS for panel res above qHD */
 #define SVS_MAX_PIXEL		(540 * 960)
 
 #define KOFF_TIMEOUT msecs_to_jiffies(84)
@@ -63,8 +62,6 @@ enum {
 	MDP3_IOMMU_CTX_MAX
 };
 
-/* Keep DSI entry in sync with mdss
- which is being used by DSI 6G */
 enum {
 	MDP3_CLIENT_DMA_P,
 	MDP3_CLIENT_DSI = 1,
@@ -241,7 +238,6 @@ int mdp3_footswitch_ctrl(int enable);
 int mdp3_qos_remapper_setup(struct mdss_panel_data *panel);
 int mdp3_splash_done(struct mdss_panel_info *panel_info);
 int mdp3_autorefresh_disable(struct mdss_panel_info *panel_info);
-u64 mdp3_clk_round_off(u64 clk_rate);
 
 void mdp3_calc_dma_res(struct mdss_panel_info *panel_info, u64 *clk_rate,
 		u64 *ab, u64 *ib, uint32_t bpp);
@@ -252,4 +248,4 @@ void mdp3_calc_dma_res(struct mdss_panel_info *panel_info, u64 *clk_rate,
 #define VBIF_REG_WRITE(off, val) writel_relaxed(val, mdp3_res->vbif_base + off)
 #define VBIF_REG_READ(off) readl_relaxed(mdp3_res->vbif_base + off)
 
-#endif /* MDP3_H */
+#endif 

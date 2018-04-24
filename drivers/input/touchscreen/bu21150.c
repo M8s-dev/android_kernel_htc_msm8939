@@ -39,17 +39,16 @@
 #include <linux/msm_mdp.h>
 #include <linux/list.h>
 
-/* define */
 #define DEVICE_NAME   "jdi-bu21150"
 #define SYSFS_PROPERTY_PATH   "afe_properties"
 #define REG_INT_RUN_ENB (0x00CE)
 #define REG_SENS_START (0x0086)
 #define REG_READ_DATA (0x0400)
-#define MAX_FRAME_SIZE (8*1024+16)  /* byte */
+#define MAX_FRAME_SIZE (8*1024+16)  
 #define SPI_HEADER_SIZE (3)
 #define SPI_BITS_PER_WORD_READ (8)
 #define SPI_BITS_PER_WORD_WRITE (8)
-#define FRAME_HEADER_SIZE (16)  /* byte */
+#define FRAME_HEADER_SIZE (16)  
 #define GPIO_LOW  (0)
 #define GPIO_HIGH (1)
 #define WAITQ_WAIT   (0)
@@ -92,9 +91,8 @@ struct bu21150_frame {
 	struct timeval tv;
 };
 
-/* struct */
 struct bu21150_data {
-	/* system */
+	
 	struct spi_device *client;
 	struct pinctrl *ts_pinctrl;
 	struct pinctrl_state *gpio_state_active;
@@ -108,7 +106,7 @@ struct bu21150_data {
 	struct pinctrl_state *ddic_rst_state_active;
 	struct pinctrl_state *ddic_rst_state_suspend;
 	struct notifier_block fb_notif;
-	/* frame */
+	
 	struct bu21150_ioctl_get_frame_data req_get;
 	struct bu21150_frame frame_list;
 	u8 frame_count;
@@ -117,26 +115,26 @@ struct bu21150_data {
 	struct mutex mutex_wake;
 	struct mutex mutex_irq;
 	bool irq_enabled;
-	/* frame work */
+	
 	u8 frame_work[MAX_FRAME_SIZE];
 	struct bu21150_ioctl_get_frame_data frame_work_get;
 	struct kobject *bu21150_obj;
-	/* waitq */
+	
 	u8 frame_waitq_flag;
 	wait_queue_head_t frame_waitq;
-	/* reset */
+	
 	u8 reset_flag;
-	/* timeout */
+	
 	u8 timeout_enb;
 	u8 set_timer_flag;
 	u8 timeout_flag;
 	u32 timeout;
-	/* spi */
+	
 	u8 spi_buf[MAX_FRAME_SIZE];
-	/* power */
+	
 	struct regulator *vcc_ana;
 	struct regulator *vcc_dig;
-	/* dtsi */
+	
 	int irq_gpio;
 	int rst_gpio;
 	int afe_pwr_gpio;
@@ -164,7 +162,6 @@ struct ser_req {
 	u16 sample ____cacheline_aligned;
 };
 
-/* static function declaration */
 static int bu21150_probe(struct spi_device *client);
 static int bu21150_remove(struct spi_device *client);
 static int bu21150_open(struct inode *inode, struct file *filp);
@@ -203,7 +200,6 @@ static int bu21150_fb_early_resume(struct device *dev);
 static int fb_notifier_callback(struct notifier_block *self,
 					unsigned long event, void *data);
 
-/* static variables */
 static struct spi_device *g_client_bu21150;
 static int g_io_opened;
 static struct timer_list get_frame_timer;
@@ -395,7 +391,6 @@ MODULE_DESCRIPTION("JDI BU21150 Device Driver");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("spi:bu21150");
 
-/* static functions */
 static int reg_set_optimum_mode_check(struct regulator *reg, int load_ua)
 {
 	return (regulator_count_voltages(reg) > 0) ?
@@ -602,10 +597,6 @@ static int bu21150_pinctrl_enable(struct bu21150_data *ts, bool on)
 			goto err_afe_pwr_pinctrl_enable;
 		}
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -618,10 +609,6 @@ static int bu21150_pinctrl_enable(struct bu21150_data *ts, bool on)
 			goto err_mod_en_pinctrl_enable;
 		}
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -634,10 +621,6 @@ static int bu21150_pinctrl_enable(struct bu21150_data *ts, bool on)
 			goto err_disp_vsn_pinctrl_enable;
 		}
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -680,7 +663,7 @@ static int bu21150_gpio_enable(struct bu21150_data *ts, bool on)
 	if (!on)
 		goto gpio_disable;
 
-	/* set reset */
+	
 	rc = gpio_request(ts->rst_gpio, "bu21150_ts_reset");
 	if (rc) {
 		pr_err("%s: reset gpio_request failed\n", __func__);
@@ -689,7 +672,7 @@ static int bu21150_gpio_enable(struct bu21150_data *ts, bool on)
 
 	gpio_direction_output(ts->rst_gpio, GPIO_LOW);
 
-	/* Panel and AFE Power on sequence */
+	
 	if (of_find_property(ts->client->dev.of_node, "afe_pwr", NULL)) {
 		rc = gpio_request(ts->afe_pwr_gpio, "afe_pwr");
 		if (rc) {
@@ -699,10 +682,6 @@ static int bu21150_gpio_enable(struct bu21150_data *ts, bool on)
 		gpio_direction_output(ts->afe_pwr_gpio, 1);
 		gpio_set_value(ts->afe_pwr_gpio, 1);
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -716,10 +695,6 @@ static int bu21150_gpio_enable(struct bu21150_data *ts, bool on)
 		gpio_direction_output(ts->mod_en_gpio, 1);
 		gpio_set_value(ts->mod_en_gpio, 1);
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -732,10 +707,6 @@ static int bu21150_gpio_enable(struct bu21150_data *ts, bool on)
 		gpio_direction_output(ts->disp_vsn_gpio, 1);
 		gpio_set_value(ts->disp_vsn_gpio, 1);
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -748,10 +719,6 @@ static int bu21150_gpio_enable(struct bu21150_data *ts, bool on)
 		gpio_direction_output(ts->ddic_rst_gpio, 1);
 		gpio_set_value(ts->ddic_rst_gpio, 1);
 
-		/*
-		 * Wait among pin enablements to comply
-		 * with hardware requirement.
-		 */
 		usleep(BU21150_PIN_ENABLE_DELAY_US);
 	}
 
@@ -930,7 +897,7 @@ static int bu21150_probe(struct spi_device *client)
 		return -ENOMEM;
 	}
 
-	/* parse dtsi */
+	
 	if (!parse_dtsi(&client->dev, ts)) {
 		dev_err(&client->dev, "Invalid dtsi\n");
 		rc = -EINVAL;
@@ -1052,10 +1019,10 @@ static int bu21150_fb_suspend(struct device *dev)
 	get_frame_timer_delete();
 
 	ts->unblock_flag = 1;
-	/* wake up */
+	
 	wake_up_frame_waitq(ts);
 
-	/* empty list */
+	
 	mutex_lock(&ts->mutex_frame);
 	list_for_each_safe(pos, n, &ts->frame_list.list) {
 		 temp = list_entry(pos, struct bu21150_frame, list);
@@ -1124,10 +1091,6 @@ static int bu21150_fb_early_resume(struct device *dev)
 			goto err_pin_enable;
 		}
 
-		/*
-		 * Wait before pin enablement to comply
-		 * with hardware requirement.
-		 */
 		usleep_range(BU21150_PIN_ENABLE_DELAY_US,
 			BU21150_PIN_ENABLE_DELAY_US +
 			BU21150_HOLD_DURATION_US);
@@ -1170,7 +1133,7 @@ static int bu21150_fb_early_resume(struct device *dev)
 	usleep_range(BU21150_REG_INT_RUN_ENB_DELAY2_US,
 		BU21150_REG_INT_RUN_ENB_DELAY2_US + BU21150_HOLD_DURATION_US);
 
-	/* empty list */
+	
 	mutex_lock(&ts->mutex_frame);
 	list_for_each_safe(pos, n, &ts->frame_list.list) {
 		 temp = list_entry(pos, struct bu21150_frame, list);
@@ -1257,7 +1220,7 @@ static void get_frame_timer_handler(unsigned long data)
 	struct bu21150_data *ts = spi_get_drvdata(g_client_bu21150);
 
 	ts->timeout_flag = 1;
-	/* wake up */
+	
 	wake_up_frame_waitq(ts);
 }
 
@@ -1315,7 +1278,7 @@ static int bu21150_open(struct inode *inode, struct file *filp)
 	ts->force_unblock_flag = 0;
 	ts->scan_mode = AFE_SCAN_MUTUAL_CAP;
 	memset(&(ts->req_get), 0, sizeof(struct bu21150_ioctl_get_frame_data));
-	/* set default value. */
+	
 	ts->req_get.size = FRAME_HEADER_SIZE;
 	memset(&(ts->frame_get), 0,
 		sizeof(struct bu21150_ioctl_get_frame_data));
@@ -1448,7 +1411,7 @@ static long bu21150_ioctl_get_frame(unsigned long arg)
 	if (ts->timeout_enb == 1)
 		get_frame_timer_delete();
 
-	/* copy frame */
+	
 	mutex_lock(&ts->mutex_frame);
 	frame_size = ts->frame_get.size;
 
@@ -1615,7 +1578,7 @@ static long bu21150_ioctl_unblock(void)
 	struct bu21150_data *ts = spi_get_drvdata(g_client_bu21150);
 
 	ts->force_unblock_flag = 1;
-	/* wake up */
+	
 	wake_up_frame_waitq(ts);
 
 	return 0;
@@ -1715,7 +1678,7 @@ static irqreturn_t bu21150_irq_thread(int irq, void *dev_id)
 
 	mutex_unlock(&ts->mutex_wake);
 
-	/* get frame */
+	
 	ts->frame_work_get = ts->req_get;
 	ret = bu21150_read_register(REG_READ_DATA,
 			ts->frame_work_get.size, psbuf);
@@ -1751,12 +1714,12 @@ static int bu21150_read_register(u32 addr, u16 size, u8 *data)
 	output = kzalloc(sizeof(u8)*(size)+SPI_HEADER_SIZE, GFP_KERNEL);
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 
-	/* set header */
-	input[0] = 0x03;                 /* read command */
-	input[1] = (addr & 0xFF00) >> 8; /* address hi */
-	input[2] = (addr & 0x00FF) >> 0; /* address lo */
+	
+	input[0] = 0x03;                 
+	input[1] = (addr & 0xFF00) >> 8; 
+	input[2] = (addr & 0x00FF) >> 0; 
 
-	/* read data */
+	
 	spi_message_init(&req->msg);
 	req->xfer[0].tx_buf = input;
 	req->xfer[0].rx_buf = output;
@@ -1790,16 +1753,16 @@ static int bu21150_write_register(u32 addr, u16 size, u8 *data)
 	input = kzalloc(sizeof(u8)*(size)+SPI_HEADER_SIZE, GFP_KERNEL);
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 
-	/* set header */
-	input[0] = 0x02;                 /* write command */
-	input[1] = (addr & 0xFF00) >> 8; /* address hi */
-	input[2] = (addr & 0x00FF) >> 0; /* address lo */
+	
+	input[0] = 0x02;                 
+	input[1] = (addr & 0xFF00) >> 8; 
+	input[2] = (addr & 0x00FF) >> 0; 
 
-	/* set data */
+	
 	memcpy(input+SPI_HEADER_SIZE, data, size);
 	swap_2byte(input+SPI_HEADER_SIZE, size);
 
-	/* write data */
+	
 	spi_message_init(&req->msg);
 	req->xfer[0].tx_buf = input;
 	req->xfer[0].rx_buf = NULL;
@@ -1831,7 +1794,7 @@ static long wait_frame_waitq(struct bu21150_data *ts, u8 flag)
 	if (ts->unblock_flag == 1 && flag == 0)
 		return BU21150_UNBLOCK;
 
-	/* wait event */
+	
 	if (wait_event_interruptible(ts->frame_waitq,
 			ts->frame_waitq_flag == WAITQ_WAKEUP)) {
 		pr_err("%s: -ERESTARTSYS\n", __func__);
@@ -1878,7 +1841,7 @@ static void copy_frame(struct bu21150_data *ts)
 	struct bu21150_frame *temp;
 
 	mutex_lock(&(ts->mutex_frame));
-	/* check for max limit */
+	
 	if (ts->frame_count >= BU21150_LIST_MAX_FRAMES) {
 		struct bu21150_frame *tmp;
 
@@ -1923,7 +1886,7 @@ static void check_same_frame(struct bu21150_data *ts)
 
 	mutex_lock(&ts->mutex_frame);
 	if (!list_empty(&ts->frame_list.list)) {
-		/* get the last node */
+		
 		temp = list_entry(&ts->frame_list.list->prev,
 				struct bu21150_frame, list);
 

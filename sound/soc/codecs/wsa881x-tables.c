@@ -105,7 +105,7 @@ const u8 wsa881x_reg_readable[WSA881X_CACHE_SIZE] = {
 	[WSA881X_OTP_REG_30] = 1,
 	[WSA881X_OTP_REG_31] = 1,
 	[WSA881X_OTP_REG_63] = 1,
-	/* Analog Registers */
+	
 	[WSA881X_BIAS_REF_CTRL] = 1,
 	[WSA881X_BIAS_TEST] = 1,
 	[WSA881X_BIAS_BIAS] = 1,

@@ -467,6 +467,16 @@ config MSM_SCM
 	bool "Secure Channel Manager (SCM) support"
 	default n
 
+config HTC_SCM
+	bool "HTC Secure Channel Manager (SCM) features support"
+	depends on MSM_SCM
+	default y
+
+config HTC_SIMLOCK
+	bool "HTC SIMLock features support"
+	depends on MSM_SCM && HTC_SCM
+	default y
+
 config MAXIMUM_CURRENT_THROTTLING
 	tristate "CPU current throttling driver"
 	help
@@ -538,6 +548,12 @@ config QCOM_EARLY_RANDOM
 	  process which means that any calls to get random numbers before then
 	  may not be truly random. Select this option to make an early call
 	  to get some random data to put in the pool. If unsure, say N.
+
+config HTC_DEBUG_WATCHDOG
+	bool "HTC style watchdog debug features"
+	depends on HTC_DEBUG && MSM_WATCHDOG_V2
+	help
+	  Say Y here if you want the HTC style watchdog debug features
 
 config MSM_PACMAN
 	bool "Enable the Peripheral Access Control Manager (PACMan)"

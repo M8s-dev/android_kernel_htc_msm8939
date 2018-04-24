@@ -10,15 +10,15 @@ struct msm_audio_alac_config {
 	uint32_t frameLength;
 	uint8_t compatVersion;
 	uint8_t bitDepth;
-	uint8_t pb; /* currently unused */
-	uint8_t mb; /* currently unused */
-	uint8_t kb; /* currently unused */
+	uint8_t pb; 
+	uint8_t mb; 
+	uint8_t kb; 
 	uint8_t channelCount;
-	uint16_t maxRun; /* currently unused */
+	uint16_t maxRun; 
 	uint32_t maxSize;
 	uint32_t averageBitRate;
 	uint32_t sampleRate;
 	uint32_t channelLayout;
 };
 
-#endif /* _UAPI_MSM_AUDIO_ALAC_H */
+#endif 

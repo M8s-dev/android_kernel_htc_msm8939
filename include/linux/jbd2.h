@@ -958,6 +958,9 @@ struct journal_s
 	 */
 	void *j_private;
 
+	/* waiting for journal commit to complete */
+	atomic_t j_log_wait;
+
 	/* Reference to checksum algorithm driver via cryptoapi */
 	struct crypto_shash *j_chksum_driver;
 

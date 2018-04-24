@@ -1071,7 +1071,7 @@ static int arm_smmu_master_configure_smrs(struct arm_smmu_device *smmu,
 	if (cfg->smrs)
 		return -EEXIST;
 
-	smrs = kmalloc_array(cfg->num_streamids, sizeof(*smrs), GFP_KERNEL);
+	smrs = kcalloc(cfg->num_streamids, sizeof(*smrs), GFP_KERNEL);
 	if (!smrs) {
 		dev_err(smmu->dev, "failed to allocate %d SMRs\n",
 			cfg->num_streamids);

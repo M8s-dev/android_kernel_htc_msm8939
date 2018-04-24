@@ -41,6 +41,7 @@
 #include <linux/dma-removed.h>
 #include <linux/delay.h>
 #include <trace/events/kmem.h>
+#include <linux/delay.h>
 
 struct cma {
 	unsigned long	base_pfn;

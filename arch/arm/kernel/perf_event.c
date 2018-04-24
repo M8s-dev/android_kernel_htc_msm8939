@@ -100,7 +100,7 @@ int armpmu_event_set_period(struct perf_event *event)
 	s64 period = hwc->sample_period;
 	int ret = 0;
 
-	/* The period may have been changed by PERF_EVENT_IOC_PERIOD */
+	
 	if (unlikely(period != hwc->last_period))
 		left = period - (hwc->last_period - left);
 
@@ -167,10 +167,6 @@ armpmu_stop(struct perf_event *event, int flags)
 	struct arm_pmu *armpmu = to_arm_pmu(event->pmu);
 	struct hw_perf_event *hwc = &event->hw;
 
-	/*
-	 * ARM pmu always has to update the counter, so ignore
-	 * PERF_EF_UPDATE, see comments in armpmu_start().
-	 */
 	if (!(hwc->state & PERF_HES_STOPPED)) {
 		armpmu->disable(event);
 		armpmu_event_update(event);
@@ -183,21 +179,10 @@ static void armpmu_start(struct perf_event *event, int flags)
 	struct arm_pmu *armpmu = to_arm_pmu(event->pmu);
 	struct hw_perf_event *hwc = &event->hw;
 
-	/*
-	 * ARM pmu always has to reprogram the period, so ignore
-	 * PERF_EF_RELOAD, see the comment below.
-	 */
 	if (flags & PERF_EF_RELOAD)
 		WARN_ON_ONCE(!(hwc->state & PERF_HES_UPTODATE));
 
 	hwc->state = 0;
-	/*
-	 * Set the period again. Some counters can't be stopped, so when we
-	 * were stopped we simply disabled the IRQ source and the counter
-	 * may have been left counting. If we don't do this step then we may
-	 * get an interrupt too soon or *way* too late if the overflow has
-	 * happened since disabling.
-	 */
 	armpmu_event_set_period(event);
 	armpmu->enable(event);
 }
@@ -214,7 +199,7 @@ armpmu_del(struct perf_event *event, int flags)
 	hw_events->events[idx] = NULL;
 	clear_bit(idx, hw_events->used_mask);
 
-	/* Clear event constraints. */
+	
 	if (armpmu->clear_event_constraints)
 		armpmu->clear_event_constraints(event);
 
@@ -231,29 +216,22 @@ armpmu_add(struct perf_event *event, int flags)
 	int err = 0;
 
 	perf_pmu_disable(event->pmu);
-	/*
-	 * Tests if event is constrained. If not sets it so that next
-	 * collision can be detected.
-	 */
 	if (armpmu->test_set_event_constraints)
 		if (armpmu->test_set_event_constraints(event) < 0) {
 			pr_err("Event: %llx failed constraint check.\n",
 					event->attr.config);
 			event->state = PERF_EVENT_STATE_OFF;
+			err = -EPERM;
 			goto out;
 		}
 
-	/* If we don't have a space for the counter then finish early. */
+	
 	idx = armpmu->get_event_idx(hw_events, event);
 	if (idx < 0) {
 		err = idx;
 		goto out;
 	}
 
-	/*
-	 * If there is an event in the counter we are going to use then make
-	 * sure it is disabled.
-	 */
 	event->hw.idx = idx;
 	armpmu->disable(event);
 	hw_events->events[idx] = event;
@@ -262,7 +240,7 @@ armpmu_add(struct perf_event *event, int flags)
 	if (flags & PERF_EF_START)
 		armpmu_start(event, PERF_EF_RELOAD);
 
-	/* Propagate our changes to the userspace mapping. */
+	
 	perf_event_update_userpage(event);
 
 out:
@@ -296,10 +274,6 @@ validate_group(struct perf_event *event)
 	struct pmu_hw_events fake_pmu;
 	DECLARE_BITMAP(fake_used_mask, ARMPMU_MAX_HWEVENTS);
 
-	/*
-	 * Initialise the fake PMU. We only need to populate the
-	 * used_mask for the purposes of validation.
-	 */
 	memset(fake_used_mask, 0, sizeof(fake_used_mask));
 	fake_pmu.used_mask = fake_used_mask;
 
@@ -354,10 +328,6 @@ armpmu_generic_free_irq(int irq, void *dev_id)
 static void
 armpmu_release_hardware(struct arm_pmu *armpmu)
 {
-	/*
-	 * If a cpu comes online during this function, do not enable its irq.
-	 * If a cpu goes offline, it should disable its irq.
-	 */
 	armpmu->pmu_state = ARM_PMU_STATE_GOING_DOWN;
 	armpmu->free_irq(armpmu);
 	pm_runtime_put_sync(&armpmu->plat_device->dev);
@@ -436,20 +406,11 @@ __hw_perf_event_init(struct perf_event *event)
 		return mapping;
 	}
 
-	/*
-	 * We don't assign an index until we actually place the event onto
-	 * hardware. Use -1 to signify that we haven't decided where to put it
-	 * yet. For SMP systems, each core has it's own PMU so we can't do any
-	 * clever allocation or constraints checking at this point.
-	 */
 	hwc->idx		= -1;
 	hwc->config_base	= 0;
 	hwc->config		= 0;
 	hwc->event_base		= 0;
 
-	/*
-	 * Check whether we need to exclude the counter from certain modes.
-	 */
 	if ((!armpmu->set_event_filter ||
 	     armpmu->set_event_filter(hwc, &event->attr)) &&
 	     event_requires_mode_exclusion(&event->attr)) {
@@ -459,18 +420,9 @@ __hw_perf_event_init(struct perf_event *event)
 	}
 
 
-	/*
-	 * Store the event encoding into the config_base field.
-	 */
 	hwc->config_base	    |= (unsigned long)mapping;
 
 	if (!hwc->sample_period) {
-		/*
-		 * For non-sampling runs, limit the sample_period to half
-		 * of the counter width. That way, the new counter value
-		 * is far less likely to overtake the previous one unless
-		 * you have some serious IRQ latency issues.
-		 */
 		hwc->sample_period  = armpmu->max_period >> 1;
 		hwc->last_period    = hwc->sample_period;
 		local64_set(&hwc->period_left, hwc->sample_period);
@@ -490,7 +442,7 @@ static int armpmu_event_init(struct perf_event *event)
 	int err = 0;
 	atomic_t *active_events = &armpmu->active_events;
 
-	/* does not support taken branch sampling */
+	
 	if (has_branch_stack(event))
 		return -EOPNOTSUPP;
 
@@ -536,11 +488,11 @@ static void armpmu_enable(struct pmu *pmu)
 			armpmu->enable(event);
 		}
 
-		/* Reset bit so we don't needlessly re-enable counters.*/
+		
 		*hw_events->from_idle = 0;
 	}
 
-	/* So we don't start the PMU before enabling counters after idle. */
+	
 	barrier();
 
 	if (enabled)
@@ -604,35 +556,20 @@ int armpmu_register(struct arm_pmu *armpmu, int type)
 	return perf_pmu_register(&armpmu->pmu, armpmu->name, type);
 }
 
-/*
- * Callchain handling code.
- */
 
-/*
- * The registers we're interested in are at the end of the variable
- * length saved register structure. The fp points at the end of this
- * structure so the address of this struct is:
- * (struct frame_tail *)(xxx->fp)-1
- *
- * This code has been adapted from the ARM OProfile support.
- */
 struct frame_tail {
 	struct frame_tail __user *fp;
 	unsigned long sp;
 	unsigned long lr;
 } __attribute__((packed));
 
-/*
- * Get the return address for a single stackframe and return a pointer to the
- * next frame tail.
- */
 static struct frame_tail __user *
 user_backtrace(struct frame_tail __user *tail,
 	       struct perf_callchain_entry *entry)
 {
 	struct frame_tail buftail;
 
-	/* Also check accessibility of one struct frame_tail beyond */
+	
 	if (!access_ok(VERIFY_READ, tail, sizeof(buftail)))
 		return NULL;
 	if (__copy_from_user_inatomic(&buftail, tail, sizeof(buftail)))
@@ -640,10 +577,6 @@ user_backtrace(struct frame_tail __user *tail,
 
 	perf_callchain_store(entry, buftail.lr);
 
-	/*
-	 * Frame pointers should strictly progress back up the stack
-	 * (towards higher addresses).
-	 */
 	if (tail + 1 >= buftail.fp)
 		return NULL;
 
@@ -656,7 +589,7 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 	struct frame_tail __user *tail;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
-		/* We don't support guest os callchain now */
+		
 		return;
 	}
 
@@ -668,11 +601,6 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 		tail = user_backtrace(tail, entry);
 }
 
-/*
- * Gets called by walk_stackframe() for every stackframe. This will be called
- * whist unwinding the stackframe and is like a subroutine return so we use
- * the PC.
- */
 static int
 callchain_trace(struct stackframe *fr,
 		void *data)
@@ -688,7 +616,7 @@ perf_callchain_kernel(struct perf_callchain_entry *entry, struct pt_regs *regs)
 	struct stackframe fr;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
-		/* We don't support guest os callchain now */
+		
 		return;
 	}
 

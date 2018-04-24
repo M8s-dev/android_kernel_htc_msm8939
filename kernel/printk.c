@@ -212,6 +212,8 @@ struct log {
 	u8 facility;		/* syslog facility */
 	u8 flags:5;		/* internal record flags */
 	u8 level:3;		/* syslog level */
+	u8 logbuf_cpu_id;	/* cpu core number */
+	u32 logbuf_pid; 	/* process id */
 #if defined(CONFIG_LOG_BUF_MAGIC)
 	u32 magic;		/* handle for ramdump analysis tools */
 #endif
@@ -238,6 +240,7 @@ static u32 log_first_idx;
 /* index and sequence number of the next record to store in the buffer */
 static u64 log_next_seq;
 static u32 log_next_idx;
+static u32 log_last_valid_idx;
 
 /* the next printk record to write to the console */
 static u64 console_seq;
@@ -466,6 +469,7 @@ static void log_store(int facility, int level,
 	msg->len = sizeof(struct log) + text_len + dict_len + pad_len;
 
 	/* insert message */
+	log_last_valid_idx = log_next_idx;
 	log_next_idx += msg->len;
 	log_next_seq++;
 }
@@ -1019,6 +1023,33 @@ static bool printk_time;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 
+#if defined(CONFIG_PRINTK_CPU_ID)
+static int printk_cpu_id = 1;
+#else
+static int printk_cpu_id = 0;
+#endif
+module_param_named(cpu, printk_cpu_id, int, S_IRUGO | S_IWUSR);
+
+#if defined(CONFIG_PRINTK_PID)
+static int printk_pid = 1;
+#else
+static int printk_pid = 0;
+#endif
+module_param_named(pid, printk_pid, int, S_IRUGO | S_IWUSR);
+
+static void log_store_other(u8 cpu_id, u32 pid) {
+	if (printk_cpu_id) {
+		struct log *this_log;
+		this_log = (struct log *)(log_buf + log_last_valid_idx);
+		this_log->logbuf_cpu_id = cpu_id;
+	}
+	if (printk_pid) {
+		struct log *this_log;
+		this_log = (struct log *)(log_buf + log_last_valid_idx);
+		this_log->logbuf_pid = pid;
+	}
+}
+
 static size_t print_time(u64 ts, char *buf)
 {
 	unsigned long rem_nsec;
@@ -1033,6 +1064,28 @@ static size_t print_time(u64 ts, char *buf)
 
 	return sprintf(buf, "[%5lu.%06lu] ",
 		       (unsigned long)ts, rem_nsec / 1000);
+}
+
+static size_t print_cpu_id(u8 cpu_id, char *buf)
+{
+	if (!printk_cpu_id)
+		return 0;
+
+	if (!buf)
+		return snprintf(NULL, 0, "c%u ", cpu_id);
+
+	return sprintf(buf, "c%u ", cpu_id);
+}
+
+static size_t print_pid(u32 pid, char *buf)
+{
+	if (!printk_pid)
+		return 0;
+
+	if (!buf)
+		return snprintf(NULL, 0, "%6u ", pid);
+
+	return sprintf(buf, "%6u ", pid);
 }
 
 static size_t print_prefix(const struct log *msg, bool syslog, char *buf)
@@ -1055,6 +1108,8 @@ static size_t print_prefix(const struct log *msg, bool syslog, char *buf)
 	}
 
 	len += print_time(msg->ts_nsec, buf ? buf + len : NULL);
+	len += print_cpu_id(msg->logbuf_cpu_id, buf ? buf + len : NULL);
+	len += print_pid(msg->logbuf_pid, buf ? buf + len : NULL);
 	return len;
 }
 
@@ -1691,6 +1746,8 @@ static struct cont {
 	u8 facility;			/* log level of first message */
 	enum log_flags flags;		/* prefix, newline flags */
 	bool flushed:1;			/* buffer sealed and committed */
+	u8 cont_cpu_id; 		/* cpu core number */
+	u32 cont_pid;			/* process id */
 } cont;
 
 static void cont_flush(enum log_flags flags)
@@ -1708,6 +1765,7 @@ static void cont_flush(enum log_flags flags)
 		 */
 		log_store(cont.facility, cont.level, flags | LOG_NOCONS,
 			  cont.ts_nsec, NULL, 0, cont.buf, cont.len);
+		log_store_other(cont.cont_cpu_id, cont.cont_pid);
 		cont.flags = flags;
 		cont.flushed = true;
 	} else {
@@ -1717,6 +1775,7 @@ static void cont_flush(enum log_flags flags)
 		 */
 		log_store(cont.facility, cont.level, flags, 0,
 			  NULL, 0, cont.buf, cont.len);
+		log_store_other(cont.cont_cpu_id, cont.cont_pid);
 		cont.len = 0;
 	}
 }
@@ -1740,6 +1799,8 @@ static bool cont_add(int facility, int level, const char *text, size_t len)
 		cont.flags = 0;
 		cont.cons = 0;
 		cont.flushed = false;
+		cont.cont_cpu_id = smp_processor_id();
+		cont.cont_pid = current->pid;
 	}
 
 	memcpy(cont.buf + cont.len, text, len);
@@ -1883,9 +1944,11 @@ asmlinkage int vprintk_emit(int facility, int level,
 			cont_flush(LOG_NEWLINE);
 
 		/* buffer line if possible, otherwise store it right away */
-		if (!cont_add(facility, level, text, text_len))
+		if (!cont_add(facility, level, text, text_len)) {
 			log_store(facility, level, lflags | LOG_CONT, 0,
 				  dict, dictlen, text, text_len);
+			log_store_other(logbuf_cpu, current->pid);
+		}
 	} else {
 		bool stored = false;
 
@@ -1901,9 +1964,11 @@ asmlinkage int vprintk_emit(int facility, int level,
 			cont_flush(LOG_NEWLINE);
 		}
 
-		if (!stored)
+		if (!stored) {
 			log_store(facility, level, lflags, 0,
 				  dict, dictlen, text, text_len);
+			log_store_other(logbuf_cpu, current->pid);
+		}
 	}
 	printed_len += text_len;
 
@@ -2177,6 +2242,16 @@ MODULE_PARM_DESC(console_suspend, "suspend console during suspend"
 	" and hibernate operations");
 
 /**
+ * suspend_console_deferred:
+ * Parameter to decide whether to defer suspension of console. If set as 1, suspend
+ * console is deferred to latter stages.
+ */
+int suspend_console_deferred;
+module_param_named(
+		suspend_console_deferred, suspend_console_deferred, int, S_IRUGO | S_IWUSR | S_IWGRP
+);
+
+/**
  * suspend_console - suspend the console subsystem
  *
  * This disables printk() while we go into suspend states
@@ -2253,8 +2328,7 @@ static int __cpuinit console_cpu_notify(struct notifier_block *self,
  */
 void console_lock(void)
 {
-	might_sleep();
-
+	BUG_ON(in_interrupt());
 	down(&console_sem);
 	if (console_suspended)
 		return;

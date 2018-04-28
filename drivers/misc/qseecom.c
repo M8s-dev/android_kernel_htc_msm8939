@@ -2269,18 +2269,14 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		mutex_lock(&qsee_bw_mutex);
 		ret = __qseecom_register_bus_bandwidth_needs(data, MEDIUM);
 		mutex_unlock(&qsee_bw_mutex);
-		if (ret) {
-			ret = -150;
+		if (ret) 
 			return ret;
-		}
 	}
 
 	
 	ret = __qseecom_enable_clk_scale_up(data);
-	if (ret) {
-		ret = -199;
+	if (ret) 
 		goto enable_clk_err;
-	}
 
 	req.qsee_cmd_id = QSEOS_APP_LOOKUP_COMMAND;
 	load_img_req.img_name[MAX_APP_NAME_SIZE-1] = '\0';
@@ -2289,7 +2285,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 	ret = __qseecom_check_app_exists(req, &app_id);
 	if (ret < 0)
 		goto loadapp_err;
-	}
 
 	if (app_id) {
 		pr_debug("App id %d (%s) already exists\n", app_id,
@@ -2315,7 +2310,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		if (IS_ERR_OR_NULL(ihandle)) {
 			pr_err("Ion client could not retrieve the handle\n");
 			ret = -ENOMEM;
-			ret = -197;
 			goto loadapp_err;
 		}
 
@@ -2324,7 +2318,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		if (ret) {
 			pr_err("Cannot get phys_addr for the Ion Client, ret = %d\n",
 				ret);
-			ret = -196;
 			goto loadapp_err;
 		}
 		if (load_img_req.mdt_len > len || load_img_req.img_len > len) {
@@ -2370,7 +2363,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			if (!IS_ERR_OR_NULL(ihandle))
 				ion_free(qseecom.ion_clnt, ihandle);
 			ret = -EINVAL;
-			ret = -195;
 			goto loadapp_err;
 		}
 
@@ -2379,7 +2371,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			if (!IS_ERR_OR_NULL(ihandle))
 				ion_free(qseecom.ion_clnt, ihandle);
 			ret = -EFAULT;
-			ret = -194;
 			goto loadapp_err;
 		}
 
@@ -2391,7 +2382,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 				if (!IS_ERR_OR_NULL(ihandle))
 					ion_free(qseecom.ion_clnt, ihandle);
 				ret = -EFAULT;
-				ret = -193;
 				goto loadapp_err;
 			}
 		}
@@ -2402,7 +2392,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			if (!IS_ERR_OR_NULL(ihandle))
 				ion_free(qseecom.ion_clnt, ihandle);
 			ret = -EFAULT;
-			ret = 192;
 			goto loadapp_err;
 		}
 
@@ -2412,7 +2401,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		if (!entry) {
 			pr_err("kmalloc failed\n");
 			ret = -ENOMEM;
-			ret = 191;
 			goto loadapp_err;
 		}
 		entry->app_id = app_id;
@@ -2456,7 +2444,6 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 	if (copy_to_user(argp, &load_img_req, sizeof(load_img_req))) {
 		pr_err("copy_to_user failed\n");
 		ret = -EFAULT;
-		ret = -190;
 		if (first_time == true) {
 			spin_lock_irqsave(
 				&qseecom.registered_app_list_lock, flags);
@@ -6903,6 +6890,41 @@ static void __qseecom_bus_scaling_disable(struct qseecom_dev_handle *data,
 		qsee_disable_clock_vote(data, CLK_SFPB);
 	}
 }
+
+int qseecom_crypto_clk_control(bool enable)
+{
+	int ret = 0;
+
+	if (enable) {
+		if (qseecom.support_bus_scaling) {
+			mutex_lock(&qsee_bw_mutex);
+			ret = __qseecom_register_bus_bandwidth_needs(&crypto_data, MEDIUM);
+			mutex_unlock(&qsee_bw_mutex);
+			if (ret) {
+				pr_err("qseecom bus bw needs failed\n");
+				return ret;
+			}
+		}
+
+		
+		ret = __qseecom_enable_clk_scale_up(&crypto_data);
+		if (ret) {
+			pr_err("qseecom clock enable and scale up failed\n");
+			goto exit_register_bus_bandwidth_needs;
+		}
+		return 0;
+	}
+	__qseecom_disable_clk_scale_down(&crypto_data);
+
+exit_register_bus_bandwidth_needs:
+	if (qseecom.support_bus_scaling) {
+		mutex_lock(&qsee_bw_mutex);
+		ret = qseecom_unregister_bus_bandwidth_needs(&crypto_data);
+		mutex_unlock(&qsee_bw_mutex);
+	}
+	return ret;
+}
+EXPORT_SYMBOL(qseecom_crypto_clk_control);
 
 long qseecom_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 {

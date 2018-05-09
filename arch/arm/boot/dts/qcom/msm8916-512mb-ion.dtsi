@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Linux Foundation. All rights reserved.
+/* Copyright (c) 2014,2016, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,13 +20,6 @@
 			reg = <25>;
 			qcom,ion-heap-type = "SYSTEM";
 		};
-
-		qcom,ion-heap@21 {
-			reg = <21>;
-			qcom,ion-heap-type = "SYSTEM_CONTIG";
-		};
-
-//In msm8916.dtsi, the venus usage label is from "venus_qseecom_mem" to "venus_mem", we change the label here from "venus_qseecom_mem" to "venus_mem" for unified.
 
 		qcom,ion-heap@27 { /* QSEECOM HEAP */
 			compatible = "qcom,msm-ion-reserve";

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,6 +23,16 @@
 
 #define IPA_NAT_SYSTEM_MEMORY  0
 #define IPA_NAT_SHARED_MEMORY  1
+
+enum nat_table_type {
+	IPA_NAT_BASE_TBL = 0,
+	IPA_NAT_EXPN_TBL = 1,
+	IPA_NAT_INDX_TBL = 2,
+	IPA_NAT_INDEX_EXPN_TBL = 3,
+};
+
+#define NAT_TABLE_ENTRY_SIZE_BYTE 32
+#define NAT_INTEX_TABLE_ENTRY_SIZE_BYTE 4
 
 static int ipa_nat_vma_fault_remap(
 	 struct vm_area_struct *vma, struct vm_fault *vmf)
@@ -213,8 +223,8 @@ int allocate_nat_device(struct ipa_ioc_nat_alloc_mem *mem)
 
 	mutex_lock(&nat_ctx->lock);
 	if (strcmp(mem->dev_name, NAT_DEV_NAME)) {
-		IPAERR("Nat device name mismatch\n");
-		IPAERR("Expect: %s Recv: %s\n", NAT_DEV_NAME, mem->dev_name);
+		IPAERR_RL("Nat device name mismatch\n");
+		IPAERR_RL("Expect: %s Recv: %s\n", NAT_DEV_NAME, mem->dev_name);
 		result = -EPERM;
 		goto bail;
 	}
@@ -227,7 +237,7 @@ int allocate_nat_device(struct ipa_ioc_nat_alloc_mem *mem)
 
 	if (mem->size <= 0 ||
 			nat_ctx->is_dev_init == true) {
-		IPAERR("Invalid Parameters or device is already init\n");
+		IPAERR_RL("Invalid Parameters or device is already init\n");
 		result = -EPERM;
 		goto bail;
 	}
@@ -287,7 +297,7 @@ int ipa_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 	    init->index_offset >= ipa_ctx->nat_mem.size ||
 	    init->expn_rules_offset >= ipa_ctx->nat_mem.size ||
 	    init->index_expn_offset >= ipa_ctx->nat_mem.size) {
-		IPAERR("Table rules offset are not valid\n");
+		IPAERR_RL("Table rules offset are not valid\n");
 		result = -EPERM;
 		goto bail;
 	}
@@ -311,16 +321,16 @@ int ipa_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 			(init->expn_rules_offset > offset) ||
 			(init->index_offset > offset) ||
 			(init->index_expn_offset > offset)) {
-			IPAERR("Failed due to integer overflow\n");
-			IPAERR("nat.mem.dma_handle: 0x%pa\n",
+			IPAERR_RL("Failed due to integer overflow\n");
+			IPAERR_RL("nat.mem.dma_handle: 0x%pa\n",
 				&ipa_ctx->nat_mem.dma_handle);
-			IPAERR("ipv4_rules_offset: 0x%x\n",
+			IPAERR_RL("ipv4_rules_offset: 0x%x\n",
 				init->ipv4_rules_offset);
-			IPAERR("expn_rules_offset: 0x%x\n",
+			IPAERR_RL("expn_rules_offset: 0x%x\n",
 				init->expn_rules_offset);
-			IPAERR("index_offset: 0x%x\n",
+			IPAERR_RL("index_offset: 0x%x\n",
 				init->index_offset);
-			IPAERR("index_expn_offset: 0x%x\n",
+			IPAERR_RL("index_expn_offset: 0x%x\n",
 				init->index_expn_offset);
 			result = -EPERM;
 			goto free_cmd;
@@ -376,7 +386,7 @@ int ipa_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 	desc.len = size;
 	IPADBG("posting v4 init command\n");
 	if (ipa_send_cmd(1, &desc)) {
-		IPAERR("Fail to send immediate command\n");
+		IPAERR_RL("Fail to send immediate command\n");
 		result = -EPERM;
 		goto free_cmd;
 	}
@@ -438,6 +448,71 @@ int ipa_nat_dma_cmd(struct ipa_ioc_nat_dma_cmd *dma)
 		IPADBG("Invalid number of commands\n");
 		ret = -EPERM;
 		goto bail;
+	}
+
+	for (cnt = 0; cnt < dma->entries; cnt++) {
+		if (dma->dma[cnt].table_index >= 1) {
+			IPAERR_RL("Invalid table index %d\n",
+				dma->dma[cnt].table_index);
+			ret = -EPERM;
+			goto bail;
+		}
+
+		switch (dma->dma[cnt].base_addr) {
+		case IPA_NAT_BASE_TBL:
+			if (dma->dma[cnt].offset >=
+				(ipa_ctx->nat_mem.size_base_tables + 1) *
+				NAT_TABLE_ENTRY_SIZE_BYTE) {
+				IPAERR_RL("Invalid offset %d\n",
+					dma->dma[cnt].offset);
+				ret = -EPERM;
+				goto bail;
+			}
+
+			break;
+
+		case IPA_NAT_EXPN_TBL:
+			if (dma->dma[cnt].offset >=
+				ipa_ctx->nat_mem.size_expansion_tables *
+				NAT_TABLE_ENTRY_SIZE_BYTE) {
+				IPAERR_RL("Invalid offset %d\n",
+					dma->dma[cnt].offset);
+				ret = -EPERM;
+				goto bail;
+			}
+
+			break;
+
+		case IPA_NAT_INDX_TBL:
+			if (dma->dma[cnt].offset >=
+				(ipa_ctx->nat_mem.size_base_tables + 1) *
+				NAT_INTEX_TABLE_ENTRY_SIZE_BYTE) {
+				IPAERR_RL("Invalid offset %d\n",
+					dma->dma[cnt].offset);
+				ret = -EPERM;
+				goto bail;
+			}
+
+			break;
+
+		case IPA_NAT_INDEX_EXPN_TBL:
+			if (dma->dma[cnt].offset >=
+				ipa_ctx->nat_mem.size_expansion_tables *
+				NAT_INTEX_TABLE_ENTRY_SIZE_BYTE) {
+				IPAERR_RL("Invalid offset %d\n",
+					dma->dma[cnt].offset);
+				ret = -EPERM;
+				goto bail;
+			}
+
+			break;
+
+		default:
+			IPAERR("Invalid base_addr %d\n",
+				dma->dma[cnt].base_addr);
+			ret = -EPERM;
+			goto bail;
+		}
 	}
 	size = sizeof(struct ipa_desc) * dma->entries;
 	desc = kzalloc(size, GFP_KERNEL);

@@ -274,6 +274,7 @@ extern int			ipv6_flowlabel_opt(struct sock *sk, char __user *optval, int optlen
 extern int			ip6_flowlabel_init(void);
 extern void			ip6_flowlabel_cleanup(void);
 
+
 static inline void fl6_sock_release(struct ip6_flowlabel *fl)
 {
 	if (fl)

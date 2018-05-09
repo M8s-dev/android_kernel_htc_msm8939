@@ -251,8 +251,20 @@ static int nfc_open(struct inode *inode, struct file *filp)
 	return ret;
 }
 
-int nfc_ioctl_power_states(struct file *filp, unsigned int cmd,
-							unsigned long arg)
+/**
+ * nfc_ioctl_power_states() - power control
+ * @filp:	pointer to the file descriptor
+ * @arg:	mode that we want to move to
+ *
+ * Device power control. Depending on the arg value, device moves to
+ * different states
+ * (arg = 0): NFC_ENABLE	GPIO = 0, FW_DL GPIO = 0
+ * (arg = 1): NFC_ENABLE	GPIO = 1, FW_DL GPIO = 0
+ * (arg = 2): FW_DL GPIO = 1
+ *
+ * Return: -ENOIOCTLCMD if arg is not supported, 0 in any other case
+ */
+int nfc_ioctl_power_states(struct file *filp, unsigned long arg)
 {
 	int r = 0;
 	struct nqx_dev *nqx_dev = filp->private_data;
@@ -300,7 +312,7 @@ static long nfc_compat_ioctl(struct file *pfile, unsigned int cmd,
 
 	switch (cmd) {
 	case NFC_SET_PWR:
-		nfc_ioctl_power_states(pfile, cmd, arg);
+		nfc_ioctl_power_states(pfile, arg);
 		break;
 	case SET_RX_BLOCK:
 		break;
@@ -313,8 +325,15 @@ static long nfc_compat_ioctl(struct file *pfile, unsigned int cmd,
 }
 #endif
 
-int nfc_ioctl_core_reset_ntf(struct file *filp, unsigned int cmd,
-				unsigned long arg)
+/**
+ * nfc_ioctl_core_reset_ntf()
+ * @filp:       pointer to the file descriptor
+ *
+ * Allows callers to determine if a CORE_RESET_NTF has arrived
+ *
+ * Return: the value of variable core_reset_ntf
+ */
+int nfc_ioctl_core_reset_ntf(struct file *filp)
 {
 	struct nqx_dev *nqx_dev = filp->private_data;
 	dev_dbg(&nqx_dev->client->dev, "%s: returning = %d\n", __func__,
@@ -329,7 +348,7 @@ static long nfc_ioctl(struct file *pfile, unsigned int cmd,
 
 	switch (cmd) {
 	case NFC_SET_PWR:
-		r = nfc_ioctl_power_states(pfile, cmd, arg);
+		r = nfc_ioctl_power_states(pfile, arg);
 		break;
 	case NFC_CLK_REQ:
 		break;
@@ -338,7 +357,7 @@ static long nfc_ioctl(struct file *pfile, unsigned int cmd,
 	case SET_EMULATOR_TEST_POINT:
 		break;
 	case NFCC_INITIAL_CORE_RESET_NTF:
-		r = nfc_ioctl_core_reset_ntf(pfile, cmd, arg);
+		r = nfc_ioctl_core_reset_ntf(pfile);
 		break;
 	default:
 		r = -ENOIOCTLCMD;

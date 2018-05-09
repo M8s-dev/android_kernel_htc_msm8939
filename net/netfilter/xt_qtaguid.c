@@ -2317,8 +2317,8 @@ static int pp_stats_line(struct seq_file *m, struct tag_stat *ts_entry,
 	tag_t tag = ts_entry->tn.tag;
 	uid_t stat_uid = get_uid_from_tag(tag);
 	struct proc_print_info *ppi = m->private;
-	
-    if (!can_read_other_uid_stats(stat_uid)) {
+	/* Detailed tags are not available to everybody */
+	if (!can_read_other_uid_stats(stat_uid)) {
 		CT_DEBUG("qtaguid: stats line: "
 			 "%s 0x%llx %u: insufficient priv "
 			 "from pid=%u tgid=%u uid=%u stats.gid=%u\n",

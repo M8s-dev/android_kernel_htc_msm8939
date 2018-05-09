@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -405,7 +405,7 @@ static int diag_process_single_dci_pkt(unsigned char *buf, int len,
 	uint8_t cmd_code = 0;
 
 	if (!buf || len < 0) {
-		pr_err("diag: Invalid input in %s, buf: %p, len: %d\n",
+		pr_err("diag: Invalid input in %s, buf: %pK, len: %d\n",
 			__func__, buf, len);
 		return -EIO;
 	}
@@ -749,7 +749,7 @@ static int diag_dci_remove_req_entry(unsigned char *buf, int len,
 {
 	uint16_t rsp_count = 0, delayed_rsp_id = 0;
 	if (!buf || len <= 0 || !entry) {
-		pr_err("diag: In %s, invalid input buf: %p, len: %d, entry: %p\n",
+		pr_err("diag: In %s, invalid input buf: %pK, len: %d, entry: %pK\n",
 			__func__, buf, len, entry);
 		return -EIO;
 	}
@@ -803,7 +803,7 @@ static void dci_process_ctrl_status(unsigned char *buf, int len, int token)
 	int peripheral_mask, status;
 
 	if (!buf || (len < sizeof(struct diag_ctrl_dci_status))) {
-		pr_err("diag: In %s, invalid buf %p or length: %d\n",
+		pr_err("diag: In %s, invalid buf %pK or length: %d\n",
 		       __func__, buf, len);
 		return;
 	}
@@ -1940,7 +1940,7 @@ int diag_process_dci_transaction(unsigned char *buf, int len)
 								__func__);
 			return -ENOMEM;
 		}
-		pr_debug("diag: head of dci log mask %p\n", head_log_mask_ptr);
+		pr_debug("diag: head of dci log mask %pK\n", head_log_mask_ptr);
 		count = 0; /* iterator for extracting log codes */
 
 		while (count < num_codes) {
@@ -1968,7 +1968,7 @@ int diag_process_dci_transaction(unsigned char *buf, int len)
 			while (log_mask_ptr && (offset < DCI_LOG_MASK_SIZE)) {
 				if (*log_mask_ptr == equip_id) {
 					found = 1;
-					pr_debug("diag: find equip id = %x at %p\n",
+					pr_debug("diag: find equip id = %x at %pK\n",
 						 equip_id, log_mask_ptr);
 					break;
 				} else {
@@ -2046,7 +2046,7 @@ int diag_process_dci_transaction(unsigned char *buf, int len)
 								__func__);
 			return -ENOMEM;
 		}
-		pr_debug("diag: head of dci event mask %p\n", event_mask_ptr);
+		pr_debug("diag: head of dci event mask %pK\n", event_mask_ptr);
 		count = 0; /* iterator for extracting log codes */
 		while (count < num_codes) {
 			if (read_len >= USER_SPACE_DATA) {
@@ -2106,10 +2106,26 @@ struct diag_dci_client_tbl *dci_lookup_client_entry_pid(int tgid)
 {
 	struct list_head *start, *temp;
 	struct diag_dci_client_tbl *entry = NULL;
+	struct pid *pid_struct = NULL;
+	struct task_struct *task_s = NULL;
+
 	list_for_each_safe(start, temp, &driver->dci_client_list) {
 		entry = list_entry(start, struct diag_dci_client_tbl, track);
-		if (entry->client->tgid == tgid)
-			return entry;
+		pid_struct = find_get_pid(entry->tgid);
+		if (!pid_struct) {
+			pr_err("diag: valid pid doesn't exist for pid = %d\n",
+				entry->tgid);
+			continue;
+		}
+		task_s = get_pid_task(pid_struct, PIDTYPE_PID);
+		if (!task_s) {
+			pr_err("diag: valid task doesn't exist for pid = %d\n",
+				entry->tgid);
+			continue;
+		}
+		if (task_s == entry->client)
+			if (entry->client->tgid == tgid)
+				return entry;
 	}
 	return NULL;
 }
@@ -2864,6 +2880,8 @@ int diag_dci_register_client(struct diag_dci_reg_tbl_t *reg_entry)
 		new_entry->num_buffers = 1;
 		break;
 	}
+
+	new_entry->buffers = NULL;
 	new_entry->real_time = MODE_REALTIME;
 	new_entry->in_service = 0;
 	INIT_LIST_HEAD(&new_entry->list_write_buf);
@@ -2937,7 +2955,8 @@ int diag_dci_register_client(struct diag_dci_reg_tbl_t *reg_entry)
 
 fail_alloc:
 	if (new_entry) {
-		for (i = 0; i < new_entry->num_buffers; i++) {
+		for (i = 0; ((i < new_entry->num_buffers) &&
+			new_entry->buffers); i++) {
 			proc_buf = &new_entry->buffers[i];
 			if (proc_buf) {
 				mutex_destroy(&proc_buf->health_mutex);
@@ -3099,7 +3118,7 @@ int diag_dci_write_proc(int peripheral, int pkt_type, char *buf, int len)
 
 	if (!buf || (peripheral < 0 || peripheral >= NUM_SMD_DCI_CHANNELS)
 		|| !driver->rcvd_feature_mask[peripheral] || len < 0) {
-		pr_err("diag: In %s, invalid data 0x%p, peripheral: %d, len: %d\n",
+		pr_err("diag: In %s, invalid data 0x%pK, peripheral: %d, len: %d\n",
 				__func__, buf, peripheral, len);
 		return -EINVAL;
 	}

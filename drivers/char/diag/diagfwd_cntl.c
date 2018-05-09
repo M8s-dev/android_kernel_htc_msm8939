@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016, 2017 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -377,8 +377,7 @@ static void process_ssid_range_report(uint8_t *buf, uint32_t len,
 	ptr += header_len;
 	
 	read_len += header_len - (2 * sizeof(uint32_t));
-
-	mutex_lock(&msg_mask.lock);
+	mutex_lock(&driver->msg_mask_lock);
 	driver->max_ssid_count[smd_info->peripheral] = header->count;
 	for (i = 0; i < header->count && read_len < len; i++) {
 		ssid_range = (struct diag_ssid_range_t *)ptr;
@@ -420,7 +419,7 @@ static void process_ssid_range_report(uint8_t *buf, uint32_t len,
 		}
 		driver->msg_mask_tbl_count += 1;
 	}
-	mutex_unlock(&msg_mask.lock);
+	mutex_unlock(&driver->msg_mask_lock);
 }
 
 static void diag_build_time_mask_update(uint8_t *buf,
@@ -445,12 +444,11 @@ static void diag_build_time_mask_update(uint8_t *buf,
 		       __func__, range->ssid_first, range->ssid_last);
 		return;
 	}
-
+	mutex_lock(&driver->msg_mask_lock);
 	build_mask = (struct diag_msg_mask_t *)(driver->build_time_mask->ptr);
 	num_items = range->ssid_last - range->ssid_first + 1;
 
-	mutex_lock(&driver->build_time_mask->lock);
-	for (i = 0; i < driver->msg_mask_tbl_count; i++, build_mask++) {
+	for (i = 0; i < driver->bt_msg_mask_tbl_count; i++, build_mask++) {
 		if (build_mask->ssid_first != range->ssid_first)
 			continue;
 		found = 1;
@@ -467,7 +465,7 @@ static void diag_build_time_mask_update(uint8_t *buf,
 
 	if (found)
 		goto end;
-	new_size = (driver->msg_mask_tbl_count + 1) *
+	new_size = (driver->bt_msg_mask_tbl_count + 1) *
 		   sizeof(struct diag_msg_mask_t);
 	temp = krealloc(driver->build_time_mask->ptr, new_size, GFP_KERNEL);
 	if (!temp) {
@@ -482,9 +480,10 @@ static void diag_build_time_mask_update(uint8_t *buf,
 		       __func__, err);
 		goto end;
 	}
-	driver->msg_mask_tbl_count += 1;
+	driver->bt_msg_mask_tbl_count += 1;
 end:
-	mutex_unlock(&driver->build_time_mask->lock);
+	mutex_unlock(&driver->msg_mask_lock);
+	return;
 }
 
 static void process_build_mask_report(uint8_t *buf, uint32_t len,
@@ -790,7 +789,7 @@ int diag_send_diag_mode_update_by_smd(struct diag_smd_info *smd_info,
 	int err = 0;
 
 	if (!smd_info || smd_info->type != SMD_CNTL_TYPE) {
-		pr_err("diag: In %s, invalid channel info, smd_info: %p type: %d\n",
+		pr_err("diag: In %s, invalid channel info, smd_info: %pK type: %d\n",
 					__func__, smd_info,
 					((smd_info) ? smd_info->type : -1));
 		return -EIO;

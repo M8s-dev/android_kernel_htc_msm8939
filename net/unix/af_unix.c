@@ -296,6 +296,30 @@ found:
 	return s;
 }
 
+/* Support code for asymmetrically connected dgram sockets
+ *
+ * If a datagram socket is connected to a socket not itself connected
+ * to the first socket (eg, /dev/log), clients may only enqueue more
+ * messages if the present receive queue of the server socket is not
+ * "too large". This means there's a second writeability condition
+ * poll and sendmsg need to test. The dgram recv code will do a wake
+ * up on the peer_wait wait queue of a socket upon reception of a
+ * datagram which needs to be propagated to sleeping would-be writers
+ * since these might not have sent anything so far. This can't be
+ * accomplished via poll_wait because the lifetime of the server
+ * socket might be less than that of its clients if these break their
+ * association with it or if the server socket is closed while clients
+ * are still connected to it and there's no way to inform "a polling
+ * implementation" that it should let go of a certain wait queue
+ *
+ * In order to propagate a wake up, a wait_queue_t of the client
+ * socket is enqueued on the peer_wait queue of the server socket
+ * whose wake function does a wake_up on the ordinary client socket
+ * wait queue. This connection is established whenever a write (or
+ * poll for write) hit the flow control condition and broken when the
+ * association to the server socket is dissolved or after a wake up
+ * was relayed.
+ */
 
 static int unix_dgram_peer_wake_relay(wait_queue_t *q, unsigned mode, int flags,
 				      void *key)
@@ -309,7 +333,7 @@ static int unix_dgram_peer_wake_relay(wait_queue_t *q, unsigned mode, int flags,
 			    q);
 	u->peer_wake.private = NULL;
 
-	
+	/* relaying can only happen while the wq still exists */
 	u_sleep = sk_sleep(&u->sk);
 	if (u_sleep)
 		wake_up_interruptible_poll(u_sleep, key);
@@ -365,6 +389,10 @@ static void unix_dgram_peer_wake_disconnect_wakeup(struct sock *sk,
 				   POLLWRBAND);
 }
 
+/* preconditions:
+ *	- unix_peer(sk) == other
+ *	- association is stable
+ */
 static int unix_dgram_peer_wake_me(struct sock *sk, struct sock *other)
 {
 	int connected;
@@ -380,8 +408,7 @@ static int unix_dgram_peer_wake_me(struct sock *sk, struct sock *other)
 	return 0;
 }
 
-
-static inline int unix_writable(struct sock *sk)
+static int unix_writable(const struct sock *sk)
 {
 	return (atomic_read(&sk->sk_wmem_alloc) << 2) <= sk->sk_sndbuf;
 }
@@ -479,7 +506,7 @@ static void unix_release_sock(struct sock *sk, int embrion)
 		}
 
 		unix_dgram_peer_wake_disconnect(sk, skpair);
-		sock_put(skpair); 
+		sock_put(skpair); /* It may now die */
 		unix_peer(sk) = NULL;
 	}
 
@@ -1538,6 +1565,10 @@ restart_locked:
 		goto out_unlock;
 
 	if (unlikely(sock_flag(other, SOCK_DEAD))) {
+		/*
+		 *	Check with 1003.1g - what should
+		 *	datagram error
+		 */
 		unix_state_unlock(other);
 		sock_put(other);
 
@@ -1574,7 +1605,12 @@ restart_locked:
 			goto out_unlock;
 	}
 
-	if (unlikely(unix_peer(other) != sk && unix_recvq_full(other))) {
+	/* other == sk && unix_peer(other) != sk if
+	 * - unix_peer(sk) == NULL, destination address bound to sk
+	 * - unix_peer(sk) == sk by time of get but disconnected before lock
+	 */
+	if (other != sk &&
+	    unlikely(unix_peer(other) != sk && unix_recvq_full(other))) {
 		if (timeo) {
 			timeo = unix_wait_for_peer(other, timeo);
 

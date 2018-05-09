@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -475,7 +475,7 @@ static int mdp3_ctrl_res_req_bus(struct msm_fb_data_type *mfd, int status)
 			panel_info->lcdc.v_pulse_width;
 		ab = panel_info->xres * vtotal * ppp_bpp(mfd->fb_imgType);
 		ab *= panel_info->mipi.frame_rate;
-		
+		/* ab and ib vote should be same for honest voting */
 		ib = ab;
 		rc = mdp3_bus_scale_set_quota(MDP3_CLIENT_DMA_P, ab, ib);
 	} else {
@@ -2054,8 +2054,10 @@ static int mdp3_ctrl_lut_config(struct msm_fb_data_type *mfd,
 
 	dma = mdp3_session->dma;
 
-	if (cfg->cmap.start + cfg->cmap.len > MDP_LUT_SIZE) {
-		pr_err("Invalid arguments\n");
+	if ((cfg->cmap.start > MDP_LUT_SIZE) ||
+		(cfg->cmap.len > MDP_LUT_SIZE) ||
+		(cfg->cmap.start + cfg->cmap.len > MDP_LUT_SIZE)) {
+		pr_err("Invalid arguments.\n");
 		return  -EINVAL;
 	}
 

@@ -217,7 +217,7 @@ static int aesbs_ctr_encrypt(struct blkcipher_desc *desc,
 		__be32 *ctr = (__be32 *)walk.iv;
 		u32 headroom = UINT_MAX - be32_to_cpu(ctr[3]);
 
-		
+		/* avoid 32 bit counter overflow in the NEON code */
 		if (unlikely(headroom < blocks)) {
 			blocks = headroom + 1;
 			tail = walk.nbytes - blocks * AES_BLOCK_SIZE;
@@ -260,7 +260,7 @@ static int aesbs_xts_encrypt(struct blkcipher_desc *desc,
 	blkcipher_walk_init(&walk, dst, src, nbytes);
 	err = blkcipher_walk_virt_block(desc, &walk, 8 * AES_BLOCK_SIZE);
 
-	
+	/* generate the initial tweak */
 	AES_encrypt(walk.iv, walk.iv, &ctx->twkey);
 
 	while (walk.nbytes) {
@@ -284,7 +284,7 @@ static int aesbs_xts_decrypt(struct blkcipher_desc *desc,
 	blkcipher_walk_init(&walk, dst, src, nbytes);
 	err = blkcipher_walk_virt_block(desc, &walk, 8 * AES_BLOCK_SIZE);
 
-	
+	/* generate the initial tweak */
 	AES_encrypt(walk.iv, walk.iv, &ctx->twkey);
 
 	while (walk.nbytes) {

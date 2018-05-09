@@ -17,6 +17,7 @@
 #include <linux/clk.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
+#include <linux/pm_qos.h>
 #include <linux/spinlock.h>
 #include <linux/msm_iommu_domains.h>
 #include <soc/qcom/ocmem.h>
@@ -212,6 +213,7 @@ struct venus_hfi_device {
      */
     struct msm_vidc_inst *inst;
     /* HTC_END */
+	struct pm_qos_request qos;
 };
 
 void venus_hfi_delete_device(void *device);

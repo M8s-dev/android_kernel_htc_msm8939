@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016,2017  The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1224,11 +1224,13 @@ static void ngd_adsp_down(struct work_struct *work)
 	struct slim_controller *ctrl = &dev->ctrl;
 	struct slim_device *sbdev;
 
+	mutex_lock(&dev->ssr_lock);
 	ngd_slim_enable(dev, false);
 	
 	list_for_each_entry(sbdev, &ctrl->devs, dev_list)
 		slim_report_absent(sbdev);
 	SLIM_INFO(dev, "SLIM ADSP SSR (DOWN) done\n");
+	mutex_unlock(&dev->ssr_lock);
 }
 
 static void ngd_adsp_up(struct work_struct *work)
@@ -1237,7 +1239,9 @@ static void ngd_adsp_up(struct work_struct *work)
 		container_of(work, struct msm_slim_qmi, ssr_up);
 	struct msm_slim_ctrl *dev =
 		container_of(qmi, struct msm_slim_ctrl, qmi);
+	mutex_lock(&dev->ssr_lock);
 	ngd_slim_enable(dev, true);
+	mutex_unlock(&dev->ssr_lock);
 }
 
 static ssize_t show_mask(struct device *device, struct device_attribute *attr,
@@ -1271,7 +1275,7 @@ static int ngd_slim_probe(struct platform_device *pdev)
 	struct resource		*irq, *bam_irq;
 	bool			rxreg_access = false;
 	bool			slim_mdm = false;
-	const char		*ext_modem_id = NULL;
+	const char		*ext_modem_id = NULL, *subsys_name = NULL;
 
 	slim_mem = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						"slimbus_physical");
@@ -1387,6 +1391,7 @@ static int ngd_slim_probe(struct platform_device *pdev)
 	init_completion(&dev->ctrl_up);
 	mutex_init(&dev->tx_lock);
 	mutex_init(&dev->tx_buf_lock);
+	mutex_init(&dev->ssr_lock);
 	spin_lock_init(&dev->rx_lock);
 	dev->ee = 1;
 	dev->irq = irq->start;
@@ -1430,9 +1435,17 @@ static int ngd_slim_probe(struct platform_device *pdev)
 	pm_runtime_set_suspended(dev->dev);
 	pm_runtime_enable(dev->dev);
 
-	dev->dsp.nb.notifier_call = dsp_ssr_notify_cb;
-	dev->dsp.ssr = subsys_notif_register_notifier("adsp",
-						&dev->dsp.nb);
+	ret = of_property_read_string(pdev->dev.of_node,
+				"qcom,subsys-name", &subsys_name);
+	if (ret) {
+		dev->dsp.nb.notifier_call = dsp_ssr_notify_cb;
+		dev->dsp.ssr = subsys_notif_register_notifier("adsp",
+							&dev->dsp.nb);
+	} else {
+		dev->dsp.nb.notifier_call = dsp_ssr_notify_cb;
+		dev->dsp.ssr = subsys_notif_register_notifier(subsys_name,
+							&dev->dsp.nb);
+	}
 	if (IS_ERR_OR_NULL(dev->dsp.ssr))
 		dev_err(dev->dev,
 			"subsys_notif_register_notifier failed %p",

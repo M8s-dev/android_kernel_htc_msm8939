@@ -89,7 +89,7 @@
 			reg = <0x32>;
 			lp5521,lp5521_en = <&msm_gpio 77 0x00>;
 			lp5521,num_leds = <1>;
-			lp5521,current_param = <10>;
+			lp5521,current_param = <75>;
             };
 		htc_mcu@72 {
 			compatible = "htc_mcu";

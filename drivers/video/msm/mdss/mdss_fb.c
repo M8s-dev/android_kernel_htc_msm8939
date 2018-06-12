@@ -56,7 +56,6 @@
 #include "mdss_fb.h"
 #include "mdss_htc_util.h"
 #include "mdss_mdp_splash_logo.h"
-#define CREATE_TRACE_POINTS
 #include "mdss_debug.h"
 #include "mdss_livedisplay.h"
 

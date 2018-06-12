@@ -403,6 +403,10 @@ struct mdss_panel_info {
 	struct mdss_panel_debugfs_info *debugfs_info;
 
 	struct mdss_livedisplay_ctx *livedisplay;
+	int first_power_on;
+	int panel_id;
+	int camera_blk;
+
 };
 
 struct mdss_panel_timing {
@@ -424,10 +428,6 @@ struct mdss_panel_timing {
 	u32 border_bottom;
 	u32 border_left;
 	u32 border_right;
-
-	int first_power_on;
-	int panel_id;
-	int camera_blk;
 };
 
 struct mdss_panel_data {

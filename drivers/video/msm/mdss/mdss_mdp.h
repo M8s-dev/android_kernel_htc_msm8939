@@ -520,6 +520,19 @@ struct mdss_overlay_private {
 	u32 cursor_ndx[2];
 };
 
+struct mdss_mdp_set_ot_params {
+	u32 xin_id;
+	u32 num;
+	u32 width;
+	u32 height;
+	bool is_rot;
+	bool is_wb;
+	bool is_yuv;
+	u32 reg_off_vbif_lim_conf;
+	u32 reg_off_mdp_clk_ctrl;
+	u32 bit_off_mdp_clk_ctrl;
+};
+
 struct mdss_mdp_commit_cb {
 	void *data;
 	int (*commit_cb_fnc) (enum mdp_commit_stage_type commit_state,

@@ -659,6 +659,16 @@ struct snd_info_entry *snd_register_module_info(struct module *module,
 }
 EXPORT_SYMBOL(snd_register_module_info);
 
+/**
+ * snd_info_get_line - read one line from the procfs buffer
+ * @buffer: the procfs buffer
+ * @line: the buffer to store
+ * @len: the max. buffer size
+ *
+ * Reads one line from the buffer and stores the string.
+ *
+ * Return: Zero if successful, or 1 if error or EOF.
+ */
 int snd_info_get_line(struct snd_info_buffer *buffer, char *line, int len)
 {
 	int c = -1;

@@ -1012,6 +1012,12 @@ static int do_umount(struct mount *mnt, int flags)
 	}
 
 	if (&mnt->mnt == current->fs->root.mnt && !(flags & MNT_DETACH)) {
+		/*
+		 * Special case for "unmounting" root ...
+		 * we just try to remount it readonly.
+		 */
+		if (!capable(CAP_SYS_ADMIN))
+			return -EPERM;
 		down_write(&sb->s_umount);
 		if (!(sb->s_flags & MS_RDONLY))
 			retval = do_remount_sb(sb, MS_RDONLY, NULL, 0);

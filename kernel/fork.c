@@ -1212,12 +1212,8 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 		goto bad_fork_cleanup_policy;
 	retval = audit_alloc(p);
 	if (retval)
-//root-expert: htc
-//		goto bad_fork_cleanup_policy;
-//end
 		goto bad_fork_cleanup_perf;
 	/* copy all the process information */
-//caf-end
 	retval = copy_semundo(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_audit;

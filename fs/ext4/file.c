@@ -101,7 +101,7 @@ ext4_file_dio_write(struct kiocb *iocb, const struct iovec *iov,
 	struct blk_plug plug;
 	int unaligned_aio = 0;
 	ssize_t ret;
-	int overwrite = 0;
+	int *overwrite = iocb->private;
 	size_t length = iov_length(iov, nr_segs);
 
 	if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS) &&
@@ -118,8 +118,6 @@ ext4_file_dio_write(struct kiocb *iocb, const struct iovec *iov,
 
 	mutex_lock(&inode->i_mutex);
 	blk_start_plug(&plug);
-
-	iocb->private = &overwrite;
 
 	/* check whether we do a DIO overwrite or not */
 	if (ext4_should_dioread_nolock(inode) && !unaligned_aio &&
@@ -144,7 +142,7 @@ ext4_file_dio_write(struct kiocb *iocb, const struct iovec *iov,
 		 * So we should check these two conditions.
 		 */
 		if (err == len && (map.m_flags & EXT4_MAP_MAPPED))
-			overwrite = 1;
+			*overwrite = 1;
 	}
 
 	ret = __generic_file_aio_write(iocb, iov, nr_segs, &iocb->ki_pos);
@@ -171,6 +169,7 @@ ext4_file_write(struct kiocb *iocb, const struct iovec *iov,
 {
 	struct inode *inode = file_inode(iocb->ki_filp);
 	ssize_t ret;
+	int overwrite = 0;
 
 	trace_ext4_file_write(iocb->ki_filp->f_path.dentry, iocb->ki_left);
 	/*
@@ -192,6 +191,7 @@ ext4_file_write(struct kiocb *iocb, const struct iovec *iov,
 		}
 	}
 
+	iocb->private = &overwrite;
 	if (unlikely(iocb->ki_filp->f_flags & O_DIRECT))
 		ret = ext4_file_dio_write(iocb, iov, nr_segs, pos);
 	else

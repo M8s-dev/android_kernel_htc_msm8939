@@ -1071,12 +1071,8 @@ static void dwc3_prepare_trbs(struct dwc3_ep *dep, bool starting)
 
 				if (i == (request->num_mapped_sgs - 1) ||
 						sg_is_last(s)) {
-					unsigned temp = 0;
-					unsigned len;
-					struct dwc3_request *nreq = n;
-					struct usb_request *ureq;
-					bool mpkt = false;
-
+					if (list_empty(&dep->request_list))
+						last_one = true;
 					chain = false;
 					if (last_req) {
 						last_one = true;
@@ -1128,7 +1124,7 @@ start_trb_queuing:
 				if (last_one)
 					break;
 			}
-			dbg_queue(dep->number, &req->request, trbs_left);
+
 			if (last_one)
 				break;
 		} else {

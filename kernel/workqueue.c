@@ -1893,10 +1893,6 @@ static bool __cancel_work_timer(struct work_struct *work, bool is_dwork)
 
 	do {
 		ret = try_to_grab_pending(work, is_dwork, &flags);
-//root-expert: htc
-//		if (unlikely(ret == -ENOENT))
-//			flush_work(work);
-//end
 		/*
 		 * If someone else is already canceling, wait for it to
 		 * finish.  flush_work() doesn't work for PREEMPT_NONE
@@ -1926,7 +1922,6 @@ static bool __cancel_work_timer(struct work_struct *work, bool is_dwork)
 				schedule();
 			finish_wait(&cancel_waitq, &cwait.wait);
 		}
-//caf-end
 	} while (unlikely(ret < 0));
 
 	

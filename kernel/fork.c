@@ -715,8 +715,13 @@ void mm_release(struct task_struct *tsk, struct mm_struct *mm)
 	
 	deactivate_mm(tsk, mm);
 
+	/*
+	 * Signal userspace if we're not exiting with a core dump
+	 * because we want to leave the value intact for debugging
+	 * purposes.
+	 */
 	if (tsk->clear_child_tid) {
-		if (!(tsk->flags & PF_SIGNALED) &&
+		if (!(tsk->signal->flags & SIGNAL_GROUP_COREDUMP) &&
 		    atomic_read(&mm->mm_users) > 1) {
 			put_user(0, tsk->clear_child_tid);
 			sys_futex(tsk->clear_child_tid, FUTEX_WAKE,

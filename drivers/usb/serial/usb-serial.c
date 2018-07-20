@@ -1446,10 +1446,8 @@ int usb_serial_register_drivers(struct usb_serial_driver *const serial_drivers[]
 	}
 
 	rc = usb_register(udriver);
-/*++ 2014/09/17, USB Team, PCN00046 ++*/
 	if (rc)
-		goto failed1;
-/*-- 2014/09/17, USB Team, PCN00046 --*/
+		goto failed_usb_register;
 
 	for (sd = serial_drivers; *sd; ++sd) {
 		(*sd)->usb_driver = udriver;
@@ -1466,10 +1464,9 @@ int usb_serial_register_drivers(struct usb_serial_driver *const serial_drivers[]
  failed:
 	while (sd-- > serial_drivers)
 		usb_serial_deregister(*sd);
-/*++ 2014/09/17, USB Team, PCN00046 ++*/
- failed1:
-/*-- 2014/09/17, USB Team, PCN00046 --*/
 	usb_deregister(udriver);
+failed_usb_register:
+	kfree(udriver);
 	return rc;
 }
 EXPORT_SYMBOL_GPL(usb_serial_register_drivers);

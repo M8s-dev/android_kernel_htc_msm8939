@@ -312,15 +312,17 @@ struct perf_event {
 #endif 
 };
 
-enum perf_event_context_type {
-	task_context,
-	cpu_context,
-};
-
+/**
+ * struct perf_event_context - event context structure
+ *
+ * Used as a container for task events and CPU events as well:
+ */
 struct perf_event_context {
 	struct pmu			*pmu;
-	enum perf_event_context_type	type;
-
+	/*
+	 * Protect the states of the events in the list,
+	 * nr_active, and the list:
+	 */
 	raw_spinlock_t			lock;
 	struct mutex			mutex;
 

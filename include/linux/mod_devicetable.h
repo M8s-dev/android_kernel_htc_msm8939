@@ -315,6 +315,10 @@ struct virtio_device_id {
 };
 #define VIRTIO_DEV_ANY_ID	0xffffffff
 
+/*
+ * For Hyper-V devices we use the device guid as the id.
+ */
+#define vmbus_device_id hv_vmbus_device_id
 struct hv_vmbus_device_id {
 	__u8 guid[16];
 	kernel_ulong_t driver_data;	
@@ -462,6 +466,11 @@ struct amba_id {
 };
 
 
+/*
+ * MODULE_DEVICE_TABLE expects this struct to be called x86cpu_device_id.
+ * Although gcc seems to ignore this error, clang fails without this define.
+ */
+#define x86cpu_device_id x86_cpu_id
 struct x86_cpu_id {
 	__u16 vendor;
 	__u16 family;
@@ -494,6 +503,7 @@ struct ipack_device_id {
 #define MEI_CL_MODULE_PREFIX "mei:"
 #define MEI_CL_NAME_SIZE 32
 
+#define mei_device_id mei_cl_device_id
 struct mei_cl_device_id {
 	char name[MEI_CL_NAME_SIZE];
 	kernel_ulong_t driver_info;

@@ -141,7 +141,10 @@ static void queue_delete(struct snd_seq_queue *q)
 	snd_seq_timer_stop(q->timer);
 	snd_seq_timer_close(q);
 	mutex_unlock(&q->timer_mutex);
+<<<<<<< HEAD
 
+=======
+>>>>>>> FETCH_HEAD
 	/* wait until access free */
 	snd_use_lock_sync(&q->use_lock);
 	

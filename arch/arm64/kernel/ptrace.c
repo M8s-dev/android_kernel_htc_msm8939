@@ -46,9 +46,18 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/syscalls.h>
 
+/*
+ * Called by kernel/ptrace.c when detaching..
+ */
 
 void ptrace_disable(struct task_struct *child)
 {
+	/*
+	 * This would be better off in core code, but PTRACE_DETACH has
+	 * grown its fair share of arch-specific worts and changing it
+	 * is likely to cause regressions on obscure architectures.
+	 */
+	user_disable_single_step(child);
 }
 
 #ifdef CONFIG_HAVE_HW_BREAKPOINT

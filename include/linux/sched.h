@@ -527,7 +527,8 @@ struct user_struct {
 	
 	unsigned long mq_bytes;	
 #endif
-	unsigned long locked_shm; 
+	unsigned long locked_shm; /* How many pages of mlocked shm ? */
+	unsigned long unix_inflight;	/* How many files in flight in unix sockets */
 
 #ifdef CONFIG_KEYS
 	struct key *uid_keyring;	

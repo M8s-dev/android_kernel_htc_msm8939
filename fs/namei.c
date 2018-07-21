@@ -220,9 +220,6 @@ int generic_permission(struct inode *inode, int mask)
 	return -EACCES;
 }
 
-<<<<<<< HEAD
-static inline int do_inode_permission(struct inode *inode, int mask)
-=======
 /*
  * We _really_ want to just do "generic_permission()" without
  * even looking at the inode->i_op values. So we keep a cache
@@ -230,7 +227,6 @@ static inline int do_inode_permission(struct inode *inode, int mask)
  * permission function, use the fast case".
  */
 static inline int do_inode_permission(struct vfsmount *mnt, struct inode *inode, int mask)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	if (unlikely(!(inode->i_opflags & IOP_FASTPERM))) {
 		if (likely(mnt && inode->i_op->permission2))
@@ -246,9 +242,6 @@ static inline int do_inode_permission(struct vfsmount *mnt, struct inode *inode,
 	return generic_permission(inode, mask);
 }
 
-<<<<<<< HEAD
-int __inode_permission(struct inode *inode, int mask)
-=======
 /**
  * __inode_permission - Check for access rights to a given inode
  * @inode: Inode to check permission on
@@ -262,7 +255,6 @@ int __inode_permission(struct inode *inode, int mask)
  * inode_permission().
  */
 int __inode_permission2(struct vfsmount *mnt, struct inode *inode, int mask)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	int retval;
 
@@ -302,9 +294,6 @@ static int sb_permission(struct super_block *sb, struct inode *inode, int mask)
 	return 0;
 }
 
-<<<<<<< HEAD
-int inode_permission(struct inode *inode, int mask)
-=======
 /**
  * inode_permission - Check for access rights to a given inode
  * @inode: Inode to check permission on
@@ -317,7 +306,6 @@ int inode_permission(struct inode *inode, int mask)
  * When checking for MAY_APPEND, MAY_WRITE must also be set in @mask.
  */
 int inode_permission2(struct vfsmount *mnt, struct inode *inode, int mask)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	int retval;
 
@@ -1696,9 +1684,6 @@ static struct dentry *lookup_hash(struct nameidata *nd)
 	return __lookup_hash(&nd->last, nd->path.dentry, nd->flags);
 }
 
-<<<<<<< HEAD
-struct dentry *lookup_one_len(const char *name, struct dentry *base, int len)
-=======
 /**
  * lookup_one_len - filesystem helper to lookup single pathname component
  * @name:	pathname component to lookup
@@ -1712,7 +1697,6 @@ struct dentry *lookup_one_len(const char *name, struct dentry *base, int len)
  * using this helper needs to be prepared for that.
  */
 struct dentry *lookup_one_len2(const char *name, struct vfsmount *mnt, struct dentry *base, int len)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	struct qstr this;
 	unsigned int c;
@@ -1815,9 +1799,6 @@ static inline int check_sticky(struct inode *dir, struct inode *inode)
 	return !capable_wrt_inode_uidgid(inode, CAP_FOWNER);
 }
 
-<<<<<<< HEAD
-static int may_delete(struct inode *dir,struct dentry *victim,int isdir)
-=======
 /*
  *	Check whether we can remove a link victim from directory dir, check
  *  whether the type of victim is right.
@@ -1838,7 +1819,6 @@ static int may_delete(struct inode *dir,struct dentry *victim,int isdir)
  *     nfs_async_unlink().
  */
 static int may_delete(struct vfsmount *mnt, struct inode *dir,struct dentry *victim,int isdir)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	int error;
 
@@ -1870,9 +1850,6 @@ static int may_delete(struct vfsmount *mnt, struct inode *dir,struct dentry *vic
 	return 0;
 }
 
-<<<<<<< HEAD
-static inline int may_create(struct inode *dir, struct dentry *child)
-=======
 /*	Check whether we can create an object with dentry child in directory
  *  dir.
  *  1. We can't do it if child already exists (open has special treatment for
@@ -1882,7 +1859,6 @@ static inline int may_create(struct inode *dir, struct dentry *child)
  *  4. We can't do it if dir is immutable (done in permission())
  */
 static inline int may_create(struct vfsmount *mnt, struct inode *dir, struct dentry *child)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	audit_inode_child(dir, child, AUDIT_TYPE_CHILD_CREATE);
 	if (child->d_inode)
@@ -2937,17 +2913,9 @@ SYSCALL_DEFINE1(rmdir, const char __user *, pathname)
 	return do_rmdir(AT_FDCWD, pathname);
 }
 
-<<<<<<< HEAD
-extern atomic_t em_remount;
-int vfs_unlink(struct inode *dir, struct dentry *dentry)
-{
-	int error = may_delete(dir, dentry, 0);
-	struct super_block *sb = dentry->d_sb;
-=======
 int vfs_unlink2(struct vfsmount *mnt, struct inode *dir, struct dentry *dentry)
 {
 	int error = may_delete(mnt, dir, dentry, 0);
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 
 	if (error)
 		return error;
@@ -2955,12 +2923,6 @@ int vfs_unlink2(struct vfsmount *mnt, struct inode *dir, struct dentry *dentry)
 	if (!dir->i_op->unlink)
 		return -EPERM;
 
-	trace_vfs_unlink(dentry, dentry->d_inode->i_size);
-	if (atomic_read(&em_remount) && sb && (sb->s_flags & MS_EMERGENCY_RO)) {
-		printk_ratelimited(KERN_WARNING "VFS reject: %s pid:%d(%s)(parent:%d/%s) file %s\n",
-				__func__, current->pid, current->comm, current->parent->pid, current->parent->comm, dentry->d_name.name);
-		return -EROFS;
-	}
 	mutex_lock(&dentry->d_inode->i_mutex);
 	if (d_mountpoint(dentry))
 		error = -EBUSY;
@@ -3234,10 +3196,6 @@ SYSCALL_DEFINE2(link, const char __user *, oldname, const char __user *, newname
 	return sys_linkat(AT_FDCWD, oldname, AT_FDCWD, newname, 0);
 }
 
-<<<<<<< HEAD
-static int vfs_rename_dir(struct inode *old_dir, struct dentry *old_dentry,
-			  struct inode *new_dir, struct dentry *new_dentry)
-=======
 /*
  * The worst of all namespace operations - renaming directory. "Perverted"
  * doesn't even start to describe it. Somebody in UCB had a heck of a trip...
@@ -3268,7 +3226,6 @@ static int vfs_rename_dir(struct inode *old_dir, struct dentry *old_dentry,
 static int vfs_rename_dir(struct vfsmount *mnt,
 	       struct inode *old_dir, struct dentry *old_dentry,
 	       struct inode *new_dir, struct dentry *new_dentry)
->>>>>>> f744ea0... vfs: Add permission2 for filesystems with per mount permissions
 {
 	int error = 0;
 	struct inode *target = new_dentry->d_inode;
@@ -3357,7 +3314,6 @@ int vfs_rename2(struct vfsmount *mnt,
 	int error;
 	int is_dir = S_ISDIR(old_dentry->d_inode->i_mode);
 	const unsigned char *old_name;
-	struct super_block *sb = old_dentry->d_sb;
 
 	if (old_dentry->d_inode == new_dentry->d_inode)
  		return 0;
@@ -3376,12 +3332,6 @@ int vfs_rename2(struct vfsmount *mnt,
 	if (!old_dir->i_op->rename)
 		return -EPERM;
 
-	if (atomic_read(&em_remount) && sb && (sb->s_flags & MS_EMERGENCY_RO)) {
-		printk_ratelimited(KERN_WARNING "VFS reject: %s pid:%d(%s)(parent:%d/%s) old_file %s new_file %s\n",
-				__func__, current->pid, current->comm, current->parent->pid, current->parent->comm,
-				old_dentry->d_name.name, new_dentry->d_name.name);
-		return -EROFS;
-	}
 	old_name = fsnotify_oldname_init(old_dentry->d_name.name);
 
 	if (is_dir)

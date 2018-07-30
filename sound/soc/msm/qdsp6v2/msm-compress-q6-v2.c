@@ -184,6 +184,14 @@ static unsigned int supported_sample_rates[] = {
 	88200, 96000, 176400, 192000
 };
 
+struct query_audio_effect {
+        uint32_t mod_id;
+        uint32_t parm_id;
+        uint32_t size;
+        uint32_t offset;
+        uint32_t device;
+};
+
 struct msm_compr_audio_effects {
 	struct bass_boost_params bass_boost;
 	struct pbe_params pbe;
@@ -191,6 +199,7 @@ struct msm_compr_audio_effects {
 	struct reverb_params reverb;
 	struct eq_params equalizer;
 	struct soft_volume_params volume;
+	struct query_audio_effect query;
 };
 
 struct msm_compr_dec_params {
@@ -2544,10 +2553,10 @@ static int msm_compr_audio_effects_config_put(struct snd_kcontrol *kcontrol,
 static int msm_compr_audio_effects_config_get(struct snd_kcontrol *kcontrol,
 					   struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_platform *platform = snd_kcontrol_chip(kcontrol);
 	unsigned long fe_id = kcontrol->private_value;
 	struct msm_compr_pdata *pdata = (struct msm_compr_pdata *)
-			snd_soc_component_get_drvdata(comp);
+			snd_soc_platform_get_drvdata(platform);
 	struct msm_compr_audio_effects *audio_effects = NULL;
 	struct snd_compr_stream *cstream = NULL;
 	struct msm_compr_audio *prtd = NULL;
@@ -2599,10 +2608,10 @@ static int msm_compr_audio_effects_config_get(struct snd_kcontrol *kcontrol,
 static int msm_compr_query_audio_effect_put(struct snd_kcontrol *kcontrol,
 					   struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_platform *platform = snd_kcontrol_chip(kcontrol);
 	unsigned long fe_id = kcontrol->private_value;
 	struct msm_compr_pdata *pdata = (struct msm_compr_pdata *)
-			snd_soc_component_get_drvdata(comp);
+			snd_soc_platform_get_drvdata(platform);
 	struct msm_compr_audio_effects *audio_effects = NULL;
 	struct snd_compr_stream *cstream = NULL;
 	struct msm_compr_audio *prtd = NULL;
@@ -2640,10 +2649,10 @@ static int msm_compr_query_audio_effect_put(struct snd_kcontrol *kcontrol,
 static int msm_compr_query_audio_effect_get(struct snd_kcontrol *kcontrol,
 					   struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_platform *platform  = snd_kcontrol_chip(kcontrol);
 	unsigned long fe_id = kcontrol->private_value;
 	struct msm_compr_pdata *pdata = (struct msm_compr_pdata *)
-			snd_soc_component_get_drvdata(comp);
+			snd_soc_platform_get_drvdata(platform);
 	struct msm_compr_audio_effects *audio_effects = NULL;
 	struct snd_compr_stream *cstream = NULL;
 	struct msm_compr_audio *prtd = NULL;
@@ -2945,6 +2954,16 @@ static int msm_compr_audio_effects_config_info(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int msm_compr_query_audio_effect_info(struct snd_kcontrol *kcontrol,
+					     struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 128;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 0xFFFFFFFF;
+	return 0;
+}
+
 static int msm_compr_dec_params_info(struct snd_kcontrol *kcontrol,
 				     struct snd_ctl_elem_info *uinfo)
 {
@@ -3065,6 +3084,48 @@ static int msm_compr_add_audio_effects_control(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_add_platform_controls(rtd->platform,
 				fe_audio_effects_config_control,
 				ARRAY_SIZE(fe_audio_effects_config_control));
+	kfree(mixer_str);
+	return 0;
+}
+
+static int msm_compr_add_query_audio_effect_control(
+					struct snd_soc_pcm_runtime *rtd)
+{
+	const char *mixer_ctl_name = "Query Audio Effect Param";
+	const char *deviceNo       = "NN";
+	char *mixer_str = NULL;
+	int ctl_len;
+	struct snd_kcontrol_new fe_query_audio_effect_control[1] = {
+		{
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name = "?",
+		.access = SNDRV_CTL_ELEM_ACCESS_READWRITE,
+		.info = msm_compr_query_audio_effect_info,
+		.get = msm_compr_query_audio_effect_get,
+		.put = msm_compr_query_audio_effect_put,
+		.private_value = 0,
+		}
+	};
+	if (!rtd) {
+		pr_err("%s NULL rtd\n", __func__);
+		return 0;
+	}
+	pr_debug("%s: added new compr FE with name %s, id %d, cpu dai %s, device no %d\n",
+		 __func__, rtd->dai_link->name, rtd->dai_link->be_id,
+		 rtd->dai_link->cpu_dai_name, rtd->pcm->device);
+	ctl_len = strlen(mixer_ctl_name) + 1 + strlen(deviceNo) + 1;
+	mixer_str = kzalloc(ctl_len, GFP_KERNEL);
+	if (!mixer_str) {
+		pr_err("failed to allocate mixer ctrl str of len %d", ctl_len);
+		return 0;
+	}
+	snprintf(mixer_str, ctl_len, "%s %d", mixer_ctl_name, rtd->pcm->device);
+	fe_query_audio_effect_control[0].name = mixer_str;
+	fe_query_audio_effect_control[0].private_value = rtd->dai_link->be_id;
+	pr_debug("%s: registering new mixer ctl %s\n", __func__, mixer_str);
+	snd_soc_add_platform_controls(rtd->platform,
+				fe_query_audio_effect_control,
+				ARRAY_SIZE(fe_query_audio_effect_control));
 	kfree(mixer_str);
 	return 0;
 }
@@ -3270,6 +3331,10 @@ static int msm_compr_new(struct snd_soc_pcm_runtime *rtd)
 	rc = msm_compr_add_audio_effects_control(rtd);
 	if (rc)
 		pr_err("%s: Could not add Compr Audio Effects Control\n",
+			__func__);
+	rc = msm_compr_add_query_audio_effect_control(rtd);
+	if (rc)
+		pr_err("%s: Could not add Compr Query Audio Effect Control\n",
 			__func__);
 	rc = msm_compr_add_dec_runtime_params_control(rtd);
 	if (rc)

@@ -132,10 +132,11 @@
 #define CALCULATE_VOUT_D(req_mv) (((req_mv - 650) * 10) / 25)
 
 static int tasha_cpe_debug_mode;
-module_param(tasha_cpe_debug_mode, int,S_IRUGO | S_IWUSR | S_IWGRP);
+module_param(tasha_cpe_debug_mode, int, S_IRUGO | S_IWUSR | S_IWGRP);
 MODULE_PARM_DESC(tasha_cpe_debug_mode, "tasha boot cpe in debug mode");
 
-static int cpe_debug_mode;
+
+//static int cpe_debug_mode;
 
 #define TASHA_MAX_MICBIAS 4
 #define DAPM_MICBIAS1_STANDALONE "MIC BIAS1 Standalone"
@@ -146,9 +147,9 @@ static int cpe_debug_mode;
 int g_DebugMode = 0;
 struct switch_dev *g_audiowizard_force_preset_sdev = NULL;
 #define DAPM_LDO_H_STANDALONE "LDO_H"
-module_param(cpe_debug_mode, int,
-	     S_IRUGO | S_IWUSR | S_IWGRP);
-MODULE_PARM_DESC(tasha_cpe_debug_mode, "tasha boot cpe in debug mode");
+//module_param(cpe_debug_mode, int,
+//	     S_IRUGO | S_IWUSR | S_IWGRP);
+//MODULE_PARM_DESC(cpe_debug_mode, "boot cpe in debug mode");
 
 #define TASHA_DIG_CORE_COLLAPSE_TIMER_MS  (5 * 1000)
 

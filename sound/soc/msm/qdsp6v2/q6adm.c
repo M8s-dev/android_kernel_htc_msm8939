@@ -28,6 +28,7 @@
 #include <sound/msm-dts-eagle.h>
 #include "msm-dts-srs-tm-config.h"
 #include <sound/asound.h>
+#include <sound/adsp_err.h>
 
 #define TIMEOUT_MS 1000
 
@@ -299,8 +300,7 @@ int adm_dts_eagle_set(int port_id, int copp_idx, int param_id,
 	admp.hdr.token = p_idx << 16 | copp_idx;
 	admp.hdr.opcode = ADM_CMD_SET_PP_PARAMS_V5;
 	admp.payload_addr_lsw = lower_32_bits(this_adm.outband_memmap.paddr);
-	admp.payload_addr_msw = msm_audio_populate_upper_32_bits(
-						this_adm.outband_memmap.paddr);
+	admp.payload_addr_msw = upper_32_bits(this_adm.outband_memmap.paddr);
 	admp.mem_map_handle = atomic_read(&this_adm.mem_map_handles[
 					  ADM_DTS_EAGLE]);
 	admp.payload_size = size + sizeof(struct adm_param_data_v5);
@@ -408,8 +408,7 @@ int adm_dts_eagle_get(int port_id, int copp_idx, int param_id,
 	admp.hdr.opcode = ADM_CMD_GET_PP_PARAMS_V5;
 	admp.data_payload_addr_lsw =
 				lower_32_bits(this_adm.outband_memmap.paddr);
-	admp.data_payload_addr_msw =
-				msm_audio_populate_upper_32_bits(
+	admp.data_payload_addr_msw = upper_32_bits(
 						this_adm.outband_memmap.paddr);
 	admp.mem_map_handle = atomic_read(&this_adm.mem_map_handles[
 					  ADM_DTS_EAGLE]);
